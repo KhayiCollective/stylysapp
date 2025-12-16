@@ -34,9 +34,7 @@ const Index = () => {
             <p className="uppercase tracking-[0.3em] text-xs text-muted-foreground mb-6 animate-fade-in">
               For Fashion E-Commerce Brands
             </p>
-            <h1 className="text-5xl lg:text-8xl leading-[0.95] mb-8 animate-slide-up md:text-6xl font-serif font-light">STYLS
-AI-Powered
-Outfit Styling<br />
+            <h1 className="text-5xl lg:text-8xl leading-[0.95] mb-8 animate-slide-up md:text-6xl font-serif font-light">AI-Powered <br />
               <span className="italic">Outfit Styling</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-12 animate-slide-up opacity-0 stagger-2">
