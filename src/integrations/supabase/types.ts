@@ -41,6 +41,65 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          avoided_colors: Json | null
+          body_shape: string | null
+          brand_id: string
+          budget_range: Json | null
+          created_at: string
+          email: string | null
+          external_id: string | null
+          id: string
+          occasions: Json | null
+          preferred_colors: Json | null
+          quiz_completed_at: string | null
+          size_info: Json | null
+          style_preferences: Json | null
+          updated_at: string
+        }
+        Insert: {
+          avoided_colors?: Json | null
+          body_shape?: string | null
+          brand_id: string
+          budget_range?: Json | null
+          created_at?: string
+          email?: string | null
+          external_id?: string | null
+          id?: string
+          occasions?: Json | null
+          preferred_colors?: Json | null
+          quiz_completed_at?: string | null
+          size_info?: Json | null
+          style_preferences?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          avoided_colors?: Json | null
+          body_shape?: string | null
+          brand_id?: string
+          budget_range?: Json | null
+          created_at?: string
+          email?: string | null
+          external_id?: string | null
+          id?: string
+          occasions?: Json | null
+          preferred_colors?: Json | null
+          quiz_completed_at?: string | null
+          size_info?: Json | null
+          style_preferences?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outfit_items: {
         Row: {
           created_at: string
@@ -219,6 +278,70 @@ export type Database = {
           },
         ]
       }
+      recommendations: {
+        Row: {
+          added_to_cart_at: string | null
+          brand_id: string
+          clicked_at: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          occasion: string | null
+          outfit_id: string | null
+          purchased_at: string | null
+          reason: string | null
+          viewed_at: string | null
+        }
+        Insert: {
+          added_to_cart_at?: string | null
+          brand_id: string
+          clicked_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          occasion?: string | null
+          outfit_id?: string | null
+          purchased_at?: string | null
+          reason?: string | null
+          viewed_at?: string | null
+        }
+        Update: {
+          added_to_cart_at?: string | null
+          brand_id?: string
+          clicked_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          occasion?: string | null
+          outfit_id?: string | null
+          purchased_at?: string | null
+          reason?: string | null
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendations_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendations_outfit_id_fkey"
+            columns: ["outfit_id"]
+            isOneToOne: false
+            referencedRelation: "outfits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rules: {
         Row: {
           brand_id: string
@@ -280,6 +403,65 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      widget_config: {
+        Row: {
+          border_radius: string | null
+          brand_id: string
+          cart_api_endpoint: string | null
+          cart_integration_type: string | null
+          created_at: string
+          font_family: string | null
+          id: string
+          max_recommendations: number | null
+          primary_color: string | null
+          quiz_enabled: boolean | null
+          quiz_questions: Json | null
+          secondary_color: string | null
+          show_prices: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          border_radius?: string | null
+          brand_id: string
+          cart_api_endpoint?: string | null
+          cart_integration_type?: string | null
+          created_at?: string
+          font_family?: string | null
+          id?: string
+          max_recommendations?: number | null
+          primary_color?: string | null
+          quiz_enabled?: boolean | null
+          quiz_questions?: Json | null
+          secondary_color?: string | null
+          show_prices?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          border_radius?: string | null
+          brand_id?: string
+          cart_api_endpoint?: string | null
+          cart_integration_type?: string | null
+          created_at?: string
+          font_family?: string | null
+          id?: string
+          max_recommendations?: number | null
+          primary_color?: string | null
+          quiz_enabled?: boolean | null
+          quiz_questions?: Json | null
+          secondary_color?: string | null
+          show_prices?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "widget_config_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
