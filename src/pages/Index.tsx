@@ -10,7 +10,7 @@ const Index = () => {
             <div className="w-8 h-8 bg-foreground rounded-sm flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-background" />
             </div>
-            <span className="font-display text-xl font-semibold">STYLS</span>
+            <span className="font-display text-xl font-semibold">STYLYS</span>
           </Link>
           <div className="flex items-center gap-4">
             <Link to="/dashboard">
@@ -34,8 +34,8 @@ const Index = () => {
             <p className="uppercase tracking-[0.3em] text-xs text-muted-foreground mb-6 animate-fade-in">
               For Fashion E-Commerce Brands
             </p>
-            <h1 className="text-5xl lg:text-8xl leading-[0.95] mb-8 animate-slide-up md:text-6xl font-serif font-light">STYLS
-AI-Powered
+            <h1 className="text-5xl lg:text-8xl leading-[0.95] mb-8 animate-slide-up md:text-6xl font-serif font-light">STYLYS
+STYLS AI-Powered Outfit Styling
 Outfit Styling<br />
               <span className="italic">Outfit Styling</span>
             </h1>
@@ -108,9 +108,9 @@ Outfit Styling<br />
             <div className="w-6 h-6 bg-foreground rounded-sm flex items-center justify-center">
               <Sparkles className="w-3 h-3 text-background" />
             </div>
-            <span className="font-display text-sm">STYLS</span>
+            <span className="font-display text-sm">STYLYS</span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2025 STYLS. Built for fashion e-commerce.</p>
+          <p className="text-sm text-muted-foreground">© 2025 STYLYS. Built for fashion e-commerce.</p>
         </div>
       </footer>
     </div>;
