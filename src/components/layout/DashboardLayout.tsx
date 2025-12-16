@@ -1,37 +1,42 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Package, 
-  Wand2, 
-  Settings2, 
-  ExternalLink,
-  Sparkles,
-  Menu
-} from "lucide-react";
+import { LayoutDashboard, Package, Wand2, Settings2, ExternalLink, Sparkles, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-
 interface DashboardLayoutProps {
   children: ReactNode;
   title: string;
   description?: string;
 }
-
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Catalog", href: "/catalog", icon: Package },
-  { name: "Outfit Generator", href: "/generator", icon: Wand2 },
-  { name: "Rules", href: "/rules", icon: Settings2 },
-  { name: "Widget Demo", href: "/widget", icon: ExternalLink },
-];
-
-export function DashboardLayout({ children, title, description }: DashboardLayoutProps) {
+const navigation = [{
+  name: "Dashboard",
+  href: "/dashboard",
+  icon: LayoutDashboard
+}, {
+  name: "Catalog",
+  href: "/catalog",
+  icon: Package
+}, {
+  name: "Outfit Generator",
+  href: "/generator",
+  icon: Wand2
+}, {
+  name: "Rules",
+  href: "/rules",
+  icon: Settings2
+}, {
+  name: "Widget Demo",
+  href: "/widget",
+  icon: ExternalLink
+}];
+export function DashboardLayout({
+  children,
+  title,
+  description
+}: DashboardLayoutProps) {
   const location = useLocation();
-
-  return (
-    <div className="min-h-screen bg-background flex">
+  return <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-sidebar">
         <div className="p-6 border-b border-sidebar-border">
@@ -44,25 +49,15 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
         </div>
         <nav className="flex-1 p-4">
           <ul className="space-y-1">
-            {navigation.map((item) => {
-              const isActive = location.pathname === item.href;
-              return (
-                <li key={item.name}>
-                  <Link
-                    to={item.href}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                      isActive 
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground" 
-                        : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-                    )}
-                  >
+            {navigation.map(item => {
+            const isActive = location.pathname === item.href;
+            return <li key={item.name}>
+                  <Link to={item.href} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent/50")}>
                     <item.icon className="w-4 h-4" />
                     {item.name}
                   </Link>
-                </li>
-              );
-            })}
+                </li>;
+          })}
           </ul>
         </nav>
         <div className="p-4 border-t border-sidebar-border">
@@ -80,7 +75,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
             <div className="w-7 h-7 bg-foreground rounded-sm flex items-center justify-center">
               <Sparkles className="w-3.5 h-3.5 text-background" />
             </div>
-            <span className="font-display text-lg font-semibold">Outfit Builder</span>
+            <span className="font-display text-lg font-semibold">STYLYS</span>
           </Link>
           <Sheet>
             <SheetTrigger asChild>
@@ -99,25 +94,15 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
               </div>
               <nav className="p-4">
                 <ul className="space-y-1">
-                  {navigation.map((item) => {
-                    const isActive = location.pathname === item.href;
-                    return (
-                      <li key={item.name}>
-                        <Link
-                          to={item.href}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                            isActive 
-                              ? "bg-accent text-accent-foreground" 
-                              : "text-muted-foreground hover:bg-accent/50"
-                          )}
-                        >
+                  {navigation.map(item => {
+                  const isActive = location.pathname === item.href;
+                  return <li key={item.name}>
+                        <Link to={item.href} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors", isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50")}>
                           <item.icon className="w-4 h-4" />
                           {item.name}
                         </Link>
-                      </li>
-                    );
-                  })}
+                      </li>;
+                })}
                 </ul>
               </nav>
             </SheetContent>
@@ -132,9 +117,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
           <header className="border-b border-border bg-background/50 backdrop-blur-sm sticky top-14 lg:top-0 z-40">
             <div className="px-6 lg:px-8 py-6">
               <h1 className="font-display text-2xl lg:text-3xl font-medium">{title}</h1>
-              {description && (
-                <p className="text-muted-foreground mt-1">{description}</p>
-              )}
+              {description && <p className="text-muted-foreground mt-1">{description}</p>}
             </div>
           </header>
 
@@ -144,6 +127,5 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
           </div>
         </div>
       </main>
-    </div>
-  );
+    </div>;
 }
