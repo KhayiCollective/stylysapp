@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
-
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -14,39 +13,45 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [brandName, setBrandName] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const { signIn, signUp } = useAuth();
+  const {
+    signIn,
+    signUp
+  } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       if (isLogin) {
-        const { error } = await signIn(email, password);
+        const {
+          error
+        } = await signIn(email, password);
         if (error) {
           toast({
             title: "Login failed",
             description: error.message,
-            variant: "destructive",
+            variant: "destructive"
           });
         } else {
           navigate('/dashboard');
         }
       } else {
-        const { error } = await signUp(email, password, fullName, brandName);
+        const {
+          error
+        } = await signUp(email, password, fullName, brandName);
         if (error) {
           toast({
             title: "Sign up failed",
             description: error.message,
-            variant: "destructive",
+            variant: "destructive"
           });
         } else {
           toast({
             title: "Account created!",
-            description: "Welcome to AI Stylist. Redirecting to dashboard...",
+            description: "Welcome to AI Stylist. Redirecting to dashboard..."
           });
           navigate('/dashboard');
         }
@@ -55,9 +60,7 @@ export default function Auth() {
       setLoading(false);
     }
   };
-
-  return (
-    <div className="min-h-screen bg-background flex">
+  return <div className="min-h-screen bg-background flex">
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/80" />
@@ -104,7 +107,7 @@ export default function Auth() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
             <Sparkles className="h-6 w-6 text-primary" />
-            <span className="text-xl font-display font-semibold">AI Stylist</span>
+            <span className="text-xl font-display font-semibold">STYLYS</span>
           </div>
 
           <div className="text-center mb-8">
@@ -112,29 +115,19 @@ export default function Auth() {
               {isLogin ? 'Welcome back' : 'Create your account'}
             </h2>
             <p className="mt-2 text-muted-foreground">
-              {isLogin 
-                ? 'Sign in to access your dashboard' 
-                : 'Start building AI-powered outfits today'}
+              {isLogin ? 'Sign in to access your dashboard' : 'Start building AI-powered outfits today'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLogin && (
-              <>
+            {!isLogin && <>
                 <div className="space-y-2">
                   <Label htmlFor="fullName" className="text-sm font-medium">
                     Full Name
                   </Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="fullName"
-                      type="text"
-                      placeholder="John Doe"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="pl-10"
-                    />
+                    <Input id="fullName" type="text" placeholder="John Doe" value={fullName} onChange={e => setFullName(e.target.value)} className="pl-10" />
                   </div>
                 </div>
 
@@ -144,18 +137,10 @@ export default function Auth() {
                   </Label>
                   <div className="relative">
                     <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="brandName"
-                      type="text"
-                      placeholder="My Fashion Brand"
-                      value={brandName}
-                      onChange={(e) => setBrandName(e.target.value)}
-                      className="pl-10"
-                    />
+                    <Input id="brandName" type="text" placeholder="My Fashion Brand" value={brandName} onChange={e => setBrandName(e.target.value)} className="pl-10" />
                   </div>
                 </div>
-              </>
-            )}
+              </>}
 
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">
@@ -163,15 +148,7 @@ export default function Auth() {
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="pl-10"
-                />
+                <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required className="pl-10" />
               </div>
             </div>
 
@@ -181,53 +158,27 @@ export default function Auth() {
               </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className="pl-10"
-                />
+                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="pl-10" />
               </div>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full h-11 font-medium"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
+            <Button type="submit" className="w-full h-11 font-medium" disabled={loading}>
+              {loading ? <span className="flex items-center gap-2">
                   <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                   {isLogin ? 'Signing in...' : 'Creating account...'}
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
+                </span> : <span className="flex items-center gap-2">
                   {isLogin ? 'Sign in' : 'Create account'}
                   <ArrowRight className="h-4 w-4" />
-                </span>
-              )}
+                </span>}
             </Button>
           </form>
 
           <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {isLogin ? (
-                <>Don't have an account? <span className="text-primary font-medium">Sign up</span></>
-              ) : (
-                <>Already have an account? <span className="text-primary font-medium">Sign in</span></>
-              )}
+            <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              {isLogin ? <>Don't have an account? <span className="text-primary font-medium">Sign up</span></> : <>Already have an account? <span className="text-primary font-medium">Sign in</span></>}
             </button>
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 }
