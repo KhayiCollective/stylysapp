@@ -1,145 +1,325 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles, ShoppingBag, BarChart3 } from "lucide-react";
+import { ArrowRight, Zap, Sparkles, Users, TrendingUp, Check, Calendar, CreditCard } from "lucide-react";
+import heroModel from "@/assets/hero-model.jpg";
+
 const Index = () => {
-  return <div className="min-h-screen bg-background">
+  return (
+    <div className="min-h-screen bg-[hsl(35,30%,95%)]">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
-        <div className="editorial-container flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-foreground rounded-sm flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-background" />
-            </div>
-            <span className="font-display text-xl font-semibold">STYLYS</span>
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(35,30%,95%)]/90 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
+          <Link to="/" className="font-display text-2xl font-bold tracking-tight text-foreground">
+            STYLYS
           </Link>
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard">
-              <Button variant="ghost" size="sm">
-                Dashboard
-              </Button>
-            </Link>
-            <Link to="/widget">
-              <Button variant="editorial-outline" size="sm">
-                View Demo
-              </Button>
-            </Link>
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Features
+            </a>
+            <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Pricing
+            </a>
+            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              How It Works
+            </a>
           </div>
+          <Link to="/auth">
+            <Button variant="default" className="rounded-full bg-foreground text-background hover:bg-foreground/90">
+              Sign In
+            </Button>
+          </Link>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 md:pt-40 md:pb-32">
-        <div className="editorial-container">
-          <div className="max-w-4xl mx-auto text-center">
-            <p className="uppercase tracking-[0.3em] text-xs text-muted-foreground mb-6 animate-fade-in">
-              For Fashion E-Commerce Brands
-            </p>
-            <h1 className="text-5xl lg:text-8xl leading-[0.95] mb-8 animate-slide-up md:text-6xl font-serif font-light">STYLYS
-STYLS AI-Powered Outfit Styling
-Outfit Styling<br />
-              <span className="italic">Outfit Styling</span>
-            </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-12 animate-slide-up opacity-0 stagger-2">
-              Automatically generate complete outfits from your product catalog. 
-              Increase average order value and reduce returns with intelligent styling recommendations.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up opacity-0 stagger-3">
-              <Link to="/dashboard">
-                <Button variant="editorial" size="xl" className="group">
-                  Get Started
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-              <Link to="/widget">
-                <Button variant="editorial-outline" size="xl">
-                  See Demo
-                </Button>
-              </Link>
+      <section className="pt-28 pb-20 md:pt-32 md:pb-28">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="space-y-8">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-background rounded-full border border-border shadow-sm">
+                <Zap className="w-4 h-4 text-foreground" />
+                <span className="text-sm font-medium">AI-Powered Outfit Builder for E-Commerce</span>
+              </div>
+              
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold leading-[1.1] text-foreground">
+                Increase Sales with AI Outfit Recommendations
+              </h1>
+              
+              <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
+                Add intelligent outfit building to your Shopify or WooCommerce store. Help customers discover complete looks and increase your average order value by 35%.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link to="/auth">
+                  <Button size="lg" className="rounded-full bg-foreground text-background hover:bg-foreground/90 px-8 h-14 text-base font-semibold">
+                    Start Free Trial
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </Link>
+                <a href="#pricing">
+                  <Button size="lg" variant="outline" className="rounded-full px-8 h-14 text-base font-semibold border-foreground/20 hover:bg-foreground/5">
+                    View Pricing
+                  </Button>
+                </a>
+              </div>
+              
+              <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-500" />
+                  3-day free trial
+                </span>
+                <span className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-500" />
+                  No credit card required
+                </span>
+              </div>
+            </div>
+            
+            <div className="relative lg:justify-self-end">
+              <div className="relative rounded-2xl overflow-hidden shadow-2xl max-w-md mx-auto lg:mx-0">
+                <img 
+                  src={heroModel} 
+                  alt="Fashion model showcasing STYLYS AI styling" 
+                  className="w-full h-auto object-cover"
+                />
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-background/95 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg">
+                  <p className="font-display font-bold text-lg tracking-wide">STYLY<span className="bg-foreground text-background px-2 py-0.5 ml-1 rounded">S</span></p>
+                  <p className="text-sm text-muted-foreground mt-1">AI Driven Stylist<br />for Your Ecommerce Store</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="editorial-spacing bg-muted/30">
-        <div className="editorial-container">
-          <div className="grid md:grid-cols-3 gap-8">
-            <FeatureCard icon={<ShoppingBag className="w-6 h-6" />} title="Catalog Integration" description="Upload your product catalog and let our AI understand your inventory, styles, and color palettes." delay={1} />
-            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="Smart Outfit Generation" description="Rule-based styling that considers category balance, color harmony, and fit compatibility." delay={2} />
-            <FeatureCard icon={<BarChart3 className="w-6 h-6" />} title="Increase AOV" description="Complete-the-look recommendations that drive higher cart values and customer satisfaction." delay={3} />
+      {/* Features Section */}
+      <section id="features" className="py-20 bg-background">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
+              Everything You Need to Boost Sales
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Powerful features designed to help fashion and apparel brands sell more
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-6">
+            <FeatureCard 
+              icon={<Sparkles className="w-6 h-6" />}
+              title="AI-Powered Recommendations"
+              description="Our AI creates personalized outfit combinations that increase average order value by 35%"
+            />
+            <FeatureCard 
+              icon={<Calendar className="w-6 h-6" />}
+              title="Seamless Integration"
+              description="One-click integration with Shopify and WooCommerce. Get up and running in minutes."
+            />
+            <FeatureCard 
+              icon={<Users className="w-6 h-6" />}
+              title="Customer Engagement"
+              description="Let customers save outfits, build wish lists, and get personalized style recommendations"
+            />
+            <FeatureCard 
+              icon={<TrendingUp className="w-6 h-6" />}
+              title="Analytics Dashboard"
+              description="Track which products are trending, outfit performance, and customer preferences"
+            />
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="editorial-spacing">
-        <div className="editorial-container">
-          <div className="grid md:grid-cols-4 gap-8 text-center">
-            <StatCard value="35%" label="Higher AOV" />
-            <StatCard value="22%" label="Fewer Returns" />
-            <StatCard value="3x" label="Faster Styling" />
-            <StatCard value="100%" label="On-Brand" />
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 bg-[hsl(35,30%,95%)]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Choose the plan that fits your business. All plans include a 3-day free trial.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            <PricingCard 
+              title="Starter"
+              subtitle="Perfect for growing brands"
+              price="$14.99"
+              features={[
+                "Up to 500 products",
+                "AI outfit recommendations",
+                "Basic analytics dashboard",
+                "Shopify & WooCommerce integration",
+                "Email support"
+              ]}
+              buttonText="Start Free Trial"
+            />
+            <PricingCard 
+              title="Professional"
+              subtitle="For established brands"
+              price="$29.99"
+              featured
+              features={[
+                "Up to 1,000 products",
+                "Advanced AI outfit generation",
+                "Full analytics & insights",
+                "Priority integrations",
+                "Customer preference tracking",
+                "Priority support"
+              ]}
+              buttonText="Start Free Trial"
+            />
+            <PricingCard 
+              title="Enterprise"
+              subtitle="For large-scale operations"
+              price="Custom"
+              features={[
+                "Unlimited products",
+                "Custom AI training",
+                "White-label options",
+                "Dedicated account manager",
+                "Custom integrations",
+                "24/7 premium support"
+              ]}
+              buttonText="Contact Sales"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section id="how-it-works" className="py-20 bg-background">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
+              Get Started in Minutes
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Install STYLYS on your store and start selling complete outfits today
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-12 max-w-4xl mx-auto">
+            <StepCard 
+              number="01"
+              title="Connect Your Store"
+              description="One-click integration with Shopify or WooCommerce. Sync your entire product catalog automatically."
+            />
+            <StepCard 
+              number="02"
+              title="AI Does the Work"
+              description="Our AI analyzes your products and creates smart outfit combinations based on style, color, and trends."
+            />
+            <StepCard 
+              number="03"
+              title="Customers Buy More"
+              description="Shoppers discover complete looks and add multiple items to cart. Watch your AOV increase."
+            />
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="editorial-spacing bg-foreground text-background">
-        <div className="editorial-container text-center">
-          <h2 className="font-display text-4xl md:text-5xl font-medium mb-6">
-            Ready to transform your store?
+      <section className="py-24 bg-foreground">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <h2 className="text-4xl md:text-5xl font-display font-bold text-background mb-6">
+            Ready to Boost Your Sales?
           </h2>
-          <p className="text-background/70 max-w-xl mx-auto mb-10">
-            Join leading fashion brands using AI-powered outfit recommendations to boost sales and delight customers.
+          <p className="text-lg text-background/70 mb-10 max-w-2xl mx-auto">
+            Join hundreds of fashion brands using AI to sell more and delight customers
           </p>
-          <Link to="/dashboard">
-            <Button variant="outline" size="xl" className="border-background/30 text-background hover:bg-background hover:text-foreground rounded-none uppercase tracking-widest text-xs font-semibold">
-              Start Building Outfits
-              <ArrowRight className="w-4 h-4" />
+          <Link to="/auth">
+            <Button size="lg" className="rounded-full bg-background text-foreground hover:bg-background/90 px-10 h-14 text-base font-semibold">
+              Start Your Free Trial
+              <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>
+          <p className="text-sm text-background/50 mt-6">
+            No credit card required • 3-day free trial • Cancel anytime
+          </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-border">
-        <div className="editorial-container flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-foreground rounded-sm flex items-center justify-center">
-              <Sparkles className="w-3 h-3 text-background" />
-            </div>
-            <span className="font-display text-sm">STYLYS</span>
-          </div>
-          <p className="text-sm text-muted-foreground">© 2025 STYLYS. Built for fashion e-commerce.</p>
+      <footer className="py-8 bg-background border-t border-border">
+        <div className="max-w-7xl mx-auto px-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            © 2025 STYLYS. All rights reserved.
+          </p>
         </div>
       </footer>
-    </div>;
+    </div>
+  );
 };
-const FeatureCard = ({
-  icon,
-  title,
-  description,
-  delay
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  delay: number;
-}) => <div className={`card-editorial p-8 animate-slide-up opacity-0 stagger-${delay}`}>
-    <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center mb-6">
+
+const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
+  <div className="bg-background border border-border rounded-xl p-8 hover:shadow-lg transition-shadow">
+    <div className="w-12 h-12 bg-foreground rounded-xl flex items-center justify-center mb-6 text-background">
       {icon}
     </div>
-    <h3 className="font-display text-xl font-medium mb-3">{title}</h3>
+    <h3 className="font-display text-xl font-bold text-foreground mb-3">{title}</h3>
     <p className="text-muted-foreground leading-relaxed">{description}</p>
-  </div>;
-const StatCard = ({
-  value,
-  label
-}: {
-  value: string;
-  label: string;
-}) => <div className="py-6">
-    <p className="font-display text-4xl md:text-5xl font-medium mb-2">{value}</p>
-    <p className="text-muted-foreground uppercase tracking-widest text-xs">{label}</p>
-  </div>;
+  </div>
+);
+
+const PricingCard = ({ 
+  title, 
+  subtitle, 
+  price, 
+  features, 
+  buttonText, 
+  featured = false 
+}: { 
+  title: string; 
+  subtitle: string; 
+  price: string; 
+  features: string[]; 
+  buttonText: string; 
+  featured?: boolean; 
+}) => (
+  <div className={`rounded-2xl p-8 ${featured ? 'bg-foreground text-background scale-105 shadow-2xl' : 'bg-background border border-border'}`}>
+    {featured && (
+      <span className="inline-block px-3 py-1 bg-background/10 rounded-full text-xs font-semibold mb-4">
+        Most Popular
+      </span>
+    )}
+    <h3 className={`font-display text-2xl font-bold ${featured ? 'text-background' : 'text-foreground'}`}>{title}</h3>
+    <p className={`text-sm mt-1 ${featured ? 'text-background/70' : 'text-muted-foreground'}`}>{subtitle}</p>
+    <div className="mt-6 mb-8">
+      <span className={`text-5xl font-display font-bold ${featured ? 'text-background' : 'text-foreground'}`}>{price}</span>
+      {price !== "Custom" && <span className={`text-sm ${featured ? 'text-background/70' : 'text-muted-foreground'}`}>/month</span>}
+    </div>
+    <ul className="space-y-4 mb-8">
+      {features.map((feature, index) => (
+        <li key={index} className="flex items-start gap-3">
+          <Check className={`w-5 h-5 mt-0.5 ${featured ? 'text-emerald-400' : 'text-emerald-500'}`} />
+          <span className={`text-sm ${featured ? 'text-background/90' : 'text-muted-foreground'}`}>{feature}</span>
+        </li>
+      ))}
+    </ul>
+    <Link to={buttonText === "Contact Sales" ? "#" : "/auth"}>
+      <Button 
+        className={`w-full rounded-xl h-12 font-semibold ${
+          featured 
+            ? 'bg-background text-foreground hover:bg-background/90' 
+            : 'bg-foreground text-background hover:bg-foreground/90'
+        }`}
+      >
+        {buttonText}
+      </Button>
+    </Link>
+  </div>
+);
+
+const StepCard = ({ number, title, description }: { number: string; title: string; description: string }) => (
+  <div className="text-center">
+    <div className="w-16 h-16 bg-foreground rounded-full flex items-center justify-center mx-auto mb-6">
+      <span className="text-background font-display font-bold text-lg">{number}</span>
+    </div>
+    <h3 className="font-display text-xl font-bold text-foreground mb-3">{title}</h3>
+    <p className="text-muted-foreground leading-relaxed">{description}</p>
+  </div>
+);
+
 export default Index;
