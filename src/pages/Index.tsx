@@ -82,10 +82,6 @@ const Index = () => {
                   alt="Fashion model showcasing STYLYS AI styling" 
                   className="w-full h-auto object-cover"
                 />
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-background/95 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg">
-                  <p className="font-display font-bold text-lg tracking-wide">STYLY<span className="bg-foreground text-background px-2 py-0.5 ml-1 rounded">S</span></p>
-                  <p className="text-sm text-muted-foreground mt-1">AI Driven Stylist<br />for Your Ecommerce Store</p>
-                </div>
               </div>
             </div>
           </div>

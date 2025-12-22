@@ -3,8 +3,9 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wand2, Check, RefreshCw } from "lucide-react";
+import { Wand2, Check, RefreshCw, Heart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { VirtualTryOn } from "@/components/VirtualTryOn";
 
 interface Product {
   id: string;
@@ -38,7 +39,15 @@ const OutfitGenerator = () => {
   const [selectedAnchor, setSelectedAnchor] = useState<Product | null>(null);
   const [generatedOutfits, setGeneratedOutfits] = useState<Outfit[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [tryOnProduct, setTryOnProduct] = useState<Product | null>(null);
   const { toast } = useToast();
+
+  const handleSaveOutfit = (outfit: Outfit) => {
+    toast({
+      title: "Outfit saved!",
+      description: "Added to your wishlist.",
+    });
+  };
 
   const generateOutfits = () => {
     if (!selectedAnchor) {
@@ -102,117 +111,147 @@ const OutfitGenerator = () => {
       title="Outfit Generator" 
       description="Select an anchor product and generate complete outfits"
     >
-      {/* Anchor Selection */}
-      <div className="mb-10">
-        <h2 className="font-display text-xl mb-4">1. Select Anchor Product</h2>
-        <p className="text-muted-foreground mb-6">Choose the main product to build outfits around.</p>
-        
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {mockProducts.map((product) => (
-            <div
-              key={product.id}
-              onClick={() => setSelectedAnchor(product)}
-              className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                selectedAnchor?.id === product.id 
-                  ? "border-foreground ring-2 ring-foreground/20" 
-                  : "border-transparent hover:border-border"
-              }`}
-            >
-              <div className="aspect-[3/4] bg-muted">
-                <img 
-                  src={product.imageUrl} 
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              {selectedAnchor?.id === product.id && (
-                <div className="absolute top-2 right-2 w-6 h-6 bg-foreground rounded-full flex items-center justify-center">
-                  <Check className="w-4 h-4 text-background" />
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-10">
+          {/* Anchor Selection */}
+          <div>
+            <h2 className="font-display text-xl mb-4">1. Select Anchor Product</h2>
+            <p className="text-muted-foreground mb-6">Choose the main product to build outfits around.</p>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {mockProducts.map((product) => (
+                <div
+                  key={product.id}
+                  onClick={() => setSelectedAnchor(product)}
+                  className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                    selectedAnchor?.id === product.id 
+                      ? "border-foreground ring-2 ring-foreground/20" 
+                      : "border-transparent hover:border-border"
+                  }`}
+                >
+                  <div className="aspect-[3/4] bg-muted">
+                    <img 
+                      src={product.imageUrl} 
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {selectedAnchor?.id === product.id && (
+                    <div className="absolute top-2 right-2 w-6 h-6 bg-foreground rounded-full flex items-center justify-center">
+                      <Check className="w-4 h-4 text-background" />
+                    </div>
+                  )}
+                  <div className="p-2">
+                    <p className="text-xs font-medium truncate">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">${product.price}</p>
+                  </div>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Generate Button */}
+          <div className="flex justify-center">
+            <Button 
+              variant="editorial" 
+              size="xl" 
+              onClick={generateOutfits}
+              disabled={!selectedAnchor || isGenerating}
+              className="min-w-[200px]"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Generate Outfits
+                </>
               )}
-              <div className="p-2">
-                <p className="text-xs font-medium truncate">{product.name}</p>
-                <p className="text-xs text-muted-foreground">${product.price}</p>
+            </Button>
+          </div>
+
+          {/* Generated Outfits */}
+          {generatedOutfits.length > 0 && (
+            <div>
+              <h2 className="font-display text-xl mb-4">2. Generated Outfits</h2>
+              <p className="text-muted-foreground mb-6">
+                {generatedOutfits.length} outfit combinations based on {selectedAnchor?.name}
+              </p>
+
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {generatedOutfits.map((outfit, index) => (
+                  <Card key={outfit.id} className="card-editorial overflow-hidden">
+                    <div className="p-4 border-b border-border/50">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary">Outfit {index + 1}</Badge>
+                        <span className="font-display text-lg font-medium">
+                          ${outfit.totalPrice.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        {outfit.items.map((item) => (
+                          <div 
+                            key={item.id} 
+                            className="relative cursor-pointer group/item"
+                            onClick={() => setTryOnProduct(item)}
+                          >
+                            <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+                              <img 
+                                src={item.imageUrl} 
+                                alt={item.name}
+                                className="w-full h-full object-cover group-hover/item:scale-105 transition-transform"
+                              />
+                            </div>
+                            {item.id === selectedAnchor?.id && (
+                              <Badge className="absolute top-1 left-1 text-[10px] bg-foreground text-background">
+                                Anchor
+                              </Badge>
+                            )}
+                            <p className="text-xs mt-1 truncate">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">${item.price}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                    <div className="p-4 border-t border-border/50">
+                      <Button 
+                        variant="editorial-outline" 
+                        className="w-full" 
+                        size="sm"
+                        onClick={() => handleSaveOutfit(outfit)}
+                      >
+                        <Heart className="w-4 h-4 mr-2" />
+                        Save Outfit
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Generate Button */}
-      <div className="flex justify-center mb-10">
-        <Button 
-          variant="editorial" 
-          size="xl" 
-          onClick={generateOutfits}
-          disabled={!selectedAnchor || isGenerating}
-          className="min-w-[200px]"
-        >
-          {isGenerating ? (
-            <>
-              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Wand2 className="w-4 h-4 mr-2" />
-              Generate Outfits
-            </>
           )}
-        </Button>
-      </div>
+        </div>
 
-      {/* Generated Outfits */}
-      {generatedOutfits.length > 0 && (
-        <div>
-          <h2 className="font-display text-xl mb-4">2. Generated Outfits</h2>
-          <p className="text-muted-foreground mb-6">
-            {generatedOutfits.length} outfit combinations based on {selectedAnchor?.name}
-          </p>
-
-          <div className="grid gap-8 md:grid-cols-3">
-            {generatedOutfits.map((outfit, index) => (
-              <Card key={outfit.id} className="card-editorial overflow-hidden">
-                <div className="p-4 border-b border-border/50">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="secondary">Outfit {index + 1}</Badge>
-                    <span className="font-display text-lg font-medium">
-                      ${outfit.totalPrice.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    {outfit.items.map((item) => (
-                      <div key={item.id} className="relative">
-                        <div className="aspect-square rounded-lg overflow-hidden bg-muted">
-                          <img 
-                            src={item.imageUrl} 
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        {item.id === selectedAnchor?.id && (
-                          <Badge className="absolute top-1 left-1 text-[10px] bg-foreground text-background">
-                            Anchor
-                          </Badge>
-                        )}
-                        <p className="text-xs mt-1 truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">${item.price}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-                <div className="p-4 border-t border-border/50">
-                  <Button variant="editorial-outline" className="w-full" size="sm">
-                    Save Outfit
-                  </Button>
-                </div>
-              </Card>
-            ))}
+        {/* Virtual Try-On Sidebar */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-24">
+            <VirtualTryOn 
+              productImage={tryOnProduct?.imageUrl}
+              productName={tryOnProduct?.name}
+            />
+            {!tryOnProduct && generatedOutfits.length > 0 && (
+              <p className="text-xs text-muted-foreground text-center mt-3">
+                Click any item above to try it on virtually
+              </p>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </DashboardLayout>
   );
 };
