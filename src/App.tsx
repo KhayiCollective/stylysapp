@@ -12,6 +12,7 @@ import Catalog from "./pages/Catalog";
 import OutfitGenerator from "./pages/OutfitGenerator";
 import Rules from "./pages/Rules";
 import Widget from "./pages/Widget";
+import Wishlist from "./pages/Wishlist";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/catalog" element={<ProtectedRoute><Catalog /></ProtectedRoute>} />
             <Route path="/generator" element={<ProtectedRoute><OutfitGenerator /></ProtectedRoute>} />
             <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
+            <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
             <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, Wand2, Settings2, ExternalLink, Sparkles, Menu } from "lucide-react";
+import { LayoutDashboard, Package, Wand2, Settings2, ExternalLink, Sparkles, Menu, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -21,6 +21,10 @@ const navigation = [{
   name: "Outfit Generator",
   href: "/generator",
   icon: Wand2
+}, {
+  name: "Saved Outfits",
+  href: "/wishlist",
+  icon: Heart
 }, {
   name: "Rules",
   href: "/rules",
@@ -44,7 +48,7 @@ export function DashboardLayout({
             <div className="w-8 h-8 bg-foreground rounded-sm flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-background" />
             </div>
-            <span className="font-display text-lg font-semibold">Outfit Builder</span>
+            <span className="font-display text-lg font-semibold">STYLYS</span>
           </Link>
         </div>
         <nav className="flex-1 p-4">
@@ -89,7 +93,7 @@ export function DashboardLayout({
                   <div className="w-8 h-8 bg-foreground rounded-sm flex items-center justify-center">
                     <Sparkles className="w-4 h-4 text-background" />
                   </div>
-                  <span className="font-display text-lg font-semibold">Outfit Builder</span>
+                  <span className="font-display text-lg font-semibold">STYLYS</span>
                 </Link>
               </div>
               <nav className="p-4">
