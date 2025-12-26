@@ -13,6 +13,7 @@ import OutfitGenerator from "./pages/OutfitGenerator";
 import Rules from "./pages/Rules";
 import Widget from "./pages/Widget";
 import Wishlist from "./pages/Wishlist";
+import CustomerAccount from "./pages/CustomerAccount";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
             <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
             <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
+            <Route path="/account/outfits" element={<CustomerAccount />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
