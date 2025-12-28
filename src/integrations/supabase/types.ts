@@ -20,6 +20,10 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          shopify_access_token: string | null
+          shopify_connected_at: string | null
+          shopify_store_domain: string | null
+          shopify_storefront_token: string | null
           slug: string
           updated_at: string
         }
@@ -28,6 +32,10 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          shopify_access_token?: string | null
+          shopify_connected_at?: string | null
+          shopify_store_domain?: string | null
+          shopify_storefront_token?: string | null
           slug: string
           updated_at?: string
         }
@@ -36,6 +44,10 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          shopify_access_token?: string | null
+          shopify_connected_at?: string | null
+          shopify_store_domain?: string | null
+          shopify_storefront_token?: string | null
           slug?: string
           updated_at?: string
         }
