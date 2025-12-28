@@ -16,6 +16,7 @@ import Wishlist from "./pages/Wishlist";
 import CustomerAccount from "./pages/CustomerAccount";
 import Shop from "./pages/Shop";
 import ProductDetail from "./pages/ProductDetail";
+import ShopifyConnect from "./pages/ShopifyConnect";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,8 @@ const App = () => (
             <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
             <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
             <Route path="/account/outfits" element={<CustomerAccount />} />
+            {/* Shopify Connection */}
+            <Route path="/connect-shopify" element={<ProtectedRoute><ShopifyConnect /></ProtectedRoute>} />
             {/* Shopify Store Routes */}
             <Route path="/shop" element={<Shop />} />
             <Route path="/shop/product/:handle" element={<ProductDetail />} />
