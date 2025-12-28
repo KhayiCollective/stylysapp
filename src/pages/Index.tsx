@@ -39,8 +39,7 @@ const Index = () => {
                 <span className="text-sm font-medium">AI-Powered Outfit Builder for E-Commerce</span>
               </div>
               
-              <h1 className="text-5xl md:text-6xl font-display font-bold leading-[1.1] text-foreground lg:text-6xl">Increase Sales With Your Brand's Own 
-Personal AI Stylist </h1>
+              <h1 className="text-5xl md:text-6xl font-display font-bold leading-[1.1] text-foreground lg:text-5xl">Increase Sales With Your Brand's Very Own  Personal AI Stylist </h1>
               
               <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
                 Add intelligent outfit building to your Shopify or WooCommerce store. Help customers discover complete looks and increase your average order value by 35%.
