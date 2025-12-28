@@ -1,11 +1,5 @@
 import { toast } from "sonner";
 
-// Shopify API Configuration
-const SHOPIFY_API_VERSION = '2025-07';
-const SHOPIFY_STORE_PERMANENT_DOMAIN = 'khayi-collective.myshopify.com';
-const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-const SHOPIFY_STOREFRONT_TOKEN = 'ae2f9a306a0e355289ef0b21a3e589c4';
-
 // Types
 export interface ShopifyProduct {
   node: {
@@ -207,56 +201,74 @@ const CART_CREATE_MUTATION = `
   }
 `;
 
-// Storefront API Helper
-export async function storefrontApiRequest(query: string, variables: Record<string, unknown> = {}) {
-  const response = await fetch(SHOPIFY_STOREFRONT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Storefront-Access-Token': SHOPIFY_STOREFRONT_TOKEN
-    },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-  });
-
-  if (response.status === 402) {
-    toast.error("Shopify: Payment required", {
-      description: "Shopify API access requires an active billing plan. Visit https://admin.shopify.com to upgrade.",
+// Storefront API Helper - Uses edge function proxy for multi-tenant support
+export async function storefrontApiRequest(query: string, variables: Record<string, unknown> = {}, brandId?: string): Promise<any | null> {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables,
+        brandId,
+      }),
     });
+
+    if (response.status === 402) {
+      toast.error("Shopify: Payment required", {
+        description: "Your Shopify store needs an active subscription to use the API."
+      });
+      return null;
+    }
+
+    if (response.status === 400) {
+      const errorData = await response.json();
+      if (errorData.error === "Shopify not connected for this brand") {
+        toast.error("Shopify not connected", {
+          description: "Please connect your Shopify store in settings."
+        });
+        return null;
+      }
+      return null;
+    }
+
+    if (!response.ok) {
+      console.error('Shopify proxy error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (data.errors) {
+      console.error('Shopify GraphQL errors:', data.errors);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Storefront API request failed:', error);
     return null;
   }
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  if (data.errors) {
-    throw new Error(`Error calling Shopify: ${data.errors.map((e: { message: string }) => e.message).join(', ')}`);
-  }
-
-  return data;
 }
 
 // Fetch Products
-export async function fetchProducts(first: number = 20, query?: string): Promise<ShopifyProduct[]> {
-  const data = await storefrontApiRequest(PRODUCTS_QUERY, { first, query });
-  if (!data) return [];
+export async function fetchProducts(first: number = 20, query?: string, brandId?: string): Promise<ShopifyProduct[]> {
+  const data = await storefrontApiRequest(PRODUCTS_QUERY, { first, query }, brandId);
+  if (!data?.data?.products?.edges) return [];
   return data.data.products.edges;
 }
 
 // Fetch Single Product by Handle
-export async function fetchProductByHandle(handle: string): Promise<ShopifyProduct['node'] | null> {
-  const data = await storefrontApiRequest(PRODUCT_BY_HANDLE_QUERY, { handle });
-  if (!data) return null;
+export async function fetchProductByHandle(handle: string, brandId?: string): Promise<ShopifyProduct['node'] | null> {
+  const data = await storefrontApiRequest(PRODUCT_BY_HANDLE_QUERY, { handle }, brandId);
+  if (!data?.data?.productByHandle) return null;
   return data.data.productByHandle;
 }
 
 // Create Storefront Checkout
-export async function createStorefrontCheckout(items: CartItem[]): Promise<string> {
+export async function createStorefrontCheckout(items: CartItem[], brandId?: string): Promise<string> {
   try {
     const lines = items.map(item => ({
       quantity: item.quantity,
@@ -265,7 +277,7 @@ export async function createStorefrontCheckout(items: CartItem[]): Promise<strin
 
     const cartData = await storefrontApiRequest(CART_CREATE_MUTATION, {
       input: { lines },
-    });
+    }, brandId);
 
     if (!cartData) {
       throw new Error('Failed to create cart');
@@ -292,7 +304,7 @@ export async function createStorefrontCheckout(items: CartItem[]): Promise<strin
 
 // Format price helper
 export function formatPrice(amount: string, currencyCode: string): string {
-  return new Intl.NumberFormat('en-ZA', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currencyCode,
   }).format(parseFloat(amount));

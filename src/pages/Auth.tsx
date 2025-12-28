@@ -51,9 +51,9 @@ export default function Auth() {
         } else {
           toast({
             title: "Account created!",
-            description: "Welcome to AI Stylist. Redirecting to dashboard..."
+            description: "Let's connect your Shopify store..."
           });
-          navigate('/dashboard');
+          navigate('/connect-shopify');
         }
       }
     } finally {
