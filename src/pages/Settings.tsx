@@ -10,8 +10,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { ShopifyConnection } from '@/components/ShopifyConnection';
-import { User, Building2, Loader2, Save, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ShopifyTestMode } from '@/components/ShopifyTestMode';
+import { User, Building2, Loader2, Save, LogOut, BookOpen } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -275,6 +276,27 @@ export default function Settings() {
 
         {/* Shopify Connection */}
         <ShopifyConnection />
+
+        {/* Setup Guide Link */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Shopify Setup Guide
+            </CardTitle>
+            <CardDescription>
+              Complete step-by-step guide for setting up Shopify OAuth
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" asChild>
+              <Link to="/shopify-setup">View Setup Guide</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Developer Test Mode */}
+        <ShopifyTestMode />
 
         {/* Danger Zone */}
         <Card className="border-destructive/50">
