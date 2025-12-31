@@ -14,7 +14,9 @@ import {
   Database,
   Key,
   Globe,
-  Link2
+  Link2,
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,7 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface TestResult {
   name: string;
-  status: 'pass' | 'fail' | 'pending';
+  status: 'pass' | 'fail' | 'pending' | 'warning';
   message: string;
   details?: string;
 }
@@ -34,10 +36,12 @@ export function ShopifyTestMode() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<TestResult[]>([]);
   const [mockShop, setMockShop] = useState('test-store');
+  const [functionVersion, setFunctionVersion] = useState<string | null>(null);
 
   const runTests = async () => {
     setRunning(true);
     setResults([]);
+    setFunctionVersion(null);
 
     const tests: TestResult[] = [];
 
@@ -46,11 +50,12 @@ export function ShopifyTestMode() {
       name: 'User Authentication',
       status: user ? 'pass' : 'fail',
       message: user ? 'User is authenticated' : 'No user session found',
-      details: user ? `User ID: ${user.id}` : 'Please sign in to test OAuth flow',
+      details: user ? `User: ${user.email}` : 'Please sign in to test OAuth flow',
     });
     setResults([...tests]);
 
     // Test 2: Profile & Brand ID
+    let brandId: string | null = null;
     if (user) {
       try {
         const { data: profile, error } = await supabase
@@ -59,11 +64,12 @@ export function ShopifyTestMode() {
           .eq('id', user.id)
           .single();
 
+        brandId = profile?.brand_id || null;
         tests.push({
           name: 'Profile & Brand',
           status: profile?.brand_id ? 'pass' : 'fail',
           message: profile?.brand_id ? 'Brand ID found' : 'No brand associated',
-          details: profile?.brand_id ? `Brand ID: ${profile.brand_id}` : error?.message,
+          details: profile?.brand_id ? `Brand ID: ${profile.brand_id.substring(0, 8)}...` : error?.message,
         });
       } catch (e) {
         tests.push({
@@ -76,23 +82,42 @@ export function ShopifyTestMode() {
       setResults([...tests]);
     }
 
-    // Test 3: Edge Function Availability
+    // Test 3: Edge Function Health Check
+    let edgeFunctionHealthy = false;
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=test`,
+      const healthResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=health`,
         { method: 'GET' }
       );
 
-      const isAvailable = response.status !== 404;
-      tests.push({
-        name: 'Edge Function',
-        status: isAvailable ? 'pass' : 'fail',
-        message: isAvailable ? 'shopify-oauth function is deployed' : 'Function not found',
-        details: `Status: ${response.status}`,
-      });
+      if (healthResponse.status === 404) {
+        tests.push({
+          name: 'Edge Function Health',
+          status: 'fail',
+          message: 'Function not found (404)',
+          details: 'The shopify-oauth function may not be deployed. Try redeploying.',
+        });
+      } else if (healthResponse.ok) {
+        const healthData = await healthResponse.json();
+        edgeFunctionHealthy = healthData.status === 'ok';
+        setFunctionVersion(healthData.version || null);
+        tests.push({
+          name: 'Edge Function Health',
+          status: 'pass',
+          message: 'Function is deployed and responding',
+          details: `Version: ${healthData.version || 'unknown'}, Timestamp: ${healthData.timestamp}`,
+        });
+      } else {
+        tests.push({
+          name: 'Edge Function Health',
+          status: 'warning',
+          message: `Unexpected status: ${healthResponse.status}`,
+          details: await healthResponse.text(),
+        });
+      }
     } catch (e) {
       tests.push({
-        name: 'Edge Function',
+        name: 'Edge Function Health',
         status: 'fail',
         message: 'Could not reach edge function',
         details: e instanceof Error ? e.message : 'Network error',
@@ -100,37 +125,76 @@ export function ShopifyTestMode() {
     }
     setResults([...tests]);
 
-    // Test 4: OAuth URL Generation
+    // Test 4: Edge Function Test Endpoint
+    if (edgeFunctionHealthy) {
+      try {
+        const testResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=test`,
+          { method: 'GET' }
+        );
+
+        const testData = await testResponse.json();
+        
+        const hasSecrets = testData.hasClientId && testData.hasClientSecret;
+        tests.push({
+          name: 'Shopify Credentials',
+          status: hasSecrets ? 'pass' : 'fail',
+          message: hasSecrets ? 'Client ID and Secret are configured' : 'Missing Shopify credentials',
+          details: `Client ID: ${testData.hasClientId ? '✓' : '✗'}, Client Secret: ${testData.hasClientSecret ? '✓' : '✗'}`,
+        });
+      } catch (e) {
+        tests.push({
+          name: 'Shopify Credentials',
+          status: 'fail',
+          message: 'Could not verify credentials',
+          details: e instanceof Error ? e.message : 'Unknown error',
+        });
+      }
+      setResults([...tests]);
+    }
+
+    // Test 5: OAuth URL Generation
     try {
       const redirectUri = `${window.location.origin}/connect-shopify`;
-      const state = btoa(JSON.stringify({ brand_id: 'test-brand-id' }));
+      const state = btoa(JSON.stringify({ brand_id: brandId || 'test-brand-id' }));
       
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=authorize&shop=${mockShop}.myshopify.com&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`,
         { method: 'GET' }
       );
 
-      const result = await response.json();
-
-      if (result.authUrl) {
-        const hasClientId = result.authUrl.includes('client_id=') && !result.authUrl.includes('client_id=&');
+      if (response.status === 404) {
         tests.push({
-          name: 'OAuth URL',
-          status: hasClientId ? 'pass' : 'fail',
-          message: hasClientId ? 'OAuth URL generated with Client ID' : 'Client ID missing in OAuth URL',
-          details: hasClientId ? 'SHOPIFY_CLIENT_ID is configured' : 'Check SHOPIFY_CLIENT_ID secret',
+          name: 'OAuth URL Generation',
+          status: 'fail',
+          message: 'Edge function not found',
+          details: 'The function needs to be deployed',
         });
       } else {
-        tests.push({
-          name: 'OAuth URL',
-          status: 'fail',
-          message: result.error || 'Failed to generate OAuth URL',
-          details: JSON.stringify(result),
-        });
+        const result = await response.json();
+
+        if (result.authUrl) {
+          const hasClientId = result.authUrl.includes('client_id=') && !result.authUrl.includes('client_id=&');
+          tests.push({
+            name: 'OAuth URL Generation',
+            status: hasClientId ? 'pass' : 'fail',
+            message: hasClientId ? 'OAuth URL generated successfully' : 'Client ID missing in OAuth URL',
+            details: hasClientId 
+              ? `URL points to: ${mockShop}.myshopify.com` 
+              : 'Check SHOPIFY_CLIENT_ID secret',
+          });
+        } else {
+          tests.push({
+            name: 'OAuth URL Generation',
+            status: 'fail',
+            message: result.error || 'Failed to generate OAuth URL',
+            details: JSON.stringify(result).substring(0, 100),
+          });
+        }
       }
     } catch (e) {
       tests.push({
-        name: 'OAuth URL',
+        name: 'OAuth URL Generation',
         status: 'fail',
         message: 'Error testing OAuth URL generation',
         details: e instanceof Error ? e.message : 'Unknown error',
@@ -138,34 +202,33 @@ export function ShopifyTestMode() {
     }
     setResults([...tests]);
 
-    // Test 5: Database Connection Check
-    if (user) {
+    // Test 6: Database Connection Status
+    if (user && brandId) {
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('brand_id')
-          .eq('id', user.id)
+        const { data: brand, error } = await supabase
+          .from('brands')
+          .select('shopify_store_domain, shopify_connected_at, shopify_access_token, shopify_storefront_token')
+          .eq('id', brandId)
           .single();
 
-        if (profile?.brand_id) {
-          const { data: brand, error } = await supabase
-            .from('brands')
-            .select('shopify_store_domain, shopify_connected_at')
-            .eq('id', profile.brand_id)
-            .single();
+        if (error) throw error;
 
-          tests.push({
-            name: 'Database Write Access',
-            status: 'pass',
-            message: 'Can read brand data',
-            details: brand?.shopify_connected_at 
-              ? `Already connected: ${brand.shopify_store_domain}`
-              : 'No Shopify connection yet',
-          });
-        }
+        const hasConnection = !!brand?.shopify_connected_at;
+        const hasTokens = !!brand?.shopify_access_token && !!brand?.shopify_storefront_token;
+        
+        tests.push({
+          name: 'Shopify Connection Status',
+          status: hasConnection ? (hasTokens ? 'pass' : 'warning') : 'pending',
+          message: hasConnection 
+            ? `Connected to ${brand.shopify_store_domain}` 
+            : 'No Shopify connection yet',
+          details: hasConnection 
+            ? `Access Token: ${brand.shopify_access_token ? '✓' : '✗'}, Storefront Token: ${brand.shopify_storefront_token ? '✓' : '✗'}`
+            : 'Complete OAuth flow to connect',
+        });
       } catch (e) {
         tests.push({
-          name: 'Database Write Access',
+          name: 'Shopify Connection Status',
           status: 'fail',
           message: 'Cannot access brands table',
           details: e instanceof Error ? e.message : 'Check RLS policies',
@@ -266,6 +329,32 @@ export function ShopifyTestMode() {
     }
   };
 
+  const getStatusIcon = (status: TestResult['status']) => {
+    switch (status) {
+      case 'pass':
+        return <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />;
+      case 'fail':
+        return <XCircle className="h-5 w-5 text-red-600 mt-0.5" />;
+      case 'warning':
+        return <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />;
+      case 'pending':
+        return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mt-0.5" />;
+    }
+  };
+
+  const getStatusBg = (status: TestResult['status']) => {
+    switch (status) {
+      case 'pass':
+        return 'bg-green-50 dark:bg-green-900/20';
+      case 'fail':
+        return 'bg-red-50 dark:bg-red-900/20';
+      case 'warning':
+        return 'bg-yellow-50 dark:bg-yellow-900/20';
+      case 'pending':
+        return 'bg-muted';
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -274,6 +363,11 @@ export function ShopifyTestMode() {
             <CardTitle className="flex items-center gap-2">
               <TestTube className="h-5 w-5" />
               Developer Test Mode
+              {functionVersion && (
+                <Badge variant="outline" className="text-xs ml-2">
+                  v{functionVersion}
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
               Test and debug your Shopify OAuth integration
@@ -306,6 +400,9 @@ export function ShopifyTestMode() {
                 </>
               )}
             </Button>
+            <span className="text-sm text-muted-foreground">
+              Tests edge function, secrets, and database
+            </span>
           </div>
 
           {/* Test Results */}
@@ -314,25 +411,16 @@ export function ShopifyTestMode() {
               {results.map((result, i) => (
                 <div 
                   key={i} 
-                  className={`flex items-start gap-3 p-3 rounded-lg ${
-                    result.status === 'pass' 
-                      ? 'bg-green-50 dark:bg-green-900/20' 
-                      : result.status === 'fail'
-                      ? 'bg-red-50 dark:bg-red-900/20'
-                      : 'bg-muted'
-                  }`}
+                  className={`flex items-start gap-3 p-3 rounded-lg ${getStatusBg(result.status)}`}
                 >
-                  {result.status === 'pass' ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                  ) : result.status === 'fail' ? (
-                    <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                  ) : (
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mt-0.5" />
-                  )}
+                  {getStatusIcon(result.status)}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{result.name}</span>
-                      <Badge variant={result.status === 'pass' ? 'secondary' : 'destructive'} className="text-xs">
+                      <Badge 
+                        variant={result.status === 'pass' ? 'secondary' : result.status === 'warning' ? 'outline' : 'destructive'} 
+                        className="text-xs"
+                      >
                         {result.status}
                       </Badge>
                     </div>
@@ -369,6 +457,7 @@ export function ShopifyTestMode() {
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={simulateMockConnection}>
+                    <Zap className="h-4 w-4 mr-1" />
                     Create Mock Connection
                   </Button>
                   <Button variant="destructive" size="sm" onClick={clearMockConnection}>
@@ -402,6 +491,13 @@ export function ShopifyTestMode() {
               <span className="text-muted-foreground">Supabase URL:</span>
               <code className="bg-muted px-2 py-0.5 rounded text-xs truncate max-w-[300px]">
                 {import.meta.env.VITE_SUPABASE_URL || 'Not set'}
+              </code>
+            </div>
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Edge Function:</span>
+              <code className="bg-muted px-2 py-0.5 rounded text-xs">
+                shopify-oauth
               </code>
             </div>
           </div>

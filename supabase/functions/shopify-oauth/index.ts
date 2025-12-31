@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
+// Version for deployment tracking - update to force redeploy
+const FUNCTION_VERSION = "1.0.1";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -22,7 +25,7 @@ serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
 
-  console.log(`[SHOPIFY-OAUTH] ========== REQUEST START ==========`);
+  console.log(`[SHOPIFY-OAUTH v${FUNCTION_VERSION}] ========== REQUEST START ==========`);
   console.log(`[SHOPIFY-OAUTH] Action: ${action}`);
   console.log(`[SHOPIFY-OAUTH] Method: ${req.method}`);
   console.log(`[SHOPIFY-OAUTH] URL: ${req.url}`);
@@ -30,9 +33,34 @@ serve(async (req) => {
   console.log(`[SHOPIFY-OAUTH] CLIENT_SECRET set: ${!!SHOPIFY_CLIENT_SECRET && SHOPIFY_CLIENT_SECRET.length > 0}`);
 
   try {
+    // Health check endpoint - simple and fast
+    if (action === "health") {
+      return new Response(JSON.stringify({
+        status: "ok",
+        version: FUNCTION_VERSION,
+        timestamp: new Date().toISOString(),
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Test endpoint for integration tests
+    if (action === "test") {
+      return new Response(JSON.stringify({
+        status: "ok",
+        version: FUNCTION_VERSION,
+        hasClientId: !!SHOPIFY_CLIENT_ID && SHOPIFY_CLIENT_ID.length > 0,
+        hasClientSecret: !!SHOPIFY_CLIENT_SECRET && SHOPIFY_CLIENT_SECRET.length > 0,
+        message: "Edge function is deployed and responding",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Debug endpoint for testing
     if (action === "debug") {
       return new Response(JSON.stringify({
+        version: FUNCTION_VERSION,
         hasClientId: !!SHOPIFY_CLIENT_ID && SHOPIFY_CLIENT_ID.length > 0,
         hasClientSecret: !!SHOPIFY_CLIENT_SECRET && SHOPIFY_CLIENT_SECRET.length > 0,
         supabaseUrl: !!SUPABASE_URL,
