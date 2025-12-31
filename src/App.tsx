@@ -17,6 +17,7 @@ import CustomerAccount from "./pages/CustomerAccount";
 import Shop from "./pages/Shop";
 import ProductDetail from "./pages/ProductDetail";
 import ShopifyConnect from "./pages/ShopifyConnect";
+import ShopifySetupGuide from "./pages/ShopifySetupGuide";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -61,6 +62,7 @@ const App = () => (
             <Route path="/account/outfits" element={<CustomerAccount />} />
             {/* Shopify Connection */}
             <Route path="/connect-shopify" element={<ProtectedRoute><ShopifyConnect /></ProtectedRoute>} />
+            <Route path="/shopify-setup" element={<ProtectedRoute><ShopifySetupGuide /></ProtectedRoute>} />
             {/* Shopify Store Routes */}
             <Route path="/shop" element={<Shop />} />
             <Route path="/shop/product/:handle" element={<ProductDetail />} />
