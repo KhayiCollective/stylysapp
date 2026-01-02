@@ -147,10 +147,15 @@ export function useOnboarding() {
   };
 
   const isOnboardingComplete = progress?.completed_at !== null;
+  
+  // Show onboarding if no progress exists or onboarding is not completed
+  const showOnboarding = !loading && (!progress || !progress.completed_at);
 
   return {
     progress,
     loading,
+    isLoading: loading,
+    showOnboarding,
     initializeOnboarding,
     updateStep,
     completeStep,

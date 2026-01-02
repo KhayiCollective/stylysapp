@@ -5,8 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { ShopifyConnection } from "@/components/ShopifyConnection";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { useOnboarding } from "@/hooks/useOnboarding";
 
 const Dashboard = () => {
+  const { showOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
+
   // Fetch real data from database
   const { data: outfitsData } = useQuery({
     queryKey: ["outfits-stats"],
@@ -113,6 +117,11 @@ const Dashboard = () => {
     { name: "Evening", value: 20, color: "hsl(var(--chart-3))" },
     { name: "Weekend", value: 20, color: "hsl(var(--chart-4))" },
   ];
+
+  // Show onboarding wizard for new users
+  if (!onboardingLoading && showOnboarding) {
+    return <OnboardingWizard onComplete={completeOnboarding} />;
+  }
 
   return (
     <DashboardLayout 

@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Support from "./pages/Support";
+import AppStoreAssets from "./pages/AppStoreAssets";
 import GettingStarted from "./pages/docs/GettingStarted";
 import ShopifySetup from "./pages/docs/ShopifySetup";
 import WidgetEmbed from "./pages/docs/WidgetEmbed";
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
               <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/app-store-assets" element={<ProtectedRoute><AppStoreAssets /></ProtectedRoute>} />
               <Route path="/account/outfits" element={<CustomerAccount />} />
               {/* Shopify Connection */}
               <Route path="/connect-shopify" element={<ProtectedRoute><ShopifyConnect /></ProtectedRoute>} />
