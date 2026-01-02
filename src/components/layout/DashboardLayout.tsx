@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, Wand2, Settings2, ExternalLink, Sparkles, Menu, Heart, Settings } from "lucide-react";
+import { LayoutDashboard, Package, Wand2, Settings2, ExternalLink, Sparkles, Menu, Heart, Settings, BookOpen, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -37,6 +37,14 @@ const navigation = [{
   name: "Settings",
   href: "/settings",
   icon: Settings
+}, {
+  name: "Docs",
+  href: "/docs",
+  icon: BookOpen
+}, {
+  name: "Support",
+  href: "/support",
+  icon: HelpCircle
 }];
 export function DashboardLayout({
   children,

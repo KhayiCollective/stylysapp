@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { EmbeddedAppProvider } from "@/components/EmbeddedAppProvider";
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
@@ -20,6 +21,14 @@ import ShopifyConnect from "./pages/ShopifyConnect";
 import ShopifySetupGuide from "./pages/ShopifySetupGuide";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
+import Support from "./pages/Support";
+import GettingStarted from "./pages/docs/GettingStarted";
+import ShopifySetup from "./pages/docs/ShopifySetup";
+import WidgetEmbed from "./pages/docs/WidgetEmbed";
+import APIReference from "./pages/docs/APIReference";
+import FAQ from "./pages/docs/FAQ";
 
 const queryClient = new QueryClient();
 
@@ -45,32 +54,44 @@ function AuthRoute() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<AuthRoute />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/catalog" element={<ProtectedRoute><Catalog /></ProtectedRoute>} />
-            <Route path="/generator" element={<ProtectedRoute><OutfitGenerator /></ProtectedRoute>} />
-            <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
-            <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
-            <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/account/outfits" element={<CustomerAccount />} />
-            {/* Shopify Connection */}
-            <Route path="/connect-shopify" element={<ProtectedRoute><ShopifyConnect /></ProtectedRoute>} />
-            <Route path="/shopify-setup" element={<ProtectedRoute><ShopifySetupGuide /></ProtectedRoute>} />
-            {/* Shopify Store Routes */}
-            <Route path="/shop" element={<Shop />} />
-            <Route path="/shop/product/:handle" element={<ProductDetail />} />
-            <Route path="/shop/account" element={<CustomerAccount />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <EmbeddedAppProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<AuthRoute />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/catalog" element={<ProtectedRoute><Catalog /></ProtectedRoute>} />
+              <Route path="/generator" element={<ProtectedRoute><OutfitGenerator /></ProtectedRoute>} />
+              <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
+              <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
+              <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/account/outfits" element={<CustomerAccount />} />
+              {/* Shopify Connection */}
+              <Route path="/connect-shopify" element={<ProtectedRoute><ShopifyConnect /></ProtectedRoute>} />
+              <Route path="/shopify-setup" element={<ProtectedRoute><ShopifySetupGuide /></ProtectedRoute>} />
+              {/* Shopify Store Routes */}
+              <Route path="/shop" element={<Shop />} />
+              <Route path="/shop/product/:handle" element={<ProductDetail />} />
+              <Route path="/shop/account" element={<CustomerAccount />} />
+              {/* Legal & Support */}
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/support" element={<Support />} />
+              {/* Documentation */}
+              <Route path="/docs" element={<GettingStarted />} />
+              <Route path="/docs/shopify-setup" element={<ShopifySetup />} />
+              <Route path="/docs/widget-embed" element={<WidgetEmbed />} />
+              <Route path="/docs/api" element={<APIReference />} />
+              <Route path="/docs/faq" element={<FAQ />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </EmbeddedAppProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
