@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.shopify-app-proxy]
 verify_jwt = false
+
+[functions.shopify-webhooks]
+verify_jwt = false

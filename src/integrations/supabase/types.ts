@@ -214,6 +214,9 @@ export type Database = {
           inventory_status: string
           name: string
           price: number
+          shopify_handle: string | null
+          shopify_product_id: string | null
+          shopify_variant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -227,6 +230,9 @@ export type Database = {
           inventory_status?: string
           name: string
           price?: number
+          shopify_handle?: string | null
+          shopify_product_id?: string | null
+          shopify_variant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -240,6 +246,9 @@ export type Database = {
           inventory_status?: string
           name?: string
           price?: number
+          shopify_handle?: string | null
+          shopify_product_id?: string | null
+          shopify_variant_id?: string | null
           updated_at?: string
         }
         Relationships: [
