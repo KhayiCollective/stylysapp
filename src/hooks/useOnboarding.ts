@@ -148,8 +148,9 @@ export function useOnboarding() {
 
   const isOnboardingComplete = progress?.completed_at !== null;
   
-  // Show onboarding if no progress exists or onboarding is not completed
-  const showOnboarding = !loading && (!progress || !progress.completed_at);
+  // Show onboarding only if user is authenticated and onboarding is not completed
+  // Don't show onboarding if there's no user (they need to log in first)
+  const showOnboarding = !loading && !!user && (!progress || !progress.completed_at);
 
   return {
     progress,
