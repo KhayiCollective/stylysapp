@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,149 +7,166 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, ImagePlus } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Pencil, Trash2, ImagePlus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { BulkActions } from "@/components/catalog/BulkActions";
 
 interface Product {
   id: string;
   name: string;
-  imageUrl: string;
+  image_url: string | null;
   category: string;
-  color: string;
-  fit: string;
+  color: string | null;
+  fit: string | null;
   price: number;
-  inventoryStatus: "in_stock" | "low_stock" | "out_of_stock";
+  inventory_status: string;
+  tags?: string[];
 }
 
-// Mock products for demonstration
-const mockProducts: Product[] = [
-  {
-    id: "1",
-    name: "Classic White Tee",
-    imageUrl: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=500&fit=crop",
-    category: "tops",
-    color: "white",
-    fit: "relaxed",
-    price: 29.00,
-    inventoryStatus: "in_stock"
-  },
-  {
-    id: "2",
-    name: "High-Waisted Jeans",
-    imageUrl: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400&h=500&fit=crop",
-    category: "bottoms",
-    color: "blue",
-    fit: "fitted",
-    price: 89.00,
-    inventoryStatus: "in_stock"
-  },
-  {
-    id: "3",
-    name: "Wool Overcoat",
-    imageUrl: "https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=400&h=500&fit=crop",
-    category: "outerwear",
-    color: "camel",
-    fit: "oversized",
-    price: 249.00,
-    inventoryStatus: "low_stock"
-  },
-  {
-    id: "4",
-    name: "Leather Boots",
-    imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=500&fit=crop",
-    category: "footwear",
-    color: "brown",
-    fit: "fitted",
-    price: 179.00,
-    inventoryStatus: "in_stock"
-  },
-  {
-    id: "5",
-    name: "Silk Blouse",
-    imageUrl: "https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=400&h=500&fit=crop",
-    category: "tops",
-    color: "cream",
-    fit: "relaxed",
-    price: 129.00,
-    inventoryStatus: "in_stock"
-  },
-  {
-    id: "6",
-    name: "Tailored Trousers",
-    imageUrl: "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400&h=500&fit=crop",
-    category: "bottoms",
-    color: "black",
-    fit: "fitted",
-    price: 119.00,
-    inventoryStatus: "in_stock"
-  },
-];
-
-const categories = ["tops", "bottoms", "outerwear", "footwear", "accessories"];
-const colors = ["white", "black", "blue", "brown", "camel", "cream", "navy", "grey"];
-const fits = ["fitted", "relaxed", "oversized"];
+const categories = ["tops", "bottoms", "outerwear", "footwear", "accessories", "dresses", "uncategorized"];
+const colors = ["white", "black", "blue", "brown", "camel", "cream", "navy", "grey", "red", "green", "pink"];
+const fits = ["fitted", "relaxed", "oversized", "regular"];
 
 const Catalog = () => {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const { toast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [brandId, setBrandId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
-    imageUrl: "",
+    image_url: "",
     category: "",
     color: "",
     fit: "",
     price: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchBrandAndProducts = async () => {
+      if (!user) return;
+
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("brand_id")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.brand_id) {
+          setBrandId(profile.brand_id);
+          await fetchProducts(profile.brand_id);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBrandAndProducts();
+  }, [user]);
+
+  const fetchProducts = async (bid: string) => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("brand_id", bid)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching products:", error);
+      return;
+    }
+
+    setProducts(data || []);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (!brandId) return;
+
+    const productData = {
+      brand_id: brandId,
+      name: formData.name,
+      image_url: formData.image_url || null,
+      category: formData.category || "uncategorized",
+      color: formData.color || null,
+      fit: formData.fit || null,
+      price: parseFloat(formData.price) || 0,
+    };
+
     if (editingProduct) {
-      setProducts(products.map(p => 
-        p.id === editingProduct.id 
-          ? { ...p, ...formData, price: parseFloat(formData.price) }
-          : p
-      ));
+      const { error } = await supabase
+        .from("products")
+        .update(productData)
+        .eq("id", editingProduct.id);
+
+      if (error) {
+        toast({ title: "Error", description: "Failed to update product", variant: "destructive" });
+        return;
+      }
       toast({ title: "Product updated", description: `${formData.name} has been updated.` });
     } else {
-      const newProduct: Product = {
-        id: Date.now().toString(),
-        name: formData.name,
-        imageUrl: formData.imageUrl || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400&h=500&fit=crop",
-        category: formData.category,
-        color: formData.color,
-        fit: formData.fit,
-        price: parseFloat(formData.price),
-        inventoryStatus: "in_stock",
-      };
-      setProducts([...products, newProduct]);
+      const { error } = await supabase
+        .from("products")
+        .insert(productData);
+
+      if (error) {
+        toast({ title: "Error", description: "Failed to add product", variant: "destructive" });
+        return;
+      }
       toast({ title: "Product added", description: `${formData.name} has been added to your catalog.` });
     }
 
-    setFormData({ name: "", imageUrl: "", category: "", color: "", fit: "", price: "" });
+    setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
     setEditingProduct(null);
     setIsAddDialogOpen(false);
+    await fetchProducts(brandId);
   };
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setFormData({
       name: product.name,
-      imageUrl: product.imageUrl,
+      image_url: product.image_url || "",
       category: product.category,
-      color: product.color,
-      fit: product.fit,
+      color: product.color || "",
+      fit: product.fit || "",
       price: product.price.toString(),
     });
     setIsAddDialogOpen(true);
   };
 
-  const handleDelete = (productId: string) => {
+  const handleDelete = async (productId: string) => {
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", productId);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete product", variant: "destructive" });
+      return;
+    }
+
     setProducts(products.filter(p => p.id !== productId));
+    setSelectedIds(selectedIds.filter(id => id !== productId));
     toast({ title: "Product deleted", description: "The product has been removed from your catalog." });
+  };
+
+  const toggleSelection = (productId: string) => {
+    if (selectedIds.includes(productId)) {
+      setSelectedIds(selectedIds.filter(id => id !== productId));
+    } else {
+      setSelectedIds([...selectedIds, productId]);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -161,13 +178,23 @@ const Catalog = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <DashboardLayout title="Catalog Manager" description="Upload and manage your product catalog">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout 
       title="Catalog Manager" 
       description="Upload and manage your product catalog"
     >
       {/* Header Actions */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-6">
         <p className="text-muted-foreground">
           {products.length} products in catalog
         </p>
@@ -175,7 +202,7 @@ const Catalog = () => {
           <DialogTrigger asChild>
             <Button variant="editorial" onClick={() => {
               setEditingProduct(null);
-              setFormData({ name: "", imageUrl: "", category: "", color: "", fit: "", price: "" });
+              setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
             }}>
               <Plus className="w-4 h-4 mr-2" />
               Add Product
@@ -199,11 +226,11 @@ const Catalog = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="imageUrl">Image URL</Label>
+                <Label htmlFor="image_url">Image URL</Label>
                 <Input 
-                  id="imageUrl" 
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  id="image_url" 
+                  value={formData.image_url}
+                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
                   placeholder="https://..."
                 />
               </div>
@@ -275,16 +302,40 @@ const Catalog = () => {
         </Dialog>
       </div>
 
+      {/* Bulk Actions */}
+      <BulkActions
+        products={products}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        onUpdate={() => brandId && fetchProducts(brandId)}
+        categories={categories}
+      />
+
       {/* Products Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-6">
         {products.map((product) => (
-          <Card key={product.id} className="card-editorial overflow-hidden group">
-            <div className="aspect-[4/5] relative overflow-hidden bg-muted">
-              <img 
-                src={product.imageUrl} 
-                alt={product.name}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          <Card key={product.id} className="card-editorial overflow-hidden group relative">
+            {/* Selection Checkbox */}
+            <div className="absolute top-3 left-3 z-10">
+              <Checkbox
+                checked={selectedIds.includes(product.id)}
+                onCheckedChange={() => toggleSelection(product.id)}
+                className="bg-background/80 backdrop-blur"
               />
+            </div>
+
+            <div className="aspect-[4/5] relative overflow-hidden bg-muted">
+              {product.image_url ? (
+                <img 
+                  src={product.image_url} 
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                  <ImagePlus className="h-12 w-12" />
+                </div>
+              )}
               <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors" />
               <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button 
@@ -305,21 +356,43 @@ const Catalog = () => {
             </div>
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-2 mb-2">
-                <h3 className="font-medium leading-tight">{product.name}</h3>
-                <Badge variant="outline" className={getStatusColor(product.inventoryStatus)}>
-                  {product.inventoryStatus.replace("_", " ")}
+                <h3 className="font-medium leading-tight line-clamp-2">{product.name}</h3>
+                <Badge variant="outline" className={getStatusColor(product.inventory_status)}>
+                  {product.inventory_status.replace("_", " ")}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-2 text-xs text-muted-foreground">
                   <span className="capitalize">{product.category}</span>
-                  <span>•</span>
-                  <span className="capitalize">{product.color}</span>
-                  <span>•</span>
-                  <span className="capitalize">{product.fit}</span>
+                  {product.color && (
+                    <>
+                      <span>•</span>
+                      <span className="capitalize">{product.color}</span>
+                    </>
+                  )}
+                  {product.fit && (
+                    <>
+                      <span>•</span>
+                      <span className="capitalize">{product.fit}</span>
+                    </>
+                  )}
                 </div>
                 <span className="font-medium">${product.price.toFixed(2)}</span>
               </div>
+              {product.tags && product.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {product.tags.slice(0, 3).map(tag => (
+                    <Badge key={tag} variant="secondary" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {product.tags.length > 3 && (
+                    <Badge variant="secondary" className="text-xs">
+                      +{product.tags.length - 3}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -329,7 +402,7 @@ const Catalog = () => {
           className="card-editorial border-dashed cursor-pointer hover:border-foreground/30 transition-colors"
           onClick={() => {
             setEditingProduct(null);
-            setFormData({ name: "", imageUrl: "", category: "", color: "", fit: "", price: "" });
+            setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
             setIsAddDialogOpen(true);
           }}
         >

@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { ShopifyConnection } from '@/components/ShopifyConnection';
 import { ShopifyTestMode } from '@/components/ShopifyTestMode';
 import { ShopifySyncStatus } from '@/components/ShopifySyncStatus';
+import { WebhookStatusIndicator } from '@/components/catalog/WebhookStatusIndicator';
+import { SyncHistoryLog } from '@/components/catalog/SyncHistoryLog';
 import { User, Building2, Loader2, Save, LogOut, BookOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -280,6 +282,12 @@ export default function Settings() {
 
         {/* Product Sync Status */}
         <ShopifySyncStatus />
+
+        {/* Webhook Status */}
+        <WebhookStatusIndicator />
+
+        {/* Sync History */}
+        <SyncHistoryLog />
 
         {/* Setup Guide Link */}
         <Card>

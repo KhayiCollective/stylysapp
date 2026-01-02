@@ -217,6 +217,7 @@ export type Database = {
           shopify_handle: string | null
           shopify_product_id: string | null
           shopify_variant_id: string | null
+          tags: string[] | null
           updated_at: string
         }
         Insert: {
@@ -233,6 +234,7 @@ export type Database = {
           shopify_handle?: string | null
           shopify_product_id?: string | null
           shopify_variant_id?: string | null
+          tags?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -249,6 +251,7 @@ export type Database = {
           shopify_handle?: string | null
           shopify_product_id?: string | null
           shopify_variant_id?: string | null
+          tags?: string[] | null
           updated_at?: string
         }
         Relationships: [
@@ -407,6 +410,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "rules_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sync_history: {
+        Row: {
+          brand_id: string
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          products_created: number | null
+          products_deleted: number | null
+          products_updated: number | null
+          started_at: string
+          status: string
+          sync_type: string
+        }
+        Insert: {
+          brand_id: string
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          products_created?: number | null
+          products_deleted?: number | null
+          products_updated?: number | null
+          started_at?: string
+          status?: string
+          sync_type: string
+        }
+        Update: {
+          brand_id?: string
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          products_created?: number | null
+          products_deleted?: number | null
+          products_updated?: number | null
+          started_at?: string
+          status?: string
+          sync_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_history_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
