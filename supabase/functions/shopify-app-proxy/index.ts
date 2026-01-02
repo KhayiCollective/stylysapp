@@ -85,8 +85,108 @@ async function getBrandByShop(
   return data as Brand;
 }
 
-// Generate outfit builder HTML
+// Cart Create mutation for Storefront API
+const CART_CREATE_MUTATION = `
+  mutation cartCreate($input: CartInput!) {
+    cartCreate(input: $input) {
+      cart {
+        id
+        checkoutUrl
+        totalQuantity
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+// Cart Lines Add mutation for Storefront API
+const CART_LINES_ADD_MUTATION = `
+  mutation cartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+    cartLinesAdd(cartId: $cartId, lines: $lines) {
+      cart {
+        id
+        checkoutUrl
+        totalQuantity
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+// Make Storefront API request
+async function storefrontRequest(
+  storeDomain: string,
+  storefrontToken: string,
+  query: string,
+  variables: Record<string, unknown>
+) {
+  const url = `https://${storeDomain}/api/2025-07/graphql.json`;
+  
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Storefront-Access-Token": storefrontToken,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Storefront API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// Create cart with items
+async function createCart(
+  storeDomain: string,
+  storefrontToken: string,
+  variantIds: string[]
+) {
+  const lines = variantIds.map((id) => ({
+    merchandiseId: id,
+    quantity: 1,
+  }));
+
+  const result = await storefrontRequest(
+    storeDomain,
+    storefrontToken,
+    CART_CREATE_MUTATION,
+    { input: { lines } }
+  );
+
+  if (result.data?.cartCreate?.userErrors?.length > 0) {
+    throw new Error(result.data.cartCreate.userErrors[0].message);
+  }
+
+  const cart = result.data?.cartCreate?.cart;
+  if (!cart?.checkoutUrl) {
+    throw new Error("Failed to create cart");
+  }
+
+  // Add channel parameter for proper checkout
+  const checkoutUrl = new URL(cart.checkoutUrl);
+  checkoutUrl.searchParams.set("channel", "online_store");
+
+  return {
+    cartId: cart.id,
+    checkoutUrl: checkoutUrl.toString(),
+    totalQuantity: cart.totalQuantity,
+  };
+}
+
+// Generate outfit builder HTML with Storefront API cart integration
 function generateOutfitBuilderHTML(brand: Brand, products: any[], config: any) {
+  const shopDomain = brand.shopify_store_domain || "";
+  const storefrontToken = brand.shopify_storefront_token || "";
+  
   return `
 <!DOCTYPE html>
 <html>
@@ -108,9 +208,17 @@ function generateOutfitBuilderHTML(brand: Brand, products: any[], config: any) {
     .stylys-product-info { padding: 16px; }
     .stylys-product-title { font-weight: 500; margin-bottom: 8px; }
     .stylys-product-price { color: #666; font-size: 14px; }
-    .stylys-cta { background: ${config?.primary_color || '#000'}; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 12px; font-size: 14px; }
+    .stylys-cta { background: ${config?.primary_color || '#000'}; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 12px; font-size: 14px; transition: opacity 0.2s; }
     .stylys-cta:hover { opacity: 0.9; }
+    .stylys-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stylys-cta.loading { position: relative; color: transparent; }
+    .stylys-cta.loading::after { content: ''; position: absolute; inset: 0; margin: auto; width: 16px; height: 16px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .stylys-empty { text-align: center; padding: 48px; color: #666; }
+    .stylys-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 8px; font-size: 14px; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+    .stylys-toast.show { opacity: 1; }
+    .stylys-toast.success { background: #22c55e; }
+    .stylys-toast.error { background: #ef4444; }
   </style>
 </head>
 <body>
@@ -127,7 +235,7 @@ function generateOutfitBuilderHTML(brand: Brand, products: any[], config: any) {
           <div class="stylys-product-info">
             <div class="stylys-product-title">${p.name}</div>
             <div class="stylys-product-price">$${p.price.toFixed(2)}</div>
-            <button class="stylys-cta" onclick="addToCart('${p.id}')">Add to Cart</button>
+            <button class="stylys-cta" data-variant-id="${p.shopify_variant_id || ''}" onclick="addToCart(this)">Add to Cart</button>
           </div>
         </div>
       `).join('')}
@@ -139,11 +247,129 @@ function generateOutfitBuilderHTML(brand: Brand, products: any[], config: any) {
     </div>
     `}
   </div>
+  <div id="toast" class="stylys-toast"></div>
+  
   <script>
-    function addToCart(productId) {
-      // Use Shopify's cart API
-      console.log('Adding product to cart:', productId);
-      alert('Product added to cart!');
+    const SHOP_DOMAIN = "${shopDomain}";
+    const STOREFRONT_TOKEN = "${storefrontToken}";
+    const API_VERSION = "2025-07";
+    
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'stylys-toast show ' + type;
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    
+    async function storefrontFetch(query, variables = {}) {
+      const response = await fetch(\`https://\${SHOP_DOMAIN}/api/\${API_VERSION}/graphql.json\`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Storefront-Access-Token': STOREFRONT_TOKEN
+        },
+        body: JSON.stringify({ query, variables })
+      });
+      return response.json();
+    }
+    
+    async function addToCart(button) {
+      const variantId = button.dataset.variantId;
+      
+      if (!variantId) {
+        showToast('Product not available for purchase', 'error');
+        return;
+      }
+      
+      if (!STOREFRONT_TOKEN) {
+        // Fallback to Shopify's cart.js API (works on the same domain)
+        try {
+          const response = await fetch('/cart/add.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: variantId.replace('gid://shopify/ProductVariant/', ''), quantity: 1 })
+          });
+          if (response.ok) {
+            showToast('Added to cart!', 'success');
+            button.textContent = 'Added ✓';
+            setTimeout(() => button.textContent = 'Add to Cart', 2000);
+          } else {
+            throw new Error('Failed to add to cart');
+          }
+        } catch (err) {
+          showToast('Failed to add to cart', 'error');
+        }
+        return;
+      }
+      
+      button.classList.add('loading');
+      button.disabled = true;
+      
+      try {
+        // Create a new cart with this item
+        const result = await storefrontFetch(\`
+          mutation cartCreate($input: CartInput!) {
+            cartCreate(input: $input) {
+              cart {
+                id
+                checkoutUrl
+                totalQuantity
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        \`, {
+          input: {
+            lines: [{ merchandiseId: variantId, quantity: 1 }]
+          }
+        });
+        
+        if (result.data?.cartCreate?.userErrors?.length > 0) {
+          throw new Error(result.data.cartCreate.userErrors[0].message);
+        }
+        
+        const cart = result.data?.cartCreate?.cart;
+        if (cart?.checkoutUrl) {
+          showToast('Added to cart!', 'success');
+          button.textContent = 'Added ✓';
+          
+          // Store cart ID for future use
+          localStorage.setItem('stylys_cart_id', cart.id);
+          localStorage.setItem('stylys_checkout_url', cart.checkoutUrl + '&channel=online_store');
+          
+          setTimeout(() => button.textContent = 'Add to Cart', 2000);
+        } else {
+          throw new Error('Failed to create cart');
+        }
+      } catch (err) {
+        console.error('Add to cart error:', err);
+        showToast('Failed to add to cart', 'error');
+      } finally {
+        button.classList.remove('loading');
+        button.disabled = false;
+      }
+    }
+    
+    // Checkout function for "Buy Now" style buttons
+    async function checkout(variantId) {
+      const result = await storefrontFetch(\`
+        mutation cartCreate($input: CartInput!) {
+          cartCreate(input: $input) {
+            cart { checkoutUrl }
+            userErrors { message }
+          }
+        }
+      \`, {
+        input: { lines: [{ merchandiseId: variantId, quantity: 1 }] }
+      });
+      
+      const checkoutUrl = result.data?.cartCreate?.cart?.checkoutUrl;
+      if (checkoutUrl) {
+        window.open(checkoutUrl + '&channel=online_store', '_blank');
+      }
     }
   </script>
 </body>
@@ -349,6 +575,88 @@ serve(async (req) => {
 
     // Route to appropriate handler
     switch (requestedPath) {
+      case "cart": {
+        // Handle cart API requests
+        if (req.method !== "POST") {
+          return new Response(JSON.stringify({ error: "Method not allowed" }), {
+            status: 405,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const body = await req.json();
+        const { action, variantIds, cartId, lines } = body;
+
+        if (!brand.shopify_storefront_token || !brand.shopify_store_domain) {
+          return new Response(
+            JSON.stringify({ error: "Store not configured for cart" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        try {
+          if (action === "create" && variantIds?.length > 0) {
+            const cart = await createCart(
+              brand.shopify_store_domain,
+              brand.shopify_storefront_token,
+              variantIds
+            );
+            return new Response(JSON.stringify(cart), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          if (action === "add" && cartId && lines?.length > 0) {
+            const result = await storefrontRequest(
+              brand.shopify_store_domain,
+              brand.shopify_storefront_token,
+              CART_LINES_ADD_MUTATION,
+              { cartId, lines }
+            );
+
+            if (result.data?.cartLinesAdd?.userErrors?.length > 0) {
+              throw new Error(result.data.cartLinesAdd.userErrors[0].message);
+            }
+
+            const cart = result.data?.cartLinesAdd?.cart;
+            const checkoutUrl = new URL(cart.checkoutUrl);
+            checkoutUrl.searchParams.set("channel", "online_store");
+
+            return new Response(
+              JSON.stringify({
+                cartId: cart.id,
+                checkoutUrl: checkoutUrl.toString(),
+                totalQuantity: cart.totalQuantity,
+              }),
+              {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({ error: "Invalid cart action" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        } catch (err) {
+          const error = err as Error;
+          console.error("Cart error:", error);
+          return new Response(
+            JSON.stringify({ error: error.message || "Cart operation failed" }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          );
+        }
+      }
+
       case "quiz": {
         if (format === "json") {
           return new Response(
