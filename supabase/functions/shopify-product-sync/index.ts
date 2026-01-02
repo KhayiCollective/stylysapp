@@ -22,6 +22,13 @@ interface ShopifyProduct {
   }[];
 }
 
+interface ShopifyWebhook {
+  id: number;
+  topic: string;
+  address: string;
+  created_at: string;
+}
+
 async function fetchAllProducts(shop: string, accessToken: string): Promise<ShopifyProduct[]> {
   const allProducts: ShopifyProduct[] = [];
   let nextUrl = `https://${shop}/admin/api/2025-01/products.json?limit=250`;
@@ -57,6 +64,70 @@ async function fetchAllProducts(shop: string, accessToken: string): Promise<Shop
   }
   
   return allProducts;
+}
+
+async function fetchWebhooks(shop: string, accessToken: string): Promise<ShopifyWebhook[]> {
+  const response = await fetch(`https://${shop}/admin/api/2025-01/webhooks.json`, {
+    headers: {
+      "X-Shopify-Access-Token": accessToken,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    console.error(`Failed to fetch webhooks: ${response.status}`);
+    return [];
+  }
+
+  const data = await response.json();
+  return data.webhooks || [];
+}
+
+async function createSyncHistoryEntry(
+  supabase: any,
+  brandId: string,
+  syncType: string,
+  status: string = "in_progress"
+) {
+  const { data, error } = await supabase
+    .from("sync_history")
+    .insert({
+      brand_id: brandId,
+      sync_type: syncType,
+      status,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error creating sync history:", error);
+    return null;
+  }
+  return data?.id;
+}
+
+async function updateSyncHistoryEntry(
+  supabase: any,
+  historyId: string,
+  updates: {
+    status?: string;
+    products_created?: number;
+    products_updated?: number;
+    products_deleted?: number;
+    error_message?: string;
+  }
+) {
+  const { error } = await supabase
+    .from("sync_history")
+    .update({
+      ...updates,
+      completed_at: updates.status === "completed" || updates.status === "failed" ? new Date().toISOString() : null,
+    })
+    .eq("id", historyId);
+
+  if (error) {
+    console.error("Error updating sync history:", error);
+  }
 }
 
 serve(async (req) => {
@@ -99,6 +170,21 @@ serve(async (req) => {
       );
     }
 
+    // Handle webhook status action
+    if (action === "webhooks") {
+      const webhooks = await fetchWebhooks(brand.shopify_store_domain, brand.shopify_access_token);
+      return new Response(
+        JSON.stringify({
+          webhooks: webhooks.map(w => ({
+            topic: w.topic,
+            address: w.address,
+            created_at: w.created_at,
+          })),
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "status") {
       // Return sync status
       const { count: productCount } = await supabase
@@ -132,9 +218,23 @@ serve(async (req) => {
       );
     }
 
-    // Full sync
+    // Full sync - create history entry
+    const historyId = await createSyncHistoryEntry(supabase, brand_id, "manual");
+
     console.log(`[PRODUCT-SYNC] Fetching products from Shopify: ${brand.shopify_store_domain}`);
-    const products = await fetchAllProducts(brand.shopify_store_domain, brand.shopify_access_token);
+    
+    let products: ShopifyProduct[];
+    try {
+      products = await fetchAllProducts(brand.shopify_store_domain, brand.shopify_access_token);
+    } catch (fetchError) {
+      if (historyId) {
+        await updateSyncHistoryEntry(supabase, historyId, {
+          status: "failed",
+          error_message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        });
+      }
+      throw fetchError;
+    }
     
     console.log(`[PRODUCT-SYNC] Got ${products.length} products from Shopify`);
 
@@ -187,6 +287,16 @@ serve(async (req) => {
           }
         }
       }
+    }
+
+    // Update sync history
+    if (historyId) {
+      await updateSyncHistoryEntry(supabase, historyId, {
+        status: "completed",
+        products_created: created,
+        products_updated: updated,
+        error_message: errors.length > 0 ? errors.slice(0, 5).join("; ") : undefined,
+      });
     }
 
     console.log(`[PRODUCT-SYNC] Sync complete: ${created} created, ${updated} updated, ${errors.length} errors`);

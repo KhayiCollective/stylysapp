@@ -105,6 +105,34 @@ function extractOption(variant: any, optionName: string): string | null {
   return null;
 }
 
+// Create sync history entry
+async function createSyncHistoryEntry(
+  supabase: any,
+  brandId: string,
+  syncType: string,
+  created: number = 0,
+  updated: number = 0,
+  deleted: number = 0,
+  errorMessage: string | null = null
+) {
+  const { error } = await supabase
+    .from("sync_history")
+    .insert({
+      brand_id: brandId,
+      sync_type: syncType,
+      status: errorMessage ? "failed" : "completed",
+      products_created: created,
+      products_updated: updated,
+      products_deleted: deleted,
+      error_message: errorMessage,
+      completed_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error("Error creating sync history:", error);
+  }
+}
+
 // Handle product creation/update
 async function handleProductCreateOrUpdate(
   supabase: any,
@@ -114,45 +142,56 @@ async function handleProductCreateOrUpdate(
   console.log(`Processing product: ${shopifyProduct.title} (ID: ${shopifyProduct.id})`);
   
   const products = mapShopifyProduct(shopifyProduct, brandId);
+  let created = 0;
+  let updated = 0;
   
   for (const product of products) {
-    // Upsert each variant
-    const { error } = await supabase
+    // Check if exists
+    const { data: existing } = await supabase
       .from("products")
-      .upsert(product, {
-        onConflict: "brand_id,shopify_variant_id",
-        ignoreDuplicates: false,
-      });
+      .select("id")
+      .eq("brand_id", brandId)
+      .eq("shopify_variant_id", product.shopify_variant_id)
+      .maybeSingle();
 
-    if (error) {
-      console.error("Error upserting product:", error);
-      
-      // If upsert fails due to constraint, try update
-      if (error.code === "23505") {
-        const { error: updateError } = await supabase
-          .from("products")
-          .update({
-            name: product.name,
-            price: product.price,
-            image_url: product.image_url,
-            category: product.category,
-            inventory_status: product.inventory_status,
-          })
-          .eq("brand_id", brandId)
-          .eq("shopify_variant_id", product.shopify_variant_id);
+    if (existing) {
+      // Update existing
+      const { error } = await supabase
+        .from("products")
+        .update({
+          name: product.name,
+          price: product.price,
+          image_url: product.image_url,
+          category: product.category,
+          inventory_status: product.inventory_status,
+        })
+        .eq("id", existing.id);
 
-        if (updateError) {
-          console.error("Error updating product:", updateError);
-        } else {
-          console.log(`Updated variant: ${product.shopify_variant_id}`);
-        }
+      if (error) {
+        console.error("Error updating product:", error);
+      } else {
+        updated++;
+        console.log(`Updated variant: ${product.shopify_variant_id}`);
       }
     } else {
-      console.log(`Upserted variant: ${product.shopify_variant_id}`);
+      // Insert new
+      const { error } = await supabase
+        .from("products")
+        .insert(product);
+
+      if (error) {
+        console.error("Error inserting product:", error);
+      } else {
+        created++;
+        console.log(`Created variant: ${product.shopify_variant_id}`);
+      }
     }
   }
 
-  return { synced: products.length };
+  // Log to sync history
+  await createSyncHistoryEntry(supabase, brandId, "webhook", created, updated, 0);
+
+  return { synced: products.length, created, updated };
 }
 
 // Handle product deletion
@@ -164,7 +203,14 @@ async function handleProductDelete(
   const shopifyProductId = String(shopifyProduct.id);
   console.log(`Deleting product: ${shopifyProductId}`);
 
-  const { error, count } = await supabase
+  // First count how many will be deleted
+  const { count: deleteCount } = await supabase
+    .from("products")
+    .select("*", { count: "exact", head: true })
+    .eq("brand_id", brandId)
+    .eq("shopify_product_id", shopifyProductId);
+
+  const { error } = await supabase
     .from("products")
     .delete()
     .eq("brand_id", brandId)
@@ -172,11 +218,17 @@ async function handleProductDelete(
 
   if (error) {
     console.error("Error deleting product:", error);
+    await createSyncHistoryEntry(supabase, brandId, "webhook", 0, 0, 0, error.message);
     return { deleted: 0 };
   }
 
-  console.log(`Deleted ${count || 0} variants for product ${shopifyProductId}`);
-  return { deleted: count || 0 };
+  const deleted = deleteCount || 0;
+  console.log(`Deleted ${deleted} variants for product ${shopifyProductId}`);
+  
+  // Log to sync history
+  await createSyncHistoryEntry(supabase, brandId, "webhook", 0, 0, deleted);
+
+  return { deleted };
 }
 
 serve(async (req) => {
