@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { ShopifyConnection } from '@/components/ShopifyConnection';
 import { ShopifyTestMode } from '@/components/ShopifyTestMode';
+import { ShopifySyncStatus } from '@/components/ShopifySyncStatus';
 import { User, Building2, Loader2, Save, LogOut, BookOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -276,6 +277,9 @@ export default function Settings() {
 
         {/* Shopify Connection */}
         <ShopifyConnection />
+
+        {/* Product Sync Status */}
+        <ShopifySyncStatus />
 
         {/* Setup Guide Link */}
         <Card>

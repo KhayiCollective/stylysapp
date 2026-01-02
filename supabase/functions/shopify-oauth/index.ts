@@ -14,8 +14,17 @@ const SHOPIFY_CLIENT_SECRET = Deno.env.get("SHOPIFY_CLIENT_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// Required scopes for storefront access and checkout
+// Required scopes for storefront access, checkout, and webhooks
 const SCOPES = "read_products,read_product_listings,unauthenticated_read_product_listings,unauthenticated_read_product_tags,write_checkouts,unauthenticated_write_checkouts";
+
+// Webhook topics to register
+const WEBHOOK_TOPICS = [
+  "products/create",
+  "products/update",
+  "products/delete",
+  "inventory_levels/update",
+  "app/uninstalled",
+];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -273,10 +282,65 @@ serve(async (req) => {
 
       console.log(`[SHOPIFY-OAUTH] Database update result: ${JSON.stringify(data)}`);
       console.log(`[SHOPIFY-OAUTH] Successfully connected shop ${shop} to brand ${brandId}`);
+
+      // Auto-register webhooks
+      console.log(`[SHOPIFY-OAUTH] Registering webhooks...`);
+      const webhookBaseUrl = `${SUPABASE_URL}/functions/v1/shopify-webhooks`;
+      const registeredWebhooks: string[] = [];
+      const failedWebhooks: string[] = [];
+
+      for (const topic of WEBHOOK_TOPICS) {
+        try {
+          const webhookResponse = await fetch(
+            `https://${shop}/admin/api/2025-01/webhooks.json`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": accessToken,
+              },
+              body: JSON.stringify({
+                webhook: {
+                  topic,
+                  address: webhookBaseUrl,
+                  format: "json",
+                },
+              }),
+            }
+          );
+
+          if (webhookResponse.ok) {
+            registeredWebhooks.push(topic);
+            console.log(`[SHOPIFY-OAUTH] Registered webhook: ${topic}`);
+          } else {
+            const errorText = await webhookResponse.text();
+            // 422 usually means webhook already exists
+            if (webhookResponse.status === 422) {
+              console.log(`[SHOPIFY-OAUTH] Webhook already exists: ${topic}`);
+              registeredWebhooks.push(topic);
+            } else {
+              console.warn(`[SHOPIFY-OAUTH] Failed to register webhook ${topic}: ${errorText}`);
+              failedWebhooks.push(topic);
+            }
+          }
+        } catch (webhookError) {
+          console.error(`[SHOPIFY-OAUTH] Error registering webhook ${topic}:`, webhookError);
+          failedWebhooks.push(topic);
+        }
+      }
+
+      console.log(`[SHOPIFY-OAUTH] Webhooks registered: ${registeredWebhooks.length}/${WEBHOOK_TOPICS.length}`);
       console.log(`[SHOPIFY-OAUTH] ========== REQUEST END ==========`);
 
       return new Response(
-        JSON.stringify({ success: true, shop }),
+        JSON.stringify({ 
+          success: true, 
+          shop,
+          webhooks: {
+            registered: registeredWebhooks,
+            failed: failedWebhooks,
+          }
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
