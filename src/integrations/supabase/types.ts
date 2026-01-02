@@ -342,6 +342,13 @@ export type Database = {
             foreignKeyName: "recommendations_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "customer_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
@@ -477,9 +484,47 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      customer_summary: {
+        Row: {
+          body_shape: string | null
+          brand_id: string | null
+          created_at: string | null
+          id: string | null
+          masked_email: string | null
+          quiz_completed_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body_shape?: string | null
+          brand_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          masked_email?: never
+          quiz_completed_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body_shape?: string | null
+          brand_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          masked_email?: never
+          quiz_completed_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      get_customer_email: { Args: { customer_id: string }; Returns: string }
       get_user_brand_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
