@@ -16,15 +16,15 @@ interface EmbeddedAppProviderProps {
 }
 
 export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
-  const appBridge = useShopifyAppBridge();
+  const { config, isEmbedded, showToast, setAppLoading, getSessionToken } = useShopifyAppBridge();
   const [scriptLoaded, setScriptLoaded] = useState(false);
 
   useEffect(() => {
     // Only load App Bridge script if we detect embedded context
     const params = new URLSearchParams(window.location.search);
-    const isEmbedded = window.self !== window.top && params.has("shop");
+    const embedded = window.self !== window.top && params.has("shop");
 
-    if (isEmbedded && !scriptLoaded) {
+    if (embedded && !scriptLoaded) {
       const script = document.createElement("script");
       script.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
       script.async = true;
@@ -37,8 +37,16 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
     }
   }, [scriptLoaded]);
 
+  const contextValue: EmbeddedAppContextValue = {
+    isEmbedded,
+    config,
+    showToast,
+    setLoading: setAppLoading,
+    getSessionToken,
+  };
+
   return (
-    <EmbeddedAppContext.Provider value={appBridge}>
+    <EmbeddedAppContext.Provider value={contextValue}>
       {children}
     </EmbeddedAppContext.Provider>
   );
