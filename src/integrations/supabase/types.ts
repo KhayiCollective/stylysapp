@@ -112,6 +112,44 @@ export type Database = {
           },
         ]
       }
+      onboarding_progress: {
+        Row: {
+          brand_id: string
+          completed_at: string | null
+          completed_steps: number[] | null
+          created_at: string | null
+          current_step: number | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          brand_id: string
+          completed_at?: string | null
+          completed_steps?: number[] | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          brand_id?: string
+          completed_at?: string | null
+          completed_steps?: number[] | null
+          created_at?: string | null
+          current_step?: number | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_progress_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outfit_items: {
         Row: {
           created_at: string
@@ -410,6 +448,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "rules_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          brand_id: string | null
+          created_at: string | null
+          email: string
+          id: string
+          message: string
+          status: string | null
+          subject: string
+        }
+        Insert: {
+          brand_id?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          message: string
+          status?: string | null
+          subject: string
+        }
+        Update: {
+          brand_id?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          message?: string
+          status?: string | null
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
