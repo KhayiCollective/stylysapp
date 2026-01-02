@@ -14,6 +14,11 @@ interface ConnectionStep {
   message: string;
 }
 
+interface PopupBlockedState {
+  blocked: boolean;
+  authUrl: string | null;
+}
+
 export default function ShopifyConnect() {
   const [shop, setShop] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,6 +26,7 @@ export default function ShopifyConnect() {
   const [connected, setConnected] = useState(false);
   const [connectionStep, setConnectionStep] = useState<ConnectionStep | null>(null);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [popupBlocked, setPopupBlocked] = useState<PopupBlockedState>({ blocked: false, authUrl: null });
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -220,9 +226,26 @@ export default function ShopifyConnect() {
       console.log('[ShopifyConnect] Auth URL result:', result);
 
       if (result.authUrl) {
-        // Redirect to Shopify OAuth
-        console.log('[ShopifyConnect] Redirecting to Shopify...');
-        window.location.href = result.authUrl;
+        // Open Shopify OAuth in a new window to bypass iframe restrictions
+        console.log('[ShopifyConnect] Opening Shopify auth in new window...');
+        const authWindow = window.open(result.authUrl, '_blank', 'noopener,noreferrer');
+        
+        if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
+          // Popup was blocked - show fallback UI
+          console.log('[ShopifyConnect] Popup blocked, showing fallback');
+          setPopupBlocked({ blocked: true, authUrl: result.authUrl });
+          setLoading(false);
+          toast({
+            title: "Popup blocked",
+            description: "Please click the link below to open Shopify authorization",
+          });
+        } else {
+          toast({
+            title: "Opening Shopify...",
+            description: "Complete authorization in the new window, then return here",
+          });
+          setLoading(false);
+        }
       } else {
         throw new Error(result.error || 'Failed to get authorization URL');
       }
@@ -360,6 +383,30 @@ export default function ShopifyConnect() {
                 {errorDetails && (
                   <p className="text-xs mt-1 opacity-80">{errorDetails}</p>
                 )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Popup Blocked Fallback */}
+          {popupBlocked.blocked && popupBlocked.authUrl && (
+            <Alert className="mb-6 border-amber-500 bg-amber-50 dark:bg-amber-900/20">
+              <ExternalLink className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="space-y-3">
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  Popup was blocked by your browser
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  Click the button below to open Shopify authorization in a new tab:
+                </p>
+                <a
+                  href={popupBlocked.authUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open Shopify Authorization
+                </a>
               </AlertDescription>
             </Alert>
           )}
