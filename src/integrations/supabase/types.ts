@@ -107,6 +107,13 @@ export type Database = {
             foreignKeyName: "customers_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
@@ -141,6 +148,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "onboarding_progress_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "onboarding_progress_brand_id_fkey"
             columns: ["brand_id"]
@@ -235,6 +249,13 @@ export type Database = {
             foreignKeyName: "outfits_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outfits_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
@@ -297,6 +318,13 @@ export type Database = {
             foreignKeyName: "products_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
@@ -331,6 +359,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_brand_id_fkey"
             columns: ["brand_id"]
@@ -381,6 +416,13 @@ export type Database = {
           viewed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "recommendations_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "recommendations_brand_id_fkey"
             columns: ["brand_id"]
@@ -450,6 +492,13 @@ export type Database = {
             foreignKeyName: "rules_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rules_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
@@ -484,6 +533,13 @@ export type Database = {
           subject?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "support_tickets_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "support_tickets_brand_id_fkey"
             columns: ["brand_id"]
@@ -531,6 +587,13 @@ export type Database = {
           sync_type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sync_history_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sync_history_brand_id_fkey"
             columns: ["brand_id"]
@@ -612,6 +675,13 @@ export type Database = {
             foreignKeyName: "widget_config_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: true
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "widget_config_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: true
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
@@ -619,6 +689,39 @@ export type Database = {
       }
     }
     Views: {
+      brand_info: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          logo_url: string | null
+          name: string | null
+          shopify_connected_at: string | null
+          shopify_store_domain: string | null
+          slug: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          logo_url?: string | null
+          name?: string | null
+          shopify_connected_at?: string | null
+          shopify_store_domain?: string | null
+          slug?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          logo_url?: string | null
+          name?: string | null
+          shopify_connected_at?: string | null
+          shopify_store_domain?: string | null
+          slug?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       customer_summary: {
         Row: {
           body_shape: string | null
@@ -648,6 +751,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "customers_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "customers_brand_id_fkey"
             columns: ["brand_id"]
@@ -690,6 +800,13 @@ export type Database = {
             foreignKeyName: "profiles_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
           },
@@ -697,6 +814,13 @@ export type Database = {
       }
     }
     Functions: {
+      get_brand_shopify_token: {
+        Args: { target_brand_id: string }
+        Returns: {
+          access_token: string
+          storefront_token: string
+        }[]
+      }
       get_customer_email: { Args: { customer_id: string }; Returns: string }
       get_profile_email: { Args: { profile_id: string }; Returns: string }
       get_user_brand_id: { Args: { _user_id: string }; Returns: string }
