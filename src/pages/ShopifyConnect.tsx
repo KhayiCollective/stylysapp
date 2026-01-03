@@ -32,6 +32,9 @@ export default function ShopifyConnect() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const redirectUri = `${window.location.origin}/connect-shopify`;
+  const [oauthClientId, setOauthClientId] = useState<string | null>(null);
+
   // Pre-flight check for edge function availability
   const checkEdgeFunctionHealth = async (): Promise<boolean> => {
     try {
@@ -54,6 +57,30 @@ export default function ShopifyConnect() {
       return false;
     }
   };
+
+  // Load the Shopify Client ID currently configured in the backend.
+  // This helps ensure you're editing the correct Partner app when whitelisting redirect URIs.
+  useEffect(() => {
+    const loadOAuthClientId = async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=authorize&shop=test-store.myshopify.com&redirect_uri=${encodeURIComponent(redirectUri)}&state=debug`,
+          { method: 'GET' }
+        );
+
+        const result = await response.json();
+        if (result.authUrl) {
+          const u = new URL(result.authUrl);
+          const clientId = u.searchParams.get('client_id');
+          if (clientId) setOauthClientId(clientId);
+        }
+      } catch {
+        // Silent: this is only for debugging display
+      }
+    };
+
+    loadOAuthClientId();
+  }, [redirectUri]);
 
   // Check if already connected or handle OAuth callback
   useEffect(() => {
@@ -139,6 +166,9 @@ export default function ShopifyConnect() {
         return;
       }
 
+      // Not a callback; stop blocking UI while we check in background
+      setChecking(false);
+
       // Check if already connected
       try {
         const { data: profile } = await supabase
@@ -161,8 +191,6 @@ export default function ShopifyConnect() {
         }
       } catch (error) {
         console.error('Error checking connection:', error);
-      } finally {
-        setChecking(false);
       }
     };
 
@@ -434,6 +462,16 @@ export default function ShopifyConnect() {
               <p className="text-xs text-muted-foreground">
                 Enter just your store name (e.g., "mystore" not "mystore.myshopify.com")
               </p>
+
+              <div className="mt-3 rounded-lg border border-border bg-muted/50 p-3 text-xs">
+                <p className="text-muted-foreground">
+                  In Shopify Partners, whitelist this Redirect URI for the app with Client ID{' '}
+                  <span className="font-mono">{oauthClientId || '…'}</span>:
+                </p>
+                <code className="mt-2 block break-all rounded border border-border bg-background px-2 py-1">
+                  {redirectUri}
+                </code>
+              </div>
             </div>
 
             <Button type="submit" className="w-full h-11 font-medium" disabled={loading || !shop.trim()}>
