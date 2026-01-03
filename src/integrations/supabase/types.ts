@@ -657,9 +657,48 @@ export type Database = {
           },
         ]
       }
+      profile_summary: {
+        Row: {
+          avatar_url: string | null
+          brand_id: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string | null
+          masked_email: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          brand_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          masked_email?: never
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          brand_id?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string | null
+          masked_email?: never
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_customer_email: { Args: { customer_id: string }; Returns: string }
+      get_profile_email: { Args: { profile_id: string }; Returns: string }
       get_user_brand_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
