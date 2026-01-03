@@ -434,13 +434,6 @@ export type Database = {
             foreignKeyName: "recommendations_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
-            referencedRelation: "customer_summary"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recommendations_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
@@ -732,40 +725,7 @@ export type Database = {
           quiz_completed_at: string | null
           updated_at: string | null
         }
-        Insert: {
-          body_shape?: string | null
-          brand_id?: string | null
-          created_at?: string | null
-          id?: string | null
-          masked_email?: never
-          quiz_completed_at?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          body_shape?: string | null
-          brand_id?: string | null
-          created_at?: string | null
-          id?: string | null
-          masked_email?: never
-          quiz_completed_at?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "customers_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "brand_info"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customers_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "brands"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       profile_summary: {
         Row: {
@@ -822,6 +782,18 @@ export type Database = {
         }[]
       }
       get_customer_email: { Args: { customer_id: string }; Returns: string }
+      get_customer_summaries: {
+        Args: never
+        Returns: {
+          body_shape: string
+          brand_id: string
+          created_at: string
+          id: string
+          masked_email: string
+          quiz_completed_at: string
+          updated_at: string
+        }[]
+      }
       get_profile_email: { Args: { profile_id: string }; Returns: string }
       get_user_brand_id: { Args: { _user_id: string }; Returns: string }
       has_role: {

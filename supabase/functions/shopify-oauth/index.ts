@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 // Version for deployment tracking - update to force redeploy
-const FUNCTION_VERSION = "1.0.2";
+const FUNCTION_VERSION = "1.0.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +26,17 @@ const WEBHOOK_TOPICS = [
   "app/uninstalled",
 ];
 
+// Generic error messages for client responses (no internal details)
+const CLIENT_ERRORS = {
+  MISSING_PARAMS: "Missing required parameters",
+  INVALID_SHOP: "Invalid shop domain format",
+  CONFIG_ERROR: "Service configuration error",
+  AUTH_FAILED: "Authorization failed",
+  INVALID_STATE: "Invalid request state",
+  SAVE_FAILED: "Failed to complete connection",
+  INVALID_ACTION: "Invalid request",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -34,12 +45,8 @@ serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
 
-  console.log(`[SHOPIFY-OAUTH v${FUNCTION_VERSION}] ========== REQUEST START ==========`);
-  console.log(`[SHOPIFY-OAUTH] Action: ${action}`);
-  console.log(`[SHOPIFY-OAUTH] Method: ${req.method}`);
-  console.log(`[SHOPIFY-OAUTH] URL: ${req.url}`);
-  console.log(`[SHOPIFY-OAUTH] CLIENT_ID set: ${!!SHOPIFY_CLIENT_ID && SHOPIFY_CLIENT_ID.length > 0}`);
-  console.log(`[SHOPIFY-OAUTH] CLIENT_SECRET set: ${!!SHOPIFY_CLIENT_SECRET && SHOPIFY_CLIENT_SECRET.length > 0}`);
+  // Minimal logging - no sensitive data
+  console.log(`[SHOPIFY-OAUTH] Action: ${action}, Method: ${req.method}`);
 
   try {
     // Health check endpoint - simple and fast
@@ -53,48 +60,26 @@ serve(async (req) => {
       });
     }
 
-    // Test endpoint for integration tests
+    // Test endpoint - minimal info for integration tests
     if (action === "test") {
       return new Response(JSON.stringify({
         status: "ok",
         version: FUNCTION_VERSION,
-        hasClientId: !!SHOPIFY_CLIENT_ID && SHOPIFY_CLIENT_ID.length > 0,
-        hasClientSecret: !!SHOPIFY_CLIENT_SECRET && SHOPIFY_CLIENT_SECRET.length > 0,
-        message: "Edge function is deployed and responding",
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Debug endpoint for testing
-    if (action === "debug") {
-      return new Response(JSON.stringify({
-        version: FUNCTION_VERSION,
-        hasClientId: !!SHOPIFY_CLIENT_ID && SHOPIFY_CLIENT_ID.length > 0,
-        hasClientSecret: !!SHOPIFY_CLIENT_SECRET && SHOPIFY_CLIENT_SECRET.length > 0,
-        supabaseUrl: !!SUPABASE_URL,
-        clientIdLength: SHOPIFY_CLIENT_ID?.length || 0,
-        scopes: SCOPES,
+        configured: !!(SHOPIFY_CLIENT_ID && SHOPIFY_CLIENT_SECRET),
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (action === "authorize") {
-      // Step 1: Redirect user to Shopify OAuth
       const shop = url.searchParams.get("shop");
       const redirectUri = url.searchParams.get("redirect_uri");
-      const state = url.searchParams.get("state"); // Include user session/brand ID
-
-      console.log(`[SHOPIFY-OAUTH] Authorize request:`);
-      console.log(`[SHOPIFY-OAUTH] - Shop: ${shop}`);
-      console.log(`[SHOPIFY-OAUTH] - Redirect URI: ${redirectUri}`);
-      console.log(`[SHOPIFY-OAUTH] - State provided: ${!!state}`);
+      const state = url.searchParams.get("state");
 
       if (!shop || !redirectUri || !state) {
-        console.error(`[SHOPIFY-OAUTH] Missing parameters - shop: ${!!shop}, redirectUri: ${!!redirectUri}, state: ${!!state}`);
+        console.error("[SHOPIFY-OAUTH] Missing authorize parameters");
         return new Response(
-          JSON.stringify({ error: "Missing shop, redirect_uri, or state parameter" }),
+          JSON.stringify({ error: CLIENT_ERRORS.MISSING_PARAMS }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -102,17 +87,17 @@ serve(async (req) => {
       // Validate shop format
       const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
       if (!shopRegex.test(shop)) {
-        console.error(`[SHOPIFY-OAUTH] Invalid shop format: ${shop}`);
+        console.error("[SHOPIFY-OAUTH] Invalid shop format");
         return new Response(
-          JSON.stringify({ error: "Invalid shop domain format. Use: yourstore.myshopify.com" }),
+          JSON.stringify({ error: CLIENT_ERRORS.INVALID_SHOP }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       if (!SHOPIFY_CLIENT_ID) {
-        console.error(`[SHOPIFY-OAUTH] SHOPIFY_CLIENT_ID is not configured!`);
+        console.error("[SHOPIFY-OAUTH] Client ID not configured");
         return new Response(
-          JSON.stringify({ error: "SHOPIFY_CLIENT_ID is not configured. Please add it to your backend secrets." }),
+          JSON.stringify({ error: CLIENT_ERRORS.CONFIG_ERROR }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -123,7 +108,7 @@ serve(async (req) => {
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `state=${encodeURIComponent(state)}`;
 
-      console.log(`[SHOPIFY-OAUTH] Generated auth URL (truncated): ${authUrl.substring(0, 100)}...`);
+      console.log("[SHOPIFY-OAUTH] Authorization URL generated");
 
       return new Response(JSON.stringify({ authUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -131,33 +116,25 @@ serve(async (req) => {
     }
 
     if (action === "callback") {
-      // Step 2: Exchange code for access token
       const code = url.searchParams.get("code");
       const shop = url.searchParams.get("shop");
-      const state = url.searchParams.get("state"); // Contains brand_id
-
-      console.log(`[SHOPIFY-OAUTH] Callback request:`);
-      console.log(`[SHOPIFY-OAUTH] - Code provided: ${!!code} (length: ${code?.length || 0})`);
-      console.log(`[SHOPIFY-OAUTH] - Shop: ${shop}`);
-      console.log(`[SHOPIFY-OAUTH] - State provided: ${!!state}`);
+      const state = url.searchParams.get("state");
 
       if (!code || !shop || !state) {
-        console.error(`[SHOPIFY-OAUTH] Callback missing parameters`);
+        console.error("[SHOPIFY-OAUTH] Missing callback parameters");
         return new Response(
-          JSON.stringify({ error: "Missing code, shop, or state parameter" }),
+          JSON.stringify({ error: CLIENT_ERRORS.MISSING_PARAMS }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET) {
-        console.error(`[SHOPIFY-OAUTH] Missing client credentials for token exchange`);
+        console.error("[SHOPIFY-OAUTH] Missing credentials for token exchange");
         return new Response(
-          JSON.stringify({ error: "Shopify credentials not configured" }),
+          JSON.stringify({ error: CLIENT_ERRORS.CONFIG_ERROR }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      console.log(`[SHOPIFY-OAUTH] Exchanging code for token, shop: ${shop}`);
 
       // Exchange code for access token
       const tokenUrl = `https://${shop}/admin/oauth/access_token`;
@@ -167,25 +144,16 @@ serve(async (req) => {
         code,
       };
 
-      console.log(`[SHOPIFY-OAUTH] Token exchange URL: ${tokenUrl}`);
-
       const tokenResponse = await fetch(tokenUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(tokenBody),
       });
 
-      console.log(`[SHOPIFY-OAUTH] Token response status: ${tokenResponse.status}`);
-
       if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error(`[SHOPIFY-OAUTH] Token exchange failed: ${errorText}`);
+        console.error(`[SHOPIFY-OAUTH] Token exchange failed with status ${tokenResponse.status}`);
         return new Response(
-          JSON.stringify({ 
-            error: "Failed to exchange code for access token",
-            details: errorText,
-            status: tokenResponse.status
-          }),
+          JSON.stringify({ error: CLIENT_ERRORS.AUTH_FAILED }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -193,17 +161,13 @@ serve(async (req) => {
       const tokenData = await tokenResponse.json();
       const accessToken = tokenData.access_token;
 
-      console.log(`[SHOPIFY-OAUTH] Got access token: ${!!accessToken}`);
-
       if (!accessToken) {
-        console.error(`[SHOPIFY-OAUTH] No access token in response: ${JSON.stringify(tokenData)}`);
+        console.error("[SHOPIFY-OAUTH] No access token in response");
         return new Response(
-          JSON.stringify({ error: "No access token received from Shopify" }),
+          JSON.stringify({ error: CLIENT_ERRORS.AUTH_FAILED }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      console.log(`[SHOPIFY-OAUTH] Creating storefront token...`);
 
       // Create a Storefront API token
       const storefrontResponse = await fetch(
@@ -222,16 +186,13 @@ serve(async (req) => {
         }
       );
 
-      console.log(`[SHOPIFY-OAUTH] Storefront token response status: ${storefrontResponse.status}`);
-
       let storefrontToken = null;
       if (storefrontResponse.ok) {
         const storefrontData = await storefrontResponse.json();
         storefrontToken = storefrontData.storefront_access_token?.access_token;
-        console.log(`[SHOPIFY-OAUTH] Created storefront token: ${!!storefrontToken}`);
+        console.log("[SHOPIFY-OAUTH] Storefront token created");
       } else {
-        const storefrontError = await storefrontResponse.text();
-        console.warn(`[SHOPIFY-OAUTH] Could not create storefront token: ${storefrontError}`);
+        console.warn("[SHOPIFY-OAUTH] Could not create storefront token");
       }
 
       // Parse state to get brand_id
@@ -239,17 +200,15 @@ serve(async (req) => {
       try {
         const stateData = JSON.parse(atob(state));
         brandId = stateData.brand_id;
-        console.log(`[SHOPIFY-OAUTH] Parsed brand_id: ${brandId}`);
-      } catch (e) {
-        console.error(`[SHOPIFY-OAUTH] Failed to parse state: ${e}`);
+      } catch {
+        console.error("[SHOPIFY-OAUTH] Invalid state parameter");
         return new Response(
-          JSON.stringify({ error: "Invalid state parameter" }),
+          JSON.stringify({ error: CLIENT_ERRORS.INVALID_STATE }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       // Save tokens to database
-      console.log(`[SHOPIFY-OAUTH] Saving to database...`);
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
       const updateData = {
@@ -259,32 +218,23 @@ serve(async (req) => {
         shopify_connected_at: new Date().toISOString(),
       };
 
-      console.log(`[SHOPIFY-OAUTH] Update data (tokens hidden): ${JSON.stringify({
-        shopify_store_domain: shop,
-        shopify_access_token: '***',
-        shopify_storefront_token: storefrontToken ? '***' : null,
-        shopify_connected_at: updateData.shopify_connected_at,
-      })}`);
-
-      const { data, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from("brands")
         .update(updateData)
         .eq("id", brandId)
         .select();
 
       if (updateError) {
-        console.error(`[SHOPIFY-OAUTH] Failed to save tokens: ${updateError.message}`);
+        console.error("[SHOPIFY-OAUTH] Database update failed");
         return new Response(
-          JSON.stringify({ error: "Failed to save Shopify credentials", details: updateError.message }),
+          JSON.stringify({ error: CLIENT_ERRORS.SAVE_FAILED }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log(`[SHOPIFY-OAUTH] Database update result: ${JSON.stringify(data)}`);
-      console.log(`[SHOPIFY-OAUTH] Successfully connected shop ${shop} to brand ${brandId}`);
+      console.log("[SHOPIFY-OAUTH] Connection saved successfully");
 
       // Auto-register webhooks
-      console.log(`[SHOPIFY-OAUTH] Registering webhooks...`);
       const webhookBaseUrl = `${SUPABASE_URL}/functions/v1/shopify-webhooks`;
       const registeredWebhooks: string[] = [];
       const failedWebhooks: string[] = [];
@@ -309,55 +259,36 @@ serve(async (req) => {
             }
           );
 
-          if (webhookResponse.ok) {
+          if (webhookResponse.ok || webhookResponse.status === 422) {
             registeredWebhooks.push(topic);
-            console.log(`[SHOPIFY-OAUTH] Registered webhook: ${topic}`);
           } else {
-            const errorText = await webhookResponse.text();
-            // 422 usually means webhook already exists
-            if (webhookResponse.status === 422) {
-              console.log(`[SHOPIFY-OAUTH] Webhook already exists: ${topic}`);
-              registeredWebhooks.push(topic);
-            } else {
-              console.warn(`[SHOPIFY-OAUTH] Failed to register webhook ${topic}: ${errorText}`);
-              failedWebhooks.push(topic);
-            }
+            failedWebhooks.push(topic);
           }
-        } catch (webhookError) {
-          console.error(`[SHOPIFY-OAUTH] Error registering webhook ${topic}:`, webhookError);
+        } catch {
           failedWebhooks.push(topic);
         }
       }
 
-      console.log(`[SHOPIFY-OAUTH] Webhooks registered: ${registeredWebhooks.length}/${WEBHOOK_TOPICS.length}`);
-      console.log(`[SHOPIFY-OAUTH] ========== REQUEST END ==========`);
+      console.log(`[SHOPIFY-OAUTH] Webhooks: ${registeredWebhooks.length}/${WEBHOOK_TOPICS.length} registered`);
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           shop,
-          webhooks: {
-            registered: registeredWebhooks,
-            failed: failedWebhooks,
-          }
+          webhooksRegistered: registeredWebhooks.length,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[SHOPIFY-OAUTH] Invalid action: ${action}`);
     return new Response(
-      JSON.stringify({ error: "Invalid action" }),
+      JSON.stringify({ error: CLIENT_ERRORS.INVALID_ACTION }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error(`[SHOPIFY-OAUTH] Error: ${errorMessage}`);
-    console.error(`[SHOPIFY-OAUTH] Stack: ${errorStack}`);
-    console.log(`[SHOPIFY-OAUTH] ========== REQUEST END (ERROR) ==========`);
+    console.error("[SHOPIFY-OAUTH] Unexpected error:", error instanceof Error ? error.message : "Unknown");
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: CLIENT_ERRORS.AUTH_FAILED }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
