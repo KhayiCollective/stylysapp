@@ -2,6 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,9 +11,39 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requireShopify = true }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const { isEmbedded, config } = useEmbeddedApp();
   const location = useLocation();
   const [checkingShopify, setCheckingShopify] = useState(requireShopify);
   const [hasShopify, setHasShopify] = useState<boolean | null>(null);
+  const [embeddedBrandVerified, setEmbeddedBrandVerified] = useState(false);
+  const [checkingEmbedded, setCheckingEmbedded] = useState(true);
+
+  // Handle embedded mode - verify shop exists in our system
+  useEffect(() => {
+    const verifyEmbeddedShop = async () => {
+      if (!isEmbedded || !config?.shop) {
+        setCheckingEmbedded(false);
+        return;
+      }
+
+      try {
+        const { data } = await supabase
+          .from('brands')
+          .select('id')
+          .eq('shopify_store_domain', config.shop)
+          .single();
+
+        setEmbeddedBrandVerified(!!data);
+      } catch (error) {
+        console.error('Error verifying embedded shop:', error);
+        setEmbeddedBrandVerified(false);
+      } finally {
+        setCheckingEmbedded(false);
+      }
+    };
+
+    verifyEmbeddedShop();
+  }, [isEmbedded, config?.shop]);
 
   useEffect(() => {
     const checkShopifyConnection = async () => {
@@ -61,7 +92,8 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     }
   }, [user, requireShopify, location.pathname]);
 
-  if (loading || checkingShopify) {
+  // Show loading while checking auth state
+  if (loading || checkingShopify || (isEmbedded && checkingEmbedded)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -72,6 +104,27 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     );
   }
 
+  // If running embedded in Shopify Admin, bypass Supabase auth
+  // Instead, verify the shop exists in our system
+  if (isEmbedded && config?.shop) {
+    if (embeddedBrandVerified) {
+      return <>{children}</>;
+    } else {
+      // Shop not found in our system - show error
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center p-8">
+            <h2 className="text-xl font-semibold mb-2">Store Not Connected</h2>
+            <p className="text-muted-foreground">
+              This Shopify store is not connected to STYLYS yet.
+            </p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Standard Supabase auth flow for standalone mode
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
