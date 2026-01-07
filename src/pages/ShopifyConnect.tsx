@@ -82,6 +82,18 @@ export default function ShopifyConnect() {
     loadOAuthClientId();
   }, [redirectUri]);
 
+  // Check for embedded mode params
+  const isEmbeddedFlow = searchParams.get('embedded') === 'true';
+  const prefilledShop = searchParams.get('shop');
+
+  // Pre-fill shop if coming from embedded flow
+  useEffect(() => {
+    if (prefilledShop && !shop) {
+      const cleanShop = prefilledShop.replace('.myshopify.com', '');
+      setShop(cleanShop);
+    }
+  }, [prefilledShop, shop]);
+
   // Check if already connected or handle OAuth callback
   useEffect(() => {
     const checkConnection = async () => {
@@ -102,15 +114,17 @@ export default function ShopifyConnect() {
         setLoading(true);
         setConnectionStep({ step: 'processing-callback', message: 'Processing OAuth callback...' });
         
+        // Check if this was an embedded flow by checking state
+        let wasEmbeddedFlow = false;
         try {
-          // Decode state for debugging
-          try {
-            const decodedState = JSON.parse(atob(state));
-            console.log('[ShopifyConnect] Decoded state:', decodedState);
-          } catch (e) {
-            console.error('[ShopifyConnect] Could not decode state:', e);
-          }
+          const decodedState = JSON.parse(atob(state));
+          console.log('[ShopifyConnect] Decoded state:', decodedState);
+          wasEmbeddedFlow = decodedState.embedded === true;
+        } catch (e) {
+          console.error('[ShopifyConnect] Could not decode state:', e);
+        }
 
+        try {
           setConnectionStep({ step: 'exchanging-token', message: 'Exchanging authorization code...' });
 
           // Check edge function is accessible first
@@ -136,9 +150,16 @@ export default function ShopifyConnect() {
               description: `Successfully connected to ${result.shop}`,
             });
             setConnected(true);
+            
             // Clear URL params and redirect
             window.history.replaceState({}, '', '/connect-shopify');
-            setTimeout(() => navigate('/dashboard'), 1500);
+            
+            // If this was an embedded flow, redirect back to embedded app
+            if (wasEmbeddedFlow) {
+              setTimeout(() => navigate(`/embedded?shop=${encodeURIComponent(shopParam)}`), 1500);
+            } else {
+              setTimeout(() => navigate('/dashboard'), 1500);
+            }
           } else {
             const errorMsg = result.error || "Failed to connect Shopify store";
             console.error('[ShopifyConnect] Callback error:', errorMsg, result.details);
@@ -186,7 +207,12 @@ export default function ShopifyConnect() {
 
           if (brand?.shopify_connected_at) {
             setConnected(true);
-            navigate('/dashboard');
+            // If embedded flow and already connected, go back to embedded
+            if (isEmbeddedFlow && brand.shopify_store_domain) {
+              navigate(`/embedded?shop=${encodeURIComponent(brand.shopify_store_domain)}`);
+            } else {
+              navigate('/dashboard');
+            }
           }
         }
       } catch (error) {
@@ -195,7 +221,7 @@ export default function ShopifyConnect() {
     };
 
     checkConnection();
-  }, [user, searchParams, navigate, toast]);
+  }, [user, searchParams, navigate, toast, isEmbeddedFlow]);
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,8 +263,12 @@ export default function ShopifyConnect() {
         shopDomain = `${shopDomain}.myshopify.com`;
       }
 
-      // Create state with brand_id
-      const state = btoa(JSON.stringify({ brand_id: profile.brand_id }));
+      // Create state with brand_id (and embedded flag if applicable)
+      const statePayload: { brand_id: string; embedded?: boolean } = { brand_id: profile.brand_id };
+      if (isEmbeddedFlow) {
+        statePayload.embedded = true;
+      }
+      const state = btoa(JSON.stringify(statePayload));
       const redirectUri = `${window.location.origin}/connect-shopify`;
 
       console.log('[ShopifyConnect] Initiating OAuth flow:', { shopDomain, redirectUri, brandId: profile.brand_id });

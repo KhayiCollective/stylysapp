@@ -2,22 +2,31 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
+import { EmbeddedConnectionRequired } from "@/components/embedded/EmbeddedConnectionRequired";
 import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
 
 export default function EmbeddedApp() {
   const [searchParams] = useSearchParams();
-  const { isEmbedded, config } = useEmbeddedApp();
+  const { config } = useEmbeddedApp();
   const [verifying, setVerifying] = useState(true);
   const [verified, setVerified] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [needsConnection, setNeedsConnection] = useState(false);
 
   const shop = searchParams.get("shop") || config?.shop;
+  const isTestMode = searchParams.get("test") === "true";
 
   useEffect(() => {
     const verifyShop = async () => {
+      // Test mode bypasses verification
+      if (isTestMode) {
+        setVerified(true);
+        setVerifying(false);
+        return;
+      }
+
       if (!shop) {
-        setError("Missing shop parameter");
+        setNeedsConnection(true);
         setVerifying(false);
         return;
       }
@@ -33,22 +42,23 @@ export default function EmbeddedApp() {
 
         if (dbError) {
           console.error('Error verifying shop:', dbError);
-          setError("Failed to verify store");
+          setNeedsConnection(true);
         } else if (!data) {
-          setError("Store not found. Please complete the OAuth connection first.");
+          // Store not connected yet - show connection required UI
+          setNeedsConnection(true);
         } else {
           setVerified(true);
         }
       } catch (err) {
         console.error('Verification error:', err);
-        setError("Verification failed");
+        setNeedsConnection(true);
       } finally {
         setVerifying(false);
       }
     };
 
     verifyShop();
-  }, [shop]);
+  }, [shop, isTestMode]);
 
   // Loading state
   if (verifying) {
@@ -62,28 +72,15 @@ export default function EmbeddedApp() {
     );
   }
 
-  // Error state
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md text-center space-y-4">
-          <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-            <span className="text-destructive text-xl">!</span>
-          </div>
-          <h1 className="text-xl font-semibold">Unable to Load App</h1>
-          <p className="text-muted-foreground">{error}</p>
-          <p className="text-sm text-muted-foreground">
-            Shop: <code className="bg-muted px-1 rounded">{shop || 'not provided'}</code>
-          </p>
-        </div>
-      </div>
-    );
+  // Connection required state - show helpful UI instead of error
+  if (needsConnection) {
+    return <EmbeddedConnectionRequired shopDomain={shop} />;
   }
 
-  // Verified - render embedded dashboard
+  // Verified or test mode - render embedded dashboard
   if (verified) {
     return (
-      <EmbeddedDashboard>
+      <EmbeddedDashboard testMode={isTestMode} shopDomain={shop}>
         <Dashboard />
       </EmbeddedDashboard>
     );
