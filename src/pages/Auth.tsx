@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useAccountBootstrap } from '@/hooks/useAccountBootstrap';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -13,22 +15,17 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [brandName, setBrandName] = useState('');
   const [loading, setLoading] = useState(false);
-  const {
-    signIn,
-    signUp
-  } = useAuth();
+  const { signIn, signUp } = useAuth();
+  const { bootstrap } = useAccountBootstrap();
   const navigate = useNavigate();
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       if (isLogin) {
-        const {
-          error
-        } = await signIn(email, password);
+        const { error } = await signIn(email, password);
         if (error) {
           toast({
             title: "Login failed",
@@ -36,12 +33,16 @@ export default function Auth() {
             variant: "destructive"
           });
         } else {
+          // Auto-heal: ensure profile/brand exist after login
+          const result = await bootstrap();
+          if (!result.ok) {
+            console.warn('[Auth] Bootstrap warning:', result.error);
+            // Still proceed - the connect-shopify page will handle recovery
+          }
           navigate('/dashboard');
         }
       } else {
-        const {
-          error
-        } = await signUp(email, password, fullName, brandName);
+        const { error } = await signUp(email, password, fullName, brandName);
         if (error) {
           toast({
             title: "Sign up failed",
