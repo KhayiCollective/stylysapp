@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useAccountBootstrap } from '@/hooks/useAccountBootstrap';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Store, CheckCircle, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
+import { Sparkles, Store, CheckCircle, Loader2, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ConnectionStep {
@@ -27,8 +28,10 @@ export default function ShopifyConnect() {
   const [connectionStep, setConnectionStep] = useState<ConnectionStep | null>(null);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [popupBlocked, setPopupBlocked] = useState<PopupBlockedState>({ blocked: false, authUrl: null });
+  const [missingProfile, setMissingProfile] = useState(false);
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { bootstrap, bootstrapping } = useAccountBootstrap();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -246,15 +249,32 @@ export default function ShopifyConnect() {
         throw new Error('The OAuth service is currently unavailable. Please try again in a moment or check Settings > Developer Test Mode for diagnostics.');
       }
 
-      // Get brand_id
-      const { data: profile } = await supabase
+      // Get brand_id - if missing, try to bootstrap
+      let { data: profile } = await supabase
         .from('profiles')
         .select('brand_id')
         .eq('id', user.id)
         .single();
 
       if (!profile?.brand_id) {
-        throw new Error('Brand not found');
+        // Try to bootstrap the account
+        const result = await bootstrap();
+        if (!result.ok) {
+          setMissingProfile(true);
+          throw new Error('Account setup incomplete. Please try the "Fix Account" button.');
+        }
+        // Re-fetch profile after bootstrap
+        const { data: refreshedProfile } = await supabase
+          .from('profiles')
+          .select('brand_id')
+          .eq('id', user.id)
+          .single();
+        profile = refreshedProfile;
+        
+        if (!profile?.brand_id) {
+          setMissingProfile(true);
+          throw new Error('Account setup incomplete');
+        }
       }
 
       // Format shop domain
@@ -352,6 +372,66 @@ export default function ShopifyConnect() {
               ))}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show recovery UI for missing profile/brand
+  if (missingProfile) {
+    const handleFixAccount = async () => {
+      setMissingProfile(false);
+      const result = await bootstrap();
+      if (result.ok) {
+        toast({
+          title: "Account fixed!",
+          description: "Your account has been set up. You can now connect Shopify.",
+        });
+        setConnectionStep(null);
+        setErrorDetails(null);
+      } else {
+        toast({
+          title: "Still having issues",
+          description: result.error || "Please try signing out and back in",
+          variant: "destructive",
+        });
+        setMissingProfile(true);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="text-center space-y-6 max-w-md">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30">
+            <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-display font-bold">Account Setup Required</h2>
+            <p className="text-muted-foreground mt-2">
+              Your account wasn't fully initialized. This can happen if there was an issue during sign-up.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <Button onClick={handleFixAccount} disabled={bootstrapping} className="w-full">
+              {bootstrapping ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Fixing account...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Fix My Account
+                </span>
+              )}
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/auth')} className="w-full">
+              Sign Out & Try Again
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            User ID: {user?.id?.substring(0, 8)}...
+          </p>
         </div>
       </div>
     );
