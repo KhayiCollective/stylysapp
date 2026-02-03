@@ -1,76 +1,49 @@
 
-# Deploy & Diagnose Shopify OAuth Function
 
-## Current Status
+# Plan: Enable Access to Settings Page for Developer Test Mode
 
-After investigating, I found the core issue:
+## Problem
+You're caught in a redirect loop: the Settings page (which contains Developer Test Mode) requires Shopify to be connected, but you need Developer Test Mode to create a mock connection when you can't complete real OAuth.
 
-| Edge Function | Status | Reason |
-|---------------|--------|--------|
-| `account-bootstrap` | ✅ Working | Uses modern `Deno.serve()` |
-| `shopify-oauth` | ❌ 404 Error | Uses deprecated `serve()` from std library |
+## Solution
+Modify the Settings route to bypass the Shopify requirement, allowing you to access the Developer Test Mode and create a mock connection.
 
-The analytics logs confirm `shopify-oauth` has no `function_id` (meaning it failed to build/deploy), while `account-bootstrap` has a valid deployment ID and works correctly.
+## Implementation Steps
 
-## Root Cause
-
-The `shopify-oauth` function uses an outdated import pattern:
-
-```typescript
-// OLD - causing deployment failure
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-serve(async (req) => { ... });
+### Step 1: Update Settings Route in App.tsx
+Change the Settings route from:
+```tsx
+<Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+```
+To:
+```tsx
+<Route path="/settings" element={<ProtectedRoute requireShopify={false}><Settings /></ProtectedRoute>} />
 ```
 
-The edge runtime expects the modern pattern:
+This allows authenticated users to access Settings even without a Shopify connection.
 
-```typescript
-// NEW - works correctly
-Deno.serve(async (req) => { ... });
-```
+### Step 2: Add Direct Link to Settings from Connect Page
+Add a link on the `/connect-shopify` page pointing to the Settings page so users can easily access Developer Test Mode.
 
-## Implementation Plan
-
-### Step 1: Update shopify-oauth to modern Deno.serve pattern
-
-Modify `supabase/functions/shopify-oauth/index.ts`:
-- Remove the `serve` import from `std/http/server.ts`
-- Replace `serve(async (req) => {...})` with `Deno.serve(async (req) => {...})`
-- Update the Supabase client import to use the same pattern as `account-bootstrap`
-
-### Step 2: Deploy the updated function
-
-After the code change, deploy the function and verify it's accessible.
-
-### Step 3: Run OAuth diagnostics
-
-Test these endpoints:
-- `GET /shopify-oauth?action=health` - Should return version and timestamp
-- `GET /shopify-oauth?action=test` - Should return configuration status
-
-### Step 4: Verify Shopify credentials are configured
-
-The test endpoint will confirm whether `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` are set.
+---
 
 ## Technical Details
 
-Changes to `supabase/functions/shopify-oauth/index.ts`:
+**File Changes:**
+| File | Change |
+|------|--------|
+| `src/App.tsx` | Add `requireShopify={false}` to Settings route |
+| `src/pages/ShopifyConnect.tsx` | Add link to Settings/Developer Test Mode |
 
-```typescript
-// Remove this line:
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+**Routes affected:**
+- `/settings` - Will become accessible without Shopify connection
 
-// Update import:
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+## Testing After Implementation
+1. Navigate to `/settings`
+2. Scroll to "Developer Test Mode" section
+3. Toggle Test Mode ON
+4. Click "Run Integration Tests" to verify edge function health
+5. Enter your dev store name (e.g., `your-dev-store`)
+6. Click "Create Mock Connection"
+7. Navigate to Dashboard to verify mock connection works
 
-// Replace serve() call at end of file:
-// FROM:  serve(async (req) => { ... });
-// TO:    Deno.serve(async (req) => { ... });
-```
-
-## Expected Outcome
-
-After implementation:
-- Health endpoint returns: `{ "status": "ok", "version": "1.0.3", "timestamp": "..." }`
-- Test endpoint returns: `{ "status": "ok", "version": "1.0.3", "configured": true/false }`
-- The Shopify OAuth flow will work end-to-end for connecting your dev store
