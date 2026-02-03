@@ -70,7 +70,7 @@ const App = () => (
               <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
               <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
               <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute requireShopify={false}><Settings /></ProtectedRoute>} />
               <Route path="/app-store-assets" element={<ProtectedRoute><AppStoreAssets /></ProtectedRoute>} />
               <Route path="/account/outfits" element={<CustomerAccount />} />
               {/* Shopify Embedded App (no Supabase auth required) */}

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Store, CheckCircle, Loader2, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react';
+import { Sparkles, Store, CheckCircle, Loader2, ExternalLink, AlertCircle, RefreshCw, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ConnectionStep {
@@ -606,6 +607,26 @@ export default function ShopifyConnect() {
               <li>Grant read access to your products</li>
               <li>Return here to start creating outfits</li>
             </ol>
+          </div>
+
+          {/* Developer Test Mode link */}
+          <div className="mt-4 p-4 rounded-lg border border-dashed border-border bg-background">
+            <div className="flex items-start gap-3">
+              <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <h3 className="font-medium text-sm mb-1">Having trouble connecting?</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Use Developer Test Mode to create a mock connection and test the dashboard without real OAuth.
+                </p>
+                <Link 
+                  to="/settings" 
+                  className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  Go to Settings → Developer Test Mode
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>
