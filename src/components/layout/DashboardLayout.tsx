@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import stylysIcon from "@/assets/stylys-icon.jpg";
 import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, Package, Wand2, Settings2, ExternalLink, Sparkles, Menu, Heart, Settings, BookOpen, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -57,9 +58,7 @@ export function DashboardLayout({
       <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-sidebar">
         <div className="p-6 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-foreground rounded-sm flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-background" />
-            </div>
+            <img src={stylysIcon} alt="STYLYS" className="w-8 h-8 rounded-sm object-cover" />
             <span className="font-display text-lg font-semibold">STYLYS</span>
           </Link>
         </div>
@@ -88,9 +87,7 @@ export function DashboardLayout({
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="flex items-center justify-between h-14 px-4">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-foreground rounded-sm flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-background" />
-            </div>
+            <img src={stylysIcon} alt="STYLYS" className="w-7 h-7 rounded-sm object-cover" />
             <span className="font-display text-lg font-semibold">STYLYS</span>
           </Link>
           <Sheet>
