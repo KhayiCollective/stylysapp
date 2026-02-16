@@ -25,7 +25,7 @@ export function ShopifySyncStatus() {
   const [isConnected, setIsConnected] = useState(false);
 
   const fetchStatus = useCallback(async () => {
-    if (!brandId) return;
+    if (!brandId || !isConnected) return;
 
     try {
       const { data, error } = await supabase.functions.invoke('shopify-product-sync', {
@@ -34,11 +34,10 @@ export function ShopifySyncStatus() {
 
       if (error) throw error;
       setStatus(data);
-      setIsConnected(!!data.storeDomain);
     } catch (error) {
       console.error('Error fetching sync status:', error);
     }
-  }, [brandId]);
+  }, [brandId, isConnected]);
 
   useEffect(() => {
     const fetchBrandId = async () => {
@@ -53,6 +52,15 @@ export function ShopifySyncStatus() {
 
         if (profile?.brand_id) {
           setBrandId(profile.brand_id);
+
+          // Check if Shopify is connected before calling the edge function
+          const { data: brand } = await supabase
+            .from('brands')
+            .select('shopify_store_domain, shopify_access_token')
+            .eq('id', profile.brand_id)
+            .single();
+
+          setIsConnected(!!brand?.shopify_store_domain && !!brand?.shopify_access_token);
         }
       } catch (error) {
         console.error('Error fetching brand:', error);
@@ -65,10 +73,10 @@ export function ShopifySyncStatus() {
   }, [user]);
 
   useEffect(() => {
-    if (brandId) {
+    if (brandId && isConnected) {
       fetchStatus();
     }
-  }, [brandId, fetchStatus]);
+  }, [brandId, isConnected, fetchStatus]);
 
   const handleSync = async () => {
     if (!brandId) return;
