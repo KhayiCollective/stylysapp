@@ -26,6 +26,7 @@ import Terms from "./pages/Terms";
 import Support from "./pages/Support";
 import AppStoreAssets from "./pages/AppStoreAssets";
 import EmbeddedApp from "./pages/EmbeddedApp";
+import ResetPassword from "./pages/ResetPassword";
 import GettingStarted from "./pages/docs/GettingStarted";
 import ShopifySetup from "./pages/docs/ShopifySetup";
 import WidgetEmbed from "./pages/docs/WidgetEmbed";
@@ -64,6 +65,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<AuthRoute />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/catalog" element={<ProtectedRoute><Catalog /></ProtectedRoute>} />
               <Route path="/generator" element={<ProtectedRoute><OutfitGenerator /></ProtectedRoute>} />

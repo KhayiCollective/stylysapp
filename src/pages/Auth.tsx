@@ -8,14 +8,16 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
 
+type AuthView = 'login' | 'signup' | 'forgot';
+
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
+  const [view, setView] = useState<AuthView>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [brandName, setBrandName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resetPassword } = useAuth();
   const { bootstrap } = useAccountBootstrap();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -24,36 +26,32 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isLogin) {
+      if (view === 'forgot') {
+        const { error } = await resetPassword(email);
+        if (error) {
+          toast({ title: "Error", description: error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Check your email", description: "We sent you a password reset link." });
+          setView('login');
+        }
+        return;
+      }
+
+      if (view === 'login') {
         const { error } = await signIn(email, password);
         if (error) {
-          toast({
-            title: "Login failed",
-            description: error.message,
-            variant: "destructive"
-          });
+          toast({ title: "Login failed", description: error.message, variant: "destructive" });
         } else {
-          // Auto-heal: ensure profile/brand exist after login
           const result = await bootstrap();
-          if (!result.ok) {
-            console.warn('[Auth] Bootstrap warning:', result.error);
-            // Still proceed - the connect-shopify page will handle recovery
-          }
+          if (!result.ok) console.warn('[Auth] Bootstrap warning:', result.error);
           navigate('/dashboard');
         }
       } else {
         const { error } = await signUp(email, password, fullName, brandName);
         if (error) {
-          toast({
-            title: "Sign up failed",
-            description: error.message,
-            variant: "destructive"
-          });
+          toast({ title: "Sign up failed", description: error.message, variant: "destructive" });
         } else {
-          toast({
-            title: "Account created!",
-            description: "Let's connect your Shopify store..."
-          });
+          toast({ title: "Account created!", description: "Let's connect your Shopify store..." });
           navigate('/connect-shopify');
         }
       }
@@ -113,29 +111,24 @@ export default function Auth() {
 
           <div className="text-center mb-8">
             <h2 className="text-3xl font-display font-bold text-foreground">
-              {isLogin ? 'Welcome back' : 'Create your account'}
+              {view === 'login' ? 'Welcome back' : view === 'signup' ? 'Create your account' : 'Reset your password'}
             </h2>
             <p className="mt-2 text-muted-foreground">
-              {isLogin ? 'Sign in to access your dashboard' : 'Start building AI-powered outfits today'}
+              {view === 'login' ? 'Sign in to access your dashboard' : view === 'signup' ? 'Start building AI-powered outfits today' : 'Enter your email and we\'ll send you a reset link'}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLogin && <>
+            {view === 'signup' && <>
                 <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-sm font-medium">
-                    Full Name
-                  </Label>
+                  <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input id="fullName" type="text" placeholder="John Doe" value={fullName} onChange={e => setFullName(e.target.value)} className="pl-10" />
                   </div>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="brandName" className="text-sm font-medium">
-                    Brand Name
-                  </Label>
+                  <Label htmlFor="brandName" className="text-sm font-medium">Brand Name</Label>
                   <div className="relative">
                     <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input id="brandName" type="text" placeholder="My Fashion Brand" value={brandName} onChange={e => setBrandName(e.target.value)} className="pl-10" />
@@ -144,40 +137,51 @@ export default function Auth() {
               </>}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email
-              </Label>
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required className="pl-10" />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
-                Password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="pl-10" />
+            {view !== 'forgot' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                  {view === 'login' && (
+                    <button type="button" onClick={() => setView('forgot')} className="text-xs text-primary hover:underline">
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input id="password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="pl-10" />
+                </div>
               </div>
-            </div>
+            )}
 
             <Button type="submit" className="w-full h-11 font-medium" disabled={loading}>
               {loading ? <span className="flex items-center gap-2">
                   <span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  {isLogin ? 'Signing in...' : 'Creating account...'}
+                  {view === 'login' ? 'Signing in...' : view === 'signup' ? 'Creating account...' : 'Sending link...'}
                 </span> : <span className="flex items-center gap-2">
-                  {isLogin ? 'Sign in' : 'Create account'}
+                  {view === 'login' ? 'Sign in' : view === 'signup' ? 'Create account' : 'Send reset link'}
                   <ArrowRight className="h-4 w-4" />
                 </span>}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              {isLogin ? <>Don't have an account? <span className="text-primary font-medium">Sign up</span></> : <>Already have an account? <span className="text-primary font-medium">Sign in</span></>}
-            </button>
+          <div className="mt-6 text-center space-y-2">
+            {view === 'forgot' ? (
+              <button type="button" onClick={() => setView('login')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Back to <span className="text-primary font-medium">Sign in</span>
+              </button>
+            ) : (
+              <button type="button" onClick={() => setView(view === 'login' ? 'signup' : 'login')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                {view === 'login' ? <>Don't have an account? <span className="text-primary font-medium">Sign up</span></> : <>Already have an account? <span className="text-primary font-medium">Sign in</span></>}
+              </button>
+            )}
           </div>
         </div>
       </div>
