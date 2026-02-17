@@ -5,10 +5,10 @@ import heroModel from "@/assets/hero-model.jpg";
 const Index = () => {
   const [searchParams] = useSearchParams();
   const shop = searchParams.get("shop");
-  
+
   // If running inside Shopify Admin iframe, redirect to embedded dashboard
   const isEmbedded = typeof window !== "undefined" && window.self !== window.top && shop;
-  
+
   if (isEmbedded) {
     return <Navigate to={`/embedded?${searchParams.toString()}`} replace />;
   }
@@ -83,7 +83,7 @@ const Index = () => {
             
             <div className="relative lg:justify-self-end">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl max-w-md mx-auto lg:mx-0">
-                <img src={heroModel} alt="Fashion model showcasing STYLYS AI styling" className="w-full h-auto object-cover" />
+                <img alt="Fashion model showcasing STYLYS AI styling" className="w-full h-auto object-cover" src="/lovable-uploads/5902c27e-716c-43f9-9ee2-6eafd6d320f4.jpg" />
               </div>
             </div>
           </div>
@@ -219,11 +219,11 @@ const FeatureCard = ({
   icon,
   title,
   description
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) => <div className="bg-background border border-border rounded-xl p-8 hover:shadow-lg transition-shadow">
+
+
+
+
+}: {icon: React.ReactNode;title: string;description: string;}) => <div className="bg-background border border-border rounded-xl p-8 hover:shadow-lg transition-shadow">
     <div className="w-12 h-12 bg-foreground rounded-xl flex items-center justify-center mb-6 text-background">
       {icon}
     </div>
@@ -237,14 +237,14 @@ const PricingCard = ({
   features,
   buttonText,
   featured = false
-}: {
-  title: string;
-  subtitle: string;
-  price: string;
-  features: string[];
-  buttonText: string;
-  featured?: boolean;
-}) => <div className={`rounded-2xl p-8 ${featured ? 'bg-foreground text-background scale-105 shadow-2xl' : 'bg-background border border-border'}`}>
+
+
+
+
+
+
+
+}: {title: string;subtitle: string;price: string;features: string[];buttonText: string;featured?: boolean;}) => <div className={`rounded-2xl p-8 ${featured ? 'bg-foreground text-background scale-105 shadow-2xl' : 'bg-background border border-border'}`}>
     {featured && <span className="inline-block px-3 py-1 bg-background/10 rounded-full text-xs font-semibold mb-4">
         Most Popular
       </span>}
@@ -270,11 +270,11 @@ const StepCard = ({
   number,
   title,
   description
-}: {
-  number: string;
-  title: string;
-  description: string;
-}) => <div className="text-center">
+
+
+
+
+}: {number: string;title: string;description: string;}) => <div className="text-center">
     <div className="w-16 h-16 bg-foreground rounded-full flex items-center justify-center mx-auto mb-6">
       <span className="text-background font-display font-bold text-lg">{number}</span>
     </div>
