@@ -1,46 +1,31 @@
 
-# Auto-Install Widget on Shopify Store (Zero Merchant Effort)
 
-## What Changes
-Instead of requiring merchants to manually set up a Theme App Extension or paste code, the widget script will be **automatically injected** into their Shopify store the moment they connect via OAuth. Merchants don't need to touch any code or theme settings.
+# Fix: Widget Script Tag Permission Error
 
-## How It Works
-1. When the Shopify OAuth flow completes successfully (store connects), the system automatically registers a **Script Tag** via the Shopify Admin API
-2. This script tag loads a small JavaScript file served by a backend function
-3. That script renders the STYLYS sidebar widget (floating button + slide-out panel) on every page of the merchant's store
-4. Merchants can see the widget status and toggle it on/off from their Settings page
+## The Problem
+The widget toggle is failing because the Shopify access token stored for your connected store was obtained **before** `write_script_tags` was added to the OAuth scopes. Shopify requires the merchant to re-approve the app to grant the new permission.
+
+## The Fix
+
+### 1. Add a "Reconnect Store" action in Settings
+Update the Shopify connection UI on the Settings page to include a "Re-authorize" button that triggers a new OAuth flow. When the merchant clicks it, they'll be redirected to Shopify to approve the updated scopes (including `write_script_tags`). On callback, the new token (with full permissions) replaces the old one.
+
+### 2. Improve error handling in WidgetStatus
+Update `WidgetStatus.tsx` to detect the "scope" error and show a clear message like: *"Your store needs to re-authorize to enable the widget. Click Re-authorize below."* instead of a generic failure toast.
+
+### 3. No database or schema changes needed
+The `widget_script_tag_id` column and all edge functions are already in place. Only the stored access token needs to be refreshed via re-authorization.
 
 ## Technical Details
 
-### 1. Update the Shopify OAuth callback (`supabase/functions/shopify-oauth/index.ts`)
-- After saving the access token, make one additional API call to Shopify's Script Tag API:
-  ```
-  POST /admin/api/2025-01/script_tags.json
-  { script_tag: { event: "onload", src: "<widget-js-url>?brand_id=<brand_id>" } }
-  ```
-- The OAuth scopes already include what's needed (`write_script_tags` will need to be added to the SCOPES constant)
-- Save the script tag ID to the `brands` table so it can be managed later
+- **`src/pages/Settings.tsx`** or **`src/components/ShopifyConnection.tsx`**: Add a "Re-authorize" button that triggers the existing OAuth `authorize` flow for the already-connected shop domain. This re-uses the same `shopify-oauth?action=authorize` endpoint.
+- **`src/components/settings/WidgetStatus.tsx`**: Catch the specific scope error from `shopify-widget-toggle` and surface actionable guidance instead of a generic error toast.
+- **`supabase/functions/shopify-widget-toggle/index.ts`**: Pass through the Shopify error detail so the frontend can distinguish scope errors from other failures.
 
-### 2. Add a `widget_script_tag_id` column to the `brands` table
-- Stores the Shopify Script Tag ID so we can update/remove it later
-- Simple migration: `ALTER TABLE brands ADD COLUMN widget_script_tag_id text;`
+## What the Merchant Experiences
+1. Sees "Widget failed — your store needs updated permissions"
+2. Clicks "Re-authorize"
+3. Redirected to Shopify, clicks "Update app"
+4. Redirected back, new token saved automatically
+5. Widget toggle now works
 
-### 3. Create a widget loader edge function (`supabase/functions/widget-loader/index.ts`)
-- Serves a lightweight JavaScript file that:
-  - Creates a floating button (sparkle icon) on the store page
-  - When clicked, opens an iframe pointing to the STYLYS widget preview page
-  - Reads `brand_id` from the script URL query parameter
-- This is a static JS response, so it's fast and cacheable
-
-### 4. Update the Settings page (`src/pages/Settings.tsx`)
-- Add a "Widget Status" indicator in the Shopify Connection card showing whether the widget is live on the store
-- Add a toggle or button to enable/disable the widget (creates or removes the script tag)
-
-### 5. Update OAuth scopes
-- Add `write_script_tags` to the SCOPES constant in `shopify-oauth` so the app has permission to inject scripts
-
-## What Merchants Experience
-- Connect their Shopify store (already works)
-- Widget automatically appears on their storefront -- done
-- They can see "Widget: Active" in their Settings page
-- They can disable it with one click if needed
