@@ -68,6 +68,61 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_accounts: {
+        Row: {
+          brand_id: string
+          created_at: string
+          customer_id: string | null
+          email: string
+          id: string
+          name: string | null
+          password_hash: string
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          customer_id?: string | null
+          email: string
+          id?: string
+          name?: string | null
+          password_hash: string
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          customer_id?: string | null
+          email?: string
+          id?: string
+          name?: string | null
+          password_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_accounts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_accounts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_accounts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           avoided_colors: Json | null
@@ -514,6 +569,55 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_outfits: {
+        Row: {
+          brand_id: string
+          created_at: string
+          customer_account_id: string
+          id: string
+          name: string | null
+          outfit_data: Json
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          customer_account_id: string
+          id?: string
+          name?: string | null
+          outfit_data?: Json
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          customer_account_id?: string
+          id?: string
+          name?: string | null
+          outfit_data?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_outfits_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_outfits_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_outfits_customer_account_id_fkey"
+            columns: ["customer_account_id"]
+            isOneToOne: false
+            referencedRelation: "customer_accounts"
             referencedColumns: ["id"]
           },
         ]
