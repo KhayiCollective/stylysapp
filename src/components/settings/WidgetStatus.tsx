@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Sparkles, Loader2, Power, PowerOff, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Sparkles, Loader2, Power, PowerOff, AlertTriangle, RefreshCw, Copy, Check, Code } from 'lucide-react';
 
 export function WidgetStatus() {
   const { user } = useAuth();
@@ -14,6 +15,8 @@ export function WidgetStatus() {
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [scopeError, setScopeError] = useState(false);
+  const [showManualInstall, setShowManualInstall] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [brandData, setBrandData] = useState<{
     id: string;
     shopify_store_domain: string | null;
@@ -188,6 +191,52 @@ export function WidgetStatus() {
             A floating ✨ button is visible on every page of your Shopify store. Customers can click it to get AI-powered outfit recommendations.
           </p>
         )}
+
+        {/* Manual Install Fallback */}
+        <Separator className="my-2" />
+        <div className="space-y-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => setShowManualInstall(!showManualInstall)}
+          >
+            <Code className="h-4 w-4 mr-2" />
+            {showManualInstall ? 'Hide Manual Install' : 'Manual Install (Recommended)'}
+          </Button>
+
+          {showManualInstall && brandData?.id && (
+            <div className="space-y-3 rounded-md border p-4 bg-muted/50">
+              <p className="text-sm font-medium">Paste this script into your Shopify theme:</p>
+              <div className="relative">
+                <pre className="text-xs bg-background rounded p-3 overflow-x-auto border font-mono">
+                  {`<script src="${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-loader?brand_id=${brandData.id}" defer></script>`}
+                </pre>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="absolute top-1 right-1 h-7 w-7"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `<script src="${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-loader?brand_id=${brandData.id}" defer></script>`
+                    );
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                    toast({ title: 'Copied!', description: 'Script tag copied to clipboard.' });
+                  }}
+                >
+                  {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                <li>In Shopify Admin, go to <strong>Online Store → Themes → Edit code</strong></li>
+                <li>Open <strong>theme.liquid</strong></li>
+                <li>Paste the script just before the closing <code className="bg-background px-1 rounded">&lt;/body&gt;</code> tag</li>
+                <li>Click <strong>Save</strong> — the widget will appear immediately</li>
+              </ol>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
