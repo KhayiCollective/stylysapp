@@ -64,8 +64,12 @@ Deno.serve(async (req) => {
       if (!response.ok) {
         const errText = await response.text();
         console.error("[WIDGET-TOGGLE] Failed to create script tag:", errText);
-        return new Response(JSON.stringify({ error: "Failed to install widget" }), {
-          status: 500,
+        const isScopeError = errText.includes("scope") || errText.includes("access denied") || errText.includes("403") || response.status === 403;
+        return new Response(JSON.stringify({ 
+          error: isScopeError ? "scope_error" : "Failed to install widget",
+          detail: isScopeError ? "Your store needs to re-authorize with updated permissions." : errText,
+        }), {
+          status: isScopeError ? 403 : 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

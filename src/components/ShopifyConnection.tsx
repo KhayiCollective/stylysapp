@@ -102,7 +102,7 @@ export function ShopifyConnection({ className }: ShopifyConnectionProps) {
               </Badge>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant="outline" size="sm" asChild>
                 <a
                   href={`https://${shopifyData?.storeDomain}/admin`}
@@ -116,6 +116,10 @@ export function ShopifyConnection({ className }: ShopifyConnectionProps) {
               <Button variant="outline" size="sm" onClick={handleReconnect}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Reconnect
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleReconnect}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Re-authorize Permissions
               </Button>
             </div>
 
