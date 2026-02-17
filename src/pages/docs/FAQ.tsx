@@ -76,7 +76,7 @@ export default function FAQ() {
     },
     {
       question: "Do you offer refunds?",
-      answer: "We offer refunds within 7 days of your initial subscription. Contact support@stylys.app with your request."
+      answer: "We offer refunds within 7 days of your initial subscription. Contact info@hausofkhayi.com with your request."
     }
   ];
 
