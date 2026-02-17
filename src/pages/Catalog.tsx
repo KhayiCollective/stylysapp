@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BulkActions } from "@/components/catalog/BulkActions";
+import { ImportProductsDialog } from "@/components/catalog/ImportProductsDialog";
 
 interface Product {
   id: string;
@@ -39,6 +40,7 @@ const Catalog = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [brandId, setBrandId] = useState<string | null>(null);
+  const [shopifyConnected, setShopifyConnected] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -62,6 +64,15 @@ const Catalog = () => {
 
         if (profile?.brand_id) {
           setBrandId(profile.brand_id);
+          
+          // Check Shopify connection
+          const { data: brand } = await supabase
+            .from("brands")
+            .select("shopify_store_domain")
+            .eq("id", profile.brand_id)
+            .single();
+          setShopifyConnected(!!brand?.shopify_store_domain);
+          
           await fetchProducts(profile.brand_id);
         }
       } catch (error) {
@@ -198,16 +209,24 @@ const Catalog = () => {
         <p className="text-muted-foreground">
           {products.length} products in catalog
         </p>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="editorial" onClick={() => {
-              setEditingProduct(null);
-              setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
-            }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Product
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          {brandId && (
+            <ImportProductsDialog
+              brandId={brandId}
+              shopifyConnected={shopifyConnected}
+              onImportComplete={() => brandId && fetchProducts(brandId)}
+            />
+          )}
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="editorial" onClick={() => {
+                setEditingProduct(null);
+                setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
+              }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Product
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="font-display text-xl">
@@ -300,6 +319,7 @@ const Catalog = () => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Bulk Actions */}

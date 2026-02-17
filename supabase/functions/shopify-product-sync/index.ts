@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+// Using Deno.serve pattern
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -130,7 +130,7 @@ async function updateSyncHistoryEntry(
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -254,6 +254,7 @@ serve(async (req) => {
           shopify_variant_id: String(variant.id),
           shopify_handle: product.handle,
           inventory_status: "in_stock",
+          source: "shopify",
         };
 
         // Upsert by shopify_variant_id

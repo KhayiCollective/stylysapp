@@ -26,6 +26,10 @@ export type Database = {
           shopify_storefront_token: string | null
           slug: string
           updated_at: string
+          woocommerce_connected_at: string | null
+          woocommerce_consumer_key: string | null
+          woocommerce_consumer_secret: string | null
+          woocommerce_store_url: string | null
         }
         Insert: {
           created_at?: string
@@ -38,6 +42,10 @@ export type Database = {
           shopify_storefront_token?: string | null
           slug: string
           updated_at?: string
+          woocommerce_connected_at?: string | null
+          woocommerce_consumer_key?: string | null
+          woocommerce_consumer_secret?: string | null
+          woocommerce_store_url?: string | null
         }
         Update: {
           created_at?: string
@@ -50,6 +58,10 @@ export type Database = {
           shopify_storefront_token?: string | null
           slug?: string
           updated_at?: string
+          woocommerce_connected_at?: string | null
+          woocommerce_consumer_key?: string | null
+          woocommerce_consumer_secret?: string | null
+          woocommerce_store_url?: string | null
         }
         Relationships: []
       }
@@ -276,8 +288,10 @@ export type Database = {
           shopify_handle: string | null
           shopify_product_id: string | null
           shopify_variant_id: string | null
+          source: string
           tags: string[] | null
           updated_at: string
+          woocommerce_product_id: string | null
         }
         Insert: {
           brand_id: string
@@ -293,8 +307,10 @@ export type Database = {
           shopify_handle?: string | null
           shopify_product_id?: string | null
           shopify_variant_id?: string | null
+          source?: string
           tags?: string[] | null
           updated_at?: string
+          woocommerce_product_id?: string | null
         }
         Update: {
           brand_id?: string
@@ -310,8 +326,10 @@ export type Database = {
           shopify_handle?: string | null
           shopify_product_id?: string | null
           shopify_variant_id?: string | null
+          source?: string
           tags?: string[] | null
           updated_at?: string
+          woocommerce_product_id?: string | null
         }
         Relationships: [
           {

@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.account-bootstrap]
 verify_jwt = false
+
+[functions.woocommerce-product-sync]
+verify_jwt = true
