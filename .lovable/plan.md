@@ -1,39 +1,46 @@
 
-# Show Dashboard Directly When Opened from Shopify Admin
+# Auto-Install Widget on Shopify Store (Zero Merchant Effort)
 
-## Problem
-When a merchant clicks "STYLYS" in their Shopify Admin sidebar, the app loads at `/` inside an iframe. This shows the marketing landing page with a "Sign In" button, instead of the Dashboard. The `/embedded` route already handles the dashboard view correctly, but it's never reached.
+## What Changes
+Instead of requiring merchants to manually set up a Theme App Extension or paste code, the widget script will be **automatically injected** into their Shopify store the moment they connect via OAuth. Merchants don't need to touch any code or theme settings.
 
-## Solution
-Update the `Index` page (the `/` route) to detect when it's running inside the Shopify Admin iframe and automatically redirect to `/embedded` with the shop parameter preserved.
-
-## How it works
-- Detect embedded context: the page is in an iframe (`window.self !== window.top`) AND has a `shop` query parameter
-- If embedded, redirect to `/embedded?shop=xxx` which already handles shop verification and renders the Dashboard
-- If not embedded, show the normal marketing landing page
+## How It Works
+1. When the Shopify OAuth flow completes successfully (store connects), the system automatically registers a **Script Tag** via the Shopify Admin API
+2. This script tag loads a small JavaScript file served by a backend function
+3. That script renders the STYLYS sidebar widget (floating button + slide-out panel) on every page of the merchant's store
+4. Merchants can see the widget status and toggle it on/off from their Settings page
 
 ## Technical Details
 
-**File: `src/pages/Index.tsx`**
+### 1. Update the Shopify OAuth callback (`supabase/functions/shopify-oauth/index.ts`)
+- After saving the access token, make one additional API call to Shopify's Script Tag API:
+  ```
+  POST /admin/api/2025-01/script_tags.json
+  { script_tag: { event: "onload", src: "<widget-js-url>?brand_id=<brand_id>" } }
+  ```
+- The OAuth scopes already include what's needed (`write_script_tags` will need to be added to the SCOPES constant)
+- Save the script tag ID to the `brands` table so it can be managed later
 
-Add early detection logic at the top of the component:
+### 2. Add a `widget_script_tag_id` column to the `brands` table
+- Stores the Shopify Script Tag ID so we can update/remove it later
+- Simple migration: `ALTER TABLE brands ADD COLUMN widget_script_tag_id text;`
 
-```tsx
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+### 3. Create a widget loader edge function (`supabase/functions/widget-loader/index.ts`)
+- Serves a lightweight JavaScript file that:
+  - Creates a floating button (sparkle icon) on the store page
+  - When clicked, opens an iframe pointing to the STYLYS widget preview page
+  - Reads `brand_id` from the script URL query parameter
+- This is a static JS response, so it's fast and cacheable
 
-const Index = () => {
-  const [searchParams] = useSearchParams();
-  const shop = searchParams.get("shop");
-  
-  // If running inside Shopify Admin iframe, redirect to embedded dashboard
-  const isEmbedded = typeof window !== "undefined" && window.self !== window.top && shop;
-  
-  if (isEmbedded) {
-    return <Navigate to={`/embedded?${searchParams.toString()}`} replace />;
-  }
-  
-  // ... rest of landing page
-};
-```
+### 4. Update the Settings page (`src/pages/Settings.tsx`)
+- Add a "Widget Status" indicator in the Shopify Connection card showing whether the widget is live on the store
+- Add a toggle or button to enable/disable the widget (creates or removes the script tag)
 
-This is a minimal change -- the existing `EmbeddedApp` component at `/embedded` already handles shop verification, test mode, and rendering the Dashboard with the `EmbeddedDashboard` layout.
+### 5. Update OAuth scopes
+- Add `write_script_tags` to the SCOPES constant in `shopify-oauth` so the app has permission to inject scripts
+
+## What Merchants Experience
+- Connect their Shopify store (already works)
+- Widget automatically appears on their storefront -- done
+- They can see "Widget: Active" in their Settings page
+- They can disable it with one click if needed
