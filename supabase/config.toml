@@ -38,3 +38,9 @@ verify_jwt = false
 
 [functions.shopify-widget-toggle]
 verify_jwt = false
+
+[functions.widget-customer-auth]
+verify_jwt = false
+
+[functions.widget-outfits]
+verify_jwt = false
