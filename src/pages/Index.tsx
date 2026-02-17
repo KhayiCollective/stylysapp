@@ -17,8 +17,8 @@ const Index = () => {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(35,30%,95%)]/90 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
-          <Link to="/" className="font-display text-2xl font-bold tracking-tight text-foreground">
-            STYLYS
+          <Link to="/" className="text-2xl font-bold tracking-tight text-foreground font-serif">
+            S T Y L Y S
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
