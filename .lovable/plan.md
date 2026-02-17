@@ -1,32 +1,31 @@
 
 
-# Fix: Widget Scope Error Not Detected Properly
+# Manual Widget Installation Fallback
 
 ## Problem
-When you click "Enable Widget", the edge function correctly returns `{ error: "scope_error" }` with a 403 status, but the frontend code in `WidgetStatus.tsx` never reads that response. It throws on the generic error object first, then the catch block fails to match "scope" in the error message, so you see the unhelpful "Failed to toggle widget" toast instead of the re-authorization prompt.
+The re-authorization OAuth flow is not completing — Shopify never redirects back to the callback URL, so the access token never gets updated with `write_script_tags`. This blocks the automated Script Tag API approach entirely.
 
-## Fix (1 file change)
+## Solution
+Add a **manual installation option** in the WidgetStatus settings card. This gives you a simple script snippet to paste into your Shopify theme, bypassing the Script Tag API completely.
 
-### `src/components/settings/WidgetStatus.tsx` - Fix error handling order
+## How It Works for You
+1. Go to Settings, find the Storefront Widget card
+2. Click "Manual Install"
+3. Copy the one-line script tag shown
+4. In Shopify Admin, go to Online Store > Themes > Edit code > `theme.liquid`
+5. Paste the script just before `</body>`
+6. Save — the widget appears immediately on your storefront
 
-Rewrite the `handleToggle` try block so that when `supabase.functions.invoke` returns both `error` and `data`, we check `data` for `scope_error` **before** throwing:
+## Technical Changes
 
-```typescript
-const { data, error } = await supabase.functions.invoke('shopify-widget-toggle', {
-  body: { brand_id: brandData.id, action: isWidgetActive ? 'remove' : 'install' },
-});
+### 1. `src/components/settings/WidgetStatus.tsx`
+- Add a "Manual Install" section below the existing toggle button
+- Show the exact script snippet:  
+  `<script src="https://.../functions/v1/widget-loader?brand_id=..." defer></script>`
+- Include a "Copy to Clipboard" button for convenience
+- Show step-by-step instructions for pasting into `theme.liquid`
+- Keep the existing automated toggle + re-authorize flow as-is for when OAuth eventually works
 
-// Check for scope error in response data FIRST (edge function returns data even on 403)
-if (data?.error === 'scope_error') {
-  setScopeError(true);
-  return;
-}
-
-// Then handle other errors
-if (error) throw error;
-```
-
-This ensures the scope error alert with the "Re-authorize" button appears correctly, guiding you to refresh the Shopify permissions.
-
-No other files need changes -- the edge function already returns the right response, it's just the frontend not reading it properly.
+### 2. No backend changes needed
+The `widget-loader` edge function already works — it returns the JavaScript correctly regardless of how the script is loaded. The only thing that's broken is the *Script Tag API call* that automates injecting it. Manual paste achieves the same result.
 
