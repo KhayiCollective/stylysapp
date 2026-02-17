@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import stylysIcon from "@/assets/stylys-icon.jpg";
+import stylysIcon from "@/assets/stylys-icon.png";
 import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, Package, Wand2, Settings2, ExternalLink, Sparkles, Menu, Heart, Settings, BookOpen, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";

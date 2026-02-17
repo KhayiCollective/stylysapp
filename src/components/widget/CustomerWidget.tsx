@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sparkles, Heart, Camera, User, ShoppingBag, X } from "lucide-react";
+import { Heart, Camera, User, ShoppingBag, X, Sparkles } from "lucide-react";
+import stylysIcon from "@/assets/stylys-icon.png";
 import { StyleQuizTab } from "./tabs/StyleQuizTab";
 import { OutfitsTab } from "./tabs/OutfitsTab";
 import { WishlistTab } from "./tabs/WishlistTab";
@@ -33,7 +34,7 @@ export function CustomerWidget({ brandId }: CustomerWidgetProps) {
           className="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex items-center gap-2 bg-primary text-primary-foreground px-2 py-4 rounded-l-lg shadow-lg hover:shadow-xl transition-all hover:pr-4 group writing-vertical"
           style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
         >
-          <Sparkles className="h-4 w-4 rotate-90 group-hover:animate-pulse" />
+          <img src={stylysIcon} alt="STYLYS" className="h-5 w-5 rounded-full object-cover rotate-90 group-hover:animate-pulse" />
           <span className="text-xs font-semibold tracking-widest uppercase">Style Me</span>
         </button>
       )}
@@ -44,7 +45,7 @@ export function CustomerWidget({ brandId }: CustomerWidgetProps) {
           onClick={() => setOpen(true)}
           className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all flex items-center justify-center hover:scale-105 active:scale-95"
         >
-          <Sparkles className="h-6 w-6" />
+          <img src={stylysIcon} alt="STYLYS" className="h-8 w-8 rounded-full object-cover" />
         </button>
       )}
 
@@ -57,8 +58,8 @@ export function CustomerWidget({ brandId }: CustomerWidgetProps) {
           {/* Header */}
           <div className="bg-primary text-primary-foreground p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-accent/20 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-accent" />
+              <div className="h-9 w-9 rounded-full overflow-hidden">
+                <img src={stylysIcon} alt="STYLYS" className="h-full w-full object-cover" />
               </div>
               <div>
                 <h2 className="font-semibold text-sm tracking-wide">STYLYS</h2>
