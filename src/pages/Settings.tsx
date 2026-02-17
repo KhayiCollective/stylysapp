@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { ShopifyConnection } from '@/components/ShopifyConnection';
+import { WidgetStatus } from '@/components/settings/WidgetStatus';
 import { ShopifyTestMode } from '@/components/ShopifyTestMode';
 import { ShopifySyncStatus } from '@/components/ShopifySyncStatus';
 import { WebhookStatusIndicator } from '@/components/catalog/WebhookStatusIndicator';
@@ -279,6 +280,9 @@ export default function Settings() {
 
         {/* Shopify Connection */}
         <ShopifyConnection />
+
+        {/* Storefront Widget Status */}
+        <WidgetStatus />
 
         {/* Product Sync Status */}
         <ShopifySyncStatus />

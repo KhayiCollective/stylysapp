@@ -14,7 +14,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Required scopes for storefront access, checkout, and webhooks
-const SCOPES = "read_products,read_product_listings,unauthenticated_read_product_listings,unauthenticated_read_product_tags,write_checkouts,unauthenticated_write_checkouts";
+const SCOPES = "read_products,read_product_listings,unauthenticated_read_product_listings,unauthenticated_read_product_tags,write_checkouts,unauthenticated_write_checkouts,write_script_tags";
 
 // Webhook topics to register
 const WEBHOOK_TOPICS = [
@@ -233,6 +233,45 @@ Deno.serve(async (req) => {
       }
 
       console.log("[SHOPIFY-OAUTH] Connection saved successfully");
+
+      // Auto-install widget script tag
+      const widgetLoaderUrl = `${SUPABASE_URL}/functions/v1/widget-loader?brand_id=${brandId}`;
+      let widgetScriptTagId: string | null = null;
+
+      try {
+        const scriptTagResponse = await fetch(
+          `https://${shop}/admin/api/2025-01/script_tags.json`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": accessToken,
+            },
+            body: JSON.stringify({
+              script_tag: {
+                event: "onload",
+                src: widgetLoaderUrl,
+              },
+            }),
+          }
+        );
+
+        if (scriptTagResponse.ok) {
+          const scriptTagData = await scriptTagResponse.json();
+          widgetScriptTagId = String(scriptTagData.script_tag?.id);
+
+          await supabase
+            .from("brands")
+            .update({ widget_script_tag_id: widgetScriptTagId })
+            .eq("id", brandId);
+
+          console.log("[SHOPIFY-OAUTH] Widget script tag installed");
+        } else {
+          console.warn("[SHOPIFY-OAUTH] Could not install widget script tag");
+        }
+      } catch {
+        console.warn("[SHOPIFY-OAUTH] Widget script tag installation failed");
+      }
 
       // Auto-register webhooks
       const webhookBaseUrl = `${SUPABASE_URL}/functions/v1/shopify-webhooks`;

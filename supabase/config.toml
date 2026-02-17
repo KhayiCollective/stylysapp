@@ -32,3 +32,9 @@ verify_jwt = false
 
 [functions.woocommerce-product-sync]
 verify_jwt = true
+
+[functions.widget-loader]
+verify_jwt = false
+
+[functions.shopify-widget-toggle]
+verify_jwt = false

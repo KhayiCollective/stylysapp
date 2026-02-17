@@ -1,0 +1,1 @@
+ALTER TABLE public.brands ADD COLUMN widget_script_tag_id text;
