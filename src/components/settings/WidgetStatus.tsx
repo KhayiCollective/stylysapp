@@ -92,15 +92,7 @@ export function WidgetStatus() {
         body: { brand_id: brandData.id, action: isWidgetActive ? 'remove' : 'install' },
       });
 
-      if (error) {
-        // Check if the response indicates a scope error
-        const errorBody = typeof error === 'object' && 'context' in error 
-          ? (error as any).context 
-          : null;
-        throw error;
-      }
-
-      // Check for scope error in response
+      // Check for scope error in response data FIRST (edge function returns data even on 403)
       if (data?.error === 'scope_error') {
         setScopeError(true);
         return;
