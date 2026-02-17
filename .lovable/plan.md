@@ -1,108 +1,98 @@
 
 
-# Differentiate Client (Merchant) Backend vs Customer Frontend
+# Implement Merchant/Customer Separation
 
-## Overview
+## Summary
+Build the remaining pieces from the approved architecture: customer auth edge function, outfit generation edge function, and frontend updates to use real catalog data. Analytics, rules, and widget demo stay in the merchant dashboard.
 
-This is a significant architectural change to properly separate two user types:
+## Step 1: Add JWT Secret
+A `WIDGET_JWT_SECRET` needs to be configured. You'll be prompted to paste in a random string (you can generate one with a password generator -- just make it 64+ characters).
 
-1. **Merchant (Client)** -- uses the dashboard to manage products, sync catalog, configure rules, preview widget
-2. **Customer (Shopper)** -- uses the storefront widget to browse outfits, save favorites, create a lightweight account (no Shopify credentials needed)
+## Step 2: Edge Function -- `widget-customer-auth`
+New backend function handling customer signup, login, and session validation. Completely separate from the merchant login system.
 
-## What Changes
+- **Signup**: Takes email + password + brand_id, hashes password with bcrypt, creates a `customer_accounts` row, returns a signed JWT
+- **Login**: Verifies email/password, returns JWT
+- **Me**: Validates JWT, returns customer profile
+- No Shopify credentials or brand name required from the customer
+- JWT is signed with the secret from Step 1
 
-### 1. Database: `customer_accounts` table (NEW)
+## Step 3: Edge Function -- `widget-outfits`
+New backend function for outfit generation and saving, using real catalog products:
 
-Create a new table for customer authentication, completely separate from the merchant `profiles`/`auth.users` system. Customers sign up with just email + password via a dedicated edge function -- no Supabase Auth session needed on the widget side.
+- **Generate**: Fetches products from the `products` table by brand_id, calls the existing AI outfit generation logic (reuses the prompt from `generate-outfits`)
+- **Get saved**: Returns a customer's saved outfits (requires customer JWT)
+- **Save**: Persists an outfit to `saved_outfits` table (requires customer JWT)
+- **Delete**: Removes a saved outfit
 
-```
-customer_accounts
-- id (uuid, PK)
-- brand_id (uuid, FK to brands)
-- email (text, NOT NULL)
-- password_hash (text, NOT NULL)
-- name (text)
-- customer_id (uuid, FK to customers) -- links to existing quiz/preferences data
-- created_at, updated_at
-- UNIQUE(brand_id, email)
-```
+## Step 4: Update Outfit Generator (Merchant Dashboard)
+Replace the hardcoded `mockProducts` array in `src/pages/OutfitGenerator.tsx` with a real database query:
 
-RLS: Service-role only (accessed via edge functions, never directly from client).
+- Fetch products from the `products` table filtered by the merchant's brand_id
+- Show a loading state while products load
+- Show an empty state if no products are synced yet ("Sync your catalog first")
+- Keep the existing anchor-selection and outfit-generation UI unchanged
+- Call the existing `generate-outfits` edge function with real product data
 
-### 2. Database: `saved_outfits` table (NEW)
+## Step 5: Update Widget Demo (Merchant Dashboard)
+Replace mock data in `src/pages/Widget.tsx` with real catalog products:
 
-Persist customer-saved outfits so they survive sessions.
+- Fetch products from `products` table by brand_id
+- Use the first product as the anchor, generate outfit suggestions from the catalog
+- Keep the "Widget Demo" badge and "Back to Dashboard" link
+- Analytics stays in the merchant dashboard (no changes needed)
 
-```
-saved_outfits
-- id (uuid, PK)
-- customer_account_id (uuid, FK to customer_accounts)
-- brand_id (uuid)
-- outfit_data (jsonb) -- stores the outfit items snapshot
-- name (text)
-- created_at
-```
+## Step 6: Update Widget Account Tab (Customer-Facing)
+Update `src/components/widget/tabs/AccountTab.tsx`:
 
-### 3. Edge Function: `widget-customer-auth` (NEW)
+- Add password field for signup/login
+- Call `widget-customer-auth` edge function for real authentication
+- Store the customer JWT in localStorage
+- Show real customer profile when logged in
+- Handle errors (duplicate email, wrong password, etc.)
 
-Handles customer signup/login/session for the widget, completely independent of Supabase Auth:
+## Step 7: Update Widget Outfits Tab (Customer-Facing)
+Update `src/components/widget/tabs/OutfitsTab.tsx`:
 
-- `POST /signup` -- creates account with email + hashed password, returns a signed JWT
-- `POST /login` -- verifies credentials, returns JWT
-- `POST /me` -- validates JWT, returns customer profile
+- Call `widget-outfits/generate` to get AI-curated outfits from the real catalog
+- Save/unsave outfits via `widget-outfits/save` and `widget-outfits/delete`
+- Show saved outfit count from real data
+- Require customer login for saving (prompt to sign in if not logged in)
 
-This keeps customers entirely separate from merchant accounts.
+## Step 8: Config Updates
+Add the new edge functions to `supabase/config.toml` with `verify_jwt = false` (they use their own JWT system, not the merchant auth).
 
-### 4. Edge Function: `widget-outfits` (NEW)
-
-Serves outfit data to the widget using real catalog products:
-
-- `POST /generate` -- takes brand_id + customer preferences, fetches products from the catalog, calls the existing AI outfit generation logic
-- `GET /saved` -- returns customer's saved outfits (requires customer JWT)
-- `POST /save` -- saves an outfit (requires customer JWT)
-
-### 5. Frontend: Outfit Generator (Dashboard) -- Use Real Catalog
-
-Update `src/pages/OutfitGenerator.tsx` to fetch products from the `products` table instead of using hardcoded mock data. The merchant selects an anchor product from their synced catalog, and outfit generation uses real products.
-
-### 6. Frontend: Widget Demo (`src/pages/Widget.tsx`) -- Sync with Catalog
-
-Update the widget demo page to pull products from the brand's catalog instead of hardcoded mocks, so merchants see realistic previews.
-
-### 7. Frontend: Widget Account Tab -- Real Auth
-
-Update `src/components/widget/tabs/AccountTab.tsx` to call the `widget-customer-auth` edge function for signup/login instead of just toggling local state.
-
-### 8. Frontend: Widget Outfits Tab -- Real Data
-
-Update `src/components/widget/tabs/OutfitsTab.tsx` to fetch AI-generated outfits from the catalog via the `widget-outfits` edge function, and persist saves.
-
-### 9. Routing -- No Changes Needed
-
-The existing route structure already separates dashboard (protected) from widget/shop (public). No route changes required.
-
-## What Stays the Same
-
-- **Rules page** -- remains in the merchant dashboard only
-- **Widget demo** -- remains in the merchant dashboard, but will pull from real catalog
-- **Merchant auth** -- email/password via existing Supabase Auth, unchanged
-- **Product catalog sync** -- Shopify/WooCommerce sync stays as-is
+## What Stays Unchanged
+- **Analytics** -- remains in the merchant dashboard only
+- **Rules page** -- merchant dashboard only
+- **Widget demo** -- merchant dashboard, but now with real catalog data
+- **Merchant auth** -- existing email/password login unchanged
+- **Product sync** -- Shopify/WooCommerce sync unchanged
 - **Widget loader** -- script tag installation unchanged
+- **Routing** -- no route changes needed
 
-## Implementation Order
+## Technical Details
 
-1. Create `customer_accounts` and `saved_outfits` tables with migrations
-2. Build `widget-customer-auth` edge function
-3. Build `widget-outfits` edge function  
-4. Update Outfit Generator to use real catalog
-5. Update Widget demo to use real catalog
-6. Update widget AccountTab for real customer auth
-7. Update widget OutfitsTab for real outfit data
+### Customer JWT Structure
+```text
+{
+  "sub": "<customer_account_id>",
+  "brand_id": "<brand_id>",
+  "email": "<email>",
+  "exp": <1 hour from now>
+}
+```
 
-## Technical Notes
+### Edge Function Auth Flow
+```text
+Customer opens widget
+  --> Signup/Login form
+  --> POST widget-customer-auth/signup or /login
+  --> Returns JWT token
+  --> Stored in localStorage
+  --> Passed as Authorization header to widget-outfits calls
+```
 
-- Customer passwords are hashed with a secure algorithm (bcrypt via Deno) in the edge function -- never stored in plain text
-- Customer JWTs are short-lived tokens signed with a secret, validated by widget edge functions
-- The `customers` table (existing) stores quiz/preferences data and gets linked to `customer_accounts` via the `customer_id` foreign key
-- Products RLS will need a new policy allowing anonymous SELECT for widget access (scoped by brand_id) so the widget can display catalog items
+### Products Access
+The `products` table already has a public SELECT RLS policy (`Widget can view products by brand_id`) created in the previous migration, so the edge functions can read products using the service role key.
 
