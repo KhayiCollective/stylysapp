@@ -14,10 +14,10 @@ export default {
   	},
   	extend: {
   		fontFamily: {
-  			display: [
-  				'Playfair Display"',
-  				'serif'
-  			],
+			display: [
+				'"Playfair Display"',
+				'serif'
+			],
   			sans: [
   				'Inter',
   				'ui-sans-serif',
