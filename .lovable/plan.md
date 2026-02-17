@@ -1,69 +1,61 @@
 
 
-# Catalog Integration: Import from Shopify or WooCommerce
+# Fix Shopify OAuth "Authorization Failed" Error
 
-## What This Does
-Adds an "Import Products" flow to the Catalog page so clients can pull their existing product catalog from Shopify or WooCommerce instead of adding products one by one manually.
+## Problem
 
-## How It Works
-1. On the Catalog page, an "Import Products" button appears alongside "Add Product"
-2. Clicking it opens a dialog where the client chooses their platform (Shopify or WooCommerce)
-3. **Shopify path**: If already connected, fetches products via the existing Shopify proxy and imports them into the `products` table. If not connected, links them to the Shopify Connect page.
-4. **WooCommerce path**: Client enters their WooCommerce store URL, Consumer Key, and Consumer Secret. A new edge function fetches their products via the WooCommerce REST API and saves them to the `products` table.
-5. Imported products are mapped to the existing product schema (name, image, price, category, tags) and marked with their source (`shopify` or `woocommerce`).
+The Shopify OAuth token exchange is failing with HTTP 400 on every attempt. The edge function logs show `Token exchange failed with status 400` but does not capture Shopify's actual error response body, making it impossible to diagnose the root cause.
 
-## Changes
+A 400 from Shopify during token exchange typically means one of:
+- Incorrect `SHOPIFY_CLIENT_ID` or `SHOPIFY_CLIENT_SECRET`
+- The authorization code expired before it was exchanged (codes are single-use and short-lived)
+- A mismatch between the `redirect_uri` used during authorization and the one registered in the Partner Dashboard
 
-### 1. Database: Add source tracking columns to `products`
-- Add `source` column (text, default `'manual'`) -- values: `manual`, `shopify`, `woocommerce`
-- Add `woocommerce_product_id` column (text, nullable) for deduplication
+## Plan
 
-### 2. Database: Add WooCommerce credentials to `brands`
-- Add `woocommerce_store_url` (text, nullable)
-- Add `woocommerce_consumer_key` (text, nullable)
-- Add `woocommerce_consumer_secret` (text, nullable)
-- Add `woocommerce_connected_at` (timestamptz, nullable)
+### Step 1: Add diagnostic logging to the edge function
 
-### 3. New edge function: `woocommerce-product-sync`
-- Accepts brand_id, fetches WooCommerce credentials from `brands` table
-- Calls WooCommerce REST API (`/wp-json/wc/v3/products`) using the consumer key/secret
-- Maps WooCommerce product fields to the `products` table schema
-- Upserts products (using `woocommerce_product_id` for deduplication)
+Update `supabase/functions/shopify-oauth/index.ts` to capture and log the response body from Shopify when the token exchange fails. This will reveal the exact error message Shopify returns (e.g., "invalid client credentials", "authorization code was not found or was already used").
 
-### 4. New component: `ImportProductsDialog` (`src/components/catalog/ImportProductsDialog.tsx`)
-- Platform selection step (Shopify or WooCommerce cards)
-- **Shopify tab**: Shows "Import from Shopify" button if connected, or "Connect Shopify first" link if not
-- **WooCommerce tab**: Form for store URL, consumer key, and consumer secret with a "Connect & Import" button
-- Progress/loading states during import
-- Summary showing how many products were imported
+Currently the code only logs:
+```
+Token exchange failed with status 400
+```
 
-### 5. Update Catalog page (`src/pages/Catalog.tsx`)
-- Add the "Import Products" button in the header actions bar
-- Render the new `ImportProductsDialog` component
-- Refresh product list after successful import
+After the fix it will also log the response body (without exposing it to the client).
 
-### 6. Update Shopify product sync to use source column
-- Modify the existing `shopify-product-sync` edge function to set `source = 'shopify'` when syncing
-- Use the existing `shopify_product_id` for deduplication (already in schema)
+### Step 2: Verify Shopify credentials
 
-## Technical Details
+The `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` secrets need to match the credentials shown in your Shopify Partner Dashboard under **Apps > STYLYS > Client credentials**.
 
-### WooCommerce API Authentication
-WooCommerce REST API uses consumer key/secret passed as query params (for HTTPS) or via HTTP Basic Auth. The edge function will use Basic Auth (`Authorization: Basic base64(key:secret)`).
+- If they don't match, we'll update them using the secrets tool.
 
-### Product Field Mapping
+### Step 3: Add the redirect URI to Shopify Partner Dashboard
 
-| Local Field | Shopify Source | WooCommerce Source |
-|---|---|---|
-| name | title | name |
-| image_url | images.edges[0].node.url | images[0].src |
-| price | variants.edges[0].node.price.amount | price |
-| category | product_type or tags | categories[0].name |
-| tags | tags (split by comma) | tags[].name |
-| inventory_status | availableForSale -> in_stock/out_of_stock | stock_status |
+Ensure this exact URL is whitelisted in the Shopify Partner Dashboard under **App setup > Allowed redirection URL(s)**:
 
-### Security
-- WooCommerce credentials stored in the `brands` table (already protected by RLS)
-- The edge function validates the brand belongs to the authenticated user before accessing credentials
-- Consumer keys are never exposed to the frontend after initial setup
+```
+https://stylysapp.lovable.app/connect-shopify
+```
+
+---
+
+### Technical Details
+
+**File changed:** `supabase/functions/shopify-oauth/index.ts`
+
+In the callback handler, after the `tokenResponse` check on line 152, read and log the response body before returning the error:
+
+```typescript
+if (!tokenResponse.ok) {
+  const errorBody = await tokenResponse.text();
+  console.error(`[SHOPIFY-OAUTH] Token exchange failed with status ${tokenResponse.status}, body: ${errorBody}`);
+  return new Response(
+    JSON.stringify({ error: CLIENT_ERRORS.AUTH_FAILED }),
+    { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+```
+
+This is a one-line addition that will immediately reveal why Shopify is rejecting the token exchange on the next attempt.
 
