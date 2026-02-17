@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, LogIn, LogOut, Settings, Heart, ShoppingBag, Loader2 } from "lucide-react";
+import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles } from "lucide-react";
 
 interface AccountTabProps {
   brandId?: string;
@@ -11,8 +11,40 @@ interface AccountTabProps {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+const STYLE_OPTIONS = ["Minimalist", "Bohemian", "Classic", "Streetwear", "Romantic", "Edgy", "Preppy", "Athleisure"];
+const COLOR_OPTIONS = ["Black", "White", "Navy", "Beige", "Red", "Green", "Pink", "Brown", "Blue", "Gray"];
+const BODY_SHAPES = ["Hourglass", "Pear", "Apple", "Rectangle", "Triangle", "Inverted Triangle"];
+const OCCASIONS = ["Work", "Casual", "Date Night", "Weekend", "Formal", "Travel", "Workout"];
+
+const SIZE_OPTIONS = {
+  tops: ["XS", "S", "M", "L", "XL", "XXL"],
+  bottoms: ["24", "25", "26", "27", "28", "29", "30", "31", "32", "34", "36"],
+  shoes: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "11", "12"],
+};
+
 function getStorageKey(brandId?: string) {
   return `stylys_customer_token_${brandId || "default"}`;
+}
+
+type SubView = "home" | "style" | "sizing";
+
+interface StyleProfile {
+  style_preferences?: string[];
+  preferred_colors?: string[];
+  avoided_colors?: string[];
+  body_shape?: string;
+  size_info?: Record<string, string>;
+  occasions?: string[];
+  budget_range?: Record<string, number>;
+  quiz_completed_at?: string;
+}
+
+interface CustomerUser {
+  id: string;
+  email: string;
+  name: string | null;
+  customer_id?: string | null;
+  styleProfile?: StyleProfile | null;
 }
 
 export function AccountTab({ brandId }: AccountTabProps) {
@@ -23,10 +55,19 @@ export function AccountTab({ brandId }: AccountTabProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [customerUser, setCustomerUser] = useState<{ id: string; email: string; name: string | null } | null>(null);
+  const [customerUser, setCustomerUser] = useState<CustomerUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [subView, setSubView] = useState<SubView>("home");
+  const [saving, setSaving] = useState(false);
 
-  // Check for existing session on mount
+  // Style state
+  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+  const [preferredColors, setPreferredColors] = useState<string[]>([]);
+  const [avoidedColors, setAvoidedColors] = useState<string[]>([]);
+  const [bodyShape, setBodyShape] = useState("");
+  const [occasions, setOccasions] = useState<string[]>([]);
+  const [sizeInfo, setSizeInfo] = useState<Record<string, string>>({ tops: "", bottoms: "", shoes: "" });
+
   useEffect(() => {
     const token = localStorage.getItem(getStorageKey(brandId));
     if (token) {
@@ -38,6 +79,7 @@ export function AccountTab({ brandId }: AccountTabProps) {
           if (data.user) {
             setCustomerUser(data.user);
             setIsLoggedIn(true);
+            populateStyleFromProfile(data.user.styleProfile);
           } else {
             localStorage.removeItem(getStorageKey(brandId));
           }
@@ -48,6 +90,16 @@ export function AccountTab({ brandId }: AccountTabProps) {
       setCheckingSession(false);
     }
   }, [brandId]);
+
+  const populateStyleFromProfile = (profile?: StyleProfile | null) => {
+    if (!profile) return;
+    if (profile.style_preferences && Array.isArray(profile.style_preferences)) setSelectedStyles(profile.style_preferences);
+    if (profile.preferred_colors && Array.isArray(profile.preferred_colors)) setPreferredColors(profile.preferred_colors);
+    if (profile.avoided_colors && Array.isArray(profile.avoided_colors)) setAvoidedColors(profile.avoided_colors);
+    if (profile.body_shape) setBodyShape(profile.body_shape);
+    if (profile.occasions && Array.isArray(profile.occasions)) setOccasions(profile.occasions);
+    if (profile.size_info && typeof profile.size_info === "object") setSizeInfo({ tops: "", bottoms: "", shoes: "", ...profile.size_info });
+  };
 
   const handleAuth = async () => {
     if (!email || !password || !brandId) return;
@@ -84,6 +136,40 @@ export function AccountTab({ brandId }: AccountTabProps) {
     setEmail("");
     setName("");
     setPassword("");
+    setSubView("home");
+  };
+
+  const saveProfile = async (section: "style" | "sizing") => {
+    const token = localStorage.getItem(getStorageKey(brandId));
+    if (!token) return;
+    setSaving(true);
+
+    const body: Record<string, unknown> = {};
+    if (section === "style") {
+      body.style_preferences = selectedStyles;
+      body.preferred_colors = preferredColors;
+      body.avoided_colors = avoidedColors;
+      body.body_shape = bodyShape;
+      body.occasions = occasions;
+    } else {
+      body.size_info = sizeInfo;
+    }
+
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (resp.ok) {
+        setSubView("home");
+      }
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  const toggleItem = (item: string, list: string[], setter: (v: string[]) => void) => {
+    setter(list.includes(item) ? list.filter((i) => i !== item) : [...list, item]);
   };
 
   if (checkingSession) {
@@ -94,6 +180,7 @@ export function AccountTab({ brandId }: AccountTabProps) {
     );
   }
 
+  // --- AUTH FORM ---
   if (!isLoggedIn) {
     return (
       <div className="p-4 space-y-5">
@@ -110,8 +197,8 @@ export function AccountTab({ brandId }: AccountTabProps) {
         <div className="space-y-3">
           {isSignUp && (
             <div className="space-y-1.5">
-              <Label htmlFor="account-name" className="text-xs">Name</Label>
-              <Input id="account-name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Label htmlFor="account-name" className="text-xs">Full Name</Label>
+              <Input id="account-name" placeholder="Your full name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           )}
           <div className="space-y-1.5">
@@ -123,7 +210,7 @@ export function AccountTab({ brandId }: AccountTabProps) {
             <Input id="account-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
-          <Button className="w-full gap-2" size="sm" onClick={handleAuth} disabled={!email || !password || loading}>
+          <Button className="w-full gap-2" size="sm" onClick={handleAuth} disabled={!email || !password || (isSignUp && !name) || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             {isSignUp ? "Create Account" : "Sign In"}
           </Button>
@@ -139,6 +226,158 @@ export function AccountTab({ brandId }: AccountTabProps) {
     );
   }
 
+  // --- STYLE PREFERENCES SUB-VIEW ---
+  if (subView === "style") {
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSubView("home")} className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h3 className="font-semibold text-base">Style Preferences</h3>
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <p className="text-sm font-medium mb-2">Your Style</p>
+            <div className="flex flex-wrap gap-2">
+              {STYLE_OPTIONS.map((style) => (
+                <Badge
+                  key={style}
+                  variant={selectedStyles.includes(style) ? "default" : "outline"}
+                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
+                  onClick={() => toggleItem(style, selectedStyles, setSelectedStyles)}
+                >
+                  {selectedStyles.includes(style) && <Check className="h-3 w-3 mr-1" />}
+                  {style}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2">Colors You Love</p>
+            <div className="flex flex-wrap gap-2">
+              {COLOR_OPTIONS.map((color) => (
+                <Badge
+                  key={color}
+                  variant={preferredColors.includes(color) ? "default" : "outline"}
+                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
+                  onClick={() => toggleItem(color, preferredColors, setPreferredColors)}
+                >
+                  {preferredColors.includes(color) && <Check className="h-3 w-3 mr-1" />}
+                  {color}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2">Colors to Avoid</p>
+            <div className="flex flex-wrap gap-2">
+              {COLOR_OPTIONS.map((color) => (
+                <Badge
+                  key={color}
+                  variant={avoidedColors.includes(color) ? "destructive" : "outline"}
+                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
+                  onClick={() => toggleItem(color, avoidedColors, setAvoidedColors)}
+                >
+                  {color}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2">Body Shape</p>
+            <div className="grid grid-cols-2 gap-2">
+              {BODY_SHAPES.map((shape) => (
+                <button
+                  key={shape}
+                  onClick={() => setBodyShape(shape)}
+                  className={`p-2.5 rounded-lg border text-xs text-left transition-colors ${
+                    bodyShape === shape
+                      ? "border-primary bg-primary/5 font-medium"
+                      : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  {bodyShape === shape && <Check className="h-3 w-3 inline mr-1" />}
+                  {shape}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2">Occasions</p>
+            <div className="flex flex-wrap gap-2">
+              {OCCASIONS.map((occ) => (
+                <Badge
+                  key={occ}
+                  variant={occasions.includes(occ) ? "default" : "outline"}
+                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
+                  onClick={() => toggleItem(occ, occasions, setOccasions)}
+                >
+                  {occasions.includes(occ) && <Check className="h-3 w-3 mr-1" />}
+                  {occ}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <Button className="w-full gap-2" size="sm" onClick={() => saveProfile("style")} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Save Preferences
+        </Button>
+      </div>
+    );
+  }
+
+  // --- SIZING SUB-VIEW ---
+  if (subView === "sizing") {
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSubView("home")} className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h3 className="font-semibold text-base">My Sizing</h3>
+        </div>
+
+        <div className="space-y-5">
+          {(["tops", "bottoms", "shoes"] as const).map((cat) => (
+            <div key={cat}>
+              <p className="text-sm font-medium mb-2 capitalize">{cat}</p>
+              <div className="flex flex-wrap gap-2">
+                {SIZE_OPTIONS[cat].map((size) => (
+                  <Badge
+                    key={size}
+                    variant={sizeInfo[cat] === size ? "default" : "outline"}
+                    className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
+                    onClick={() => setSizeInfo(prev => ({ ...prev, [cat]: prev[cat] === size ? "" : size }))}
+                  >
+                    {sizeInfo[cat] === size && <Check className="h-3 w-3 mr-1" />}
+                    {size}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Button className="w-full gap-2" size="sm" onClick={() => saveProfile("sizing")} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Save Sizing
+        </Button>
+      </div>
+    );
+  }
+
+  // --- HOME (logged in) ---
+  const hasStyleProfile = selectedStyles.length > 0 || bodyShape;
+  const hasSizing = sizeInfo.tops || sizeInfo.bottoms || sizeInfo.shoes;
+
   return (
     <div className="p-4 space-y-5">
       <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
@@ -153,27 +392,49 @@ export function AccountTab({ brandId }: AccountTabProps) {
       </div>
 
       <div className="space-y-2">
-        <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors text-left">
-          <Heart className="h-4 w-4 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium">Saved Outfits</p>
-            <p className="text-xs text-muted-foreground">View your saved looks</p>
-          </div>
-        </button>
-        <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors text-left">
-          <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium">Order History</p>
-            <p className="text-xs text-muted-foreground">View past purchases</p>
-          </div>
-        </button>
-        <button className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors text-left">
-          <Settings className="h-4 w-4 text-muted-foreground" />
-          <div>
+        <button
+          onClick={() => setSubView("style")}
+          className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors text-left border border-border"
+        >
+          <Palette className="h-4 w-4 text-muted-foreground" />
+          <div className="flex-1">
             <p className="text-sm font-medium">Style Preferences</p>
-            <p className="text-xs text-muted-foreground">Update your quiz answers</p>
+            <p className="text-xs text-muted-foreground">
+              {hasStyleProfile
+                ? `${selectedStyles.slice(0, 2).join(", ")}${selectedStyles.length > 2 ? ` +${selectedStyles.length - 2}` : ""}`
+                : "Set your style, colors & body shape"}
+            </p>
           </div>
+          {hasStyleProfile && <Check className="h-4 w-4 text-primary" />}
         </button>
+
+        <button
+          onClick={() => setSubView("sizing")}
+          className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors text-left border border-border"
+        >
+          <Ruler className="h-4 w-4 text-muted-foreground" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">My Sizing</p>
+            <p className="text-xs text-muted-foreground">
+              {hasSizing
+                ? [sizeInfo.tops && `Tops: ${sizeInfo.tops}`, sizeInfo.bottoms && `Bottoms: ${sizeInfo.bottoms}`, sizeInfo.shoes && `Shoes: ${sizeInfo.shoes}`].filter(Boolean).join(" · ")
+                : "Add your sizes for better recommendations"}
+            </p>
+          </div>
+          {hasSizing && <Check className="h-4 w-4 text-primary" />}
+        </button>
+
+        {!hasStyleProfile && (
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <p className="text-sm font-medium">Complete Your Profile</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Set your style preferences to get personalized outfit recommendations from the Outfits tab.
+            </p>
+          </div>
+        )}
       </div>
 
       <Button variant="ghost" size="sm" className="w-full text-muted-foreground gap-2" onClick={handleSignOut}>
