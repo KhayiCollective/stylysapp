@@ -17,11 +17,13 @@ import { WebhookStatusIndicator } from '@/components/catalog/WebhookStatusIndica
 import { SyncHistoryLog } from '@/components/catalog/SyncHistoryLog';
 import { User, Building2, Loader2, Save, LogOut, BookOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { isDevUser } = useUserRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -287,32 +289,37 @@ export default function Settings() {
         {/* Product Sync Status */}
         <ShopifySyncStatus />
 
-        {/* Webhook Status */}
-        <WebhookStatusIndicator />
+        {/* Developer-only sections */}
+        {isDevUser && (
+          <>
+            {/* Webhook Status */}
+            <WebhookStatusIndicator />
 
-        {/* Sync History */}
-        <SyncHistoryLog />
+            {/* Sync History */}
+            <SyncHistoryLog />
 
-        {/* Setup Guide Link */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
-              Shopify Setup Guide
-            </CardTitle>
-            <CardDescription>
-              Complete step-by-step guide for setting up Shopify OAuth
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" asChild>
-              <Link to="/shopify-setup">View Setup Guide</Link>
-            </Button>
-          </CardContent>
-        </Card>
+            {/* Setup Guide Link */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5" />
+                  Shopify Setup Guide
+                </CardTitle>
+                <CardDescription>
+                  Complete step-by-step guide for setting up Shopify OAuth
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" asChild>
+                  <Link to="/shopify-setup">View Setup Guide</Link>
+                </Button>
+              </CardContent>
+            </Card>
 
-        {/* Developer Test Mode */}
-        <ShopifyTestMode />
+            {/* Developer Test Mode */}
+            <ShopifyTestMode />
+          </>
+        )}
 
         {/* Danger Zone */}
         <Card className="border-destructive/50">
