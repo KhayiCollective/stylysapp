@@ -1,33 +1,49 @@
 
 
-# Update Favicon and Widget Icon
+# Hide Developer Sections from Regular Merchants
 
 ## Summary
-Replace the browser favicon and the widget floating button icon (on merchant store homepages) with the new STYLYS logo image.
+Use the existing role system to conditionally show developer-only sections on the Settings page. Only users with the `owner` or `admin` role will see the technical/developer sections. Regular merchants (with `member` role) will see a cleaner Settings page.
 
-## Steps
+## What changes
 
-### 1. Copy the new icon into the project
-- Copy `user-uploads://stylys_icon_1200_x_1200_px-2.png` to `public/favicon.png` (for the favicon)
-- Copy the same file to `src/assets/stylys-icon.png` (for use in React components)
+### 1. Create a `useUserRole` hook (`src/hooks/useUserRole.ts`)
+- Queries the `user_roles` table for the current user
+- Returns the user's role (`owner`, `admin`, or `member`) and a loading state
+- This hook can be reused elsewhere in the app
 
-### 2. Update favicon in `index.html`
-- Change `<link rel="icon" type="image/x-icon" href="/favicon.jpg">` to `<link rel="icon" type="image/png" href="/favicon.png">`
+### 2. Update Settings page (`src/pages/Settings.tsx`)
+- Import and use the new `useUserRole` hook
+- Wrap these sections in a conditional that checks for `owner` or `admin` role:
+  - **Webhook Status** (WebhookStatusIndicator)
+  - **Sync History** (SyncHistoryLog)
+  - **Shopify Setup Guide** link
+  - **Developer Test Mode** (ShopifyTestMode)
+- These sections will simply not render for `member` role users
 
-### 3. Update Dashboard Layout (`src/components/layout/DashboardLayout.tsx`)
-- Change the logo import from `stylys-icon.jpg` to `stylys-icon.png`
+### What stays visible to all merchants
+- Profile settings
+- Brand details
+- Shopify Connection status
+- Widget Status
+- Product Sync Status
+- Sign Out button
 
-### 4. Update Widget floating button icon (`supabase/functions/widget-loader/index.ts`)
-- Replace the inline SVG sparkle icon (line 40) with an `<img>` tag using the published favicon URL: `https://stylysapp.lovable.app/favicon.png`
-- The button will show the STYLYS "S" logo instead of a generic sparkle
-- Adjust styling to ensure the image fits nicely in the circular button (e.g., `width:32px; height:32px; border-radius:50%; object-fit:cover;`)
+## Technical details
 
-### 5. Update Widget sidebar component (`src/components/widget/CustomerWidget.tsx`)
-- Import the new `stylys-icon.png` asset
-- Replace the `Sparkles` icon in the widget header, mobile floating button, and desktop edge tab with the STYLYS icon image
+The `useUserRole` hook will query:
+```typescript
+const { data } = await supabase
+  .from('user_roles')
+  .select('role')
+  .eq('user_id', user.id)
+  .single();
+```
 
-## What stays unchanged
-- Widget functionality and layout
-- All dashboard pages and routing
-- Edge function logic (only the button HTML changes)
+The RLS policy `Users can view their own roles` already exists, so this query is secure. The Settings page will then use:
+```typescript
+const isDevUser = role === 'owner' || role === 'admin';
+```
+
+Since the `handle_new_user` trigger assigns `owner` to every new signup (i.e., you as the developer), and future client merchants would be given `member` roles, this naturally separates the two audiences.
 
