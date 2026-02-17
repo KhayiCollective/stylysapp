@@ -122,7 +122,7 @@ export function CustomerWidget({ brandId }: CustomerWidgetProps) {
                 <StyleQuizTab brandId={brandId} />
               </TabsContent>
               <TabsContent value="wishlist" className="m-0 h-full">
-                <WishlistTab />
+                <WishlistTab brandId={brandId} />
               </TabsContent>
               <TabsContent value="tryon" className="m-0 h-full">
                 <TryOnTab />
