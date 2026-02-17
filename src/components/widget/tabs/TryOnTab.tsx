@@ -87,7 +87,7 @@ export function TryOnTab() {
         </label>
       ) : (
         <div className="relative">
-          <img src={userImage} alt="Your photo" className="w-full h-40 object-cover rounded-lg" />
+          <img src={userImage} alt="Your photo" className="w-full aspect-[3/4] object-cover rounded-lg" />
           <button
             onClick={() => { setUserImage(null); setResultImage(null); }}
             className="absolute top-2 right-2 h-6 w-6 bg-background/80 rounded-full flex items-center justify-center"
@@ -122,7 +122,7 @@ export function TryOnTab() {
 
       {resultImage && (
         <div className="relative rounded-lg overflow-hidden border border-border">
-          <img src={resultImage} alt="Try-on result" className="w-full h-48 object-cover" />
+          <img src={resultImage} alt="Try-on result" className="w-full aspect-[3/4] object-cover" />
           <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">
             <Sparkles className="h-3 w-3 mr-1" />
             AI Generated

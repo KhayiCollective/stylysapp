@@ -1,8 +1,11 @@
 import { CustomerWidget } from "@/components/widget/CustomerWidget";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Badge } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 
 const WidgetPreview = () => {
+  const [searchParams] = useSearchParams();
+  const brandId = searchParams.get("brand_id") || undefined;
+
   return (
     <div className="min-h-screen bg-[#f8f6f3]">
       {/* Simulated store header */}
@@ -43,7 +46,7 @@ const WidgetPreview = () => {
       </main>
 
       {/* The actual widget */}
-      <CustomerWidget />
+      <CustomerWidget brandId={brandId} />
     </div>
   );
 };
