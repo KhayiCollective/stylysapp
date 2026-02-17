@@ -55,27 +55,34 @@ export function VirtualTryOn({ productImage, productName }: VirtualTryOnProps) {
     try {
       const { data, error } = await supabase.functions.invoke("virtual-tryon", {
         body: {
-          userImageUrl: userImage,
-          clothingImageUrl: productImage,
+          userImageBase64: userImage,
+          productImageUrl: productImage,
+          productCategory: "clothing",
         },
       });
 
       if (error) throw error;
 
-      if (data?.resultImageUrl) {
-        setResultImage(data.resultImageUrl);
+      if (data?.success && data?.resultImage) {
+        setResultImage(data.resultImage);
         toast({
           title: "Try-on complete!",
-          description: "See how the item looks on you.",
+          description: data.message || "See how the item looks on you.",
+        });
+      } else {
+        toast({
+          title: "Could not generate try-on",
+          description: data?.message || data?.tip || "Please try with a different photo.",
+          variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Virtual try-on error:", error);
-      // Fallback: show a simulated result for demo
-      setResultImage(productImage);
+      const msg = error?.message || "Failed to process virtual try-on";
       toast({
-        title: "Try-on generated",
-        description: "Preview generated successfully.",
+        title: "Try-on failed",
+        description: msg,
+        variant: "destructive",
       });
     } finally {
       setIsProcessing(false);
