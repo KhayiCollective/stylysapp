@@ -150,7 +150,8 @@ Deno.serve(async (req) => {
       });
 
       if (!tokenResponse.ok) {
-        console.error(`[SHOPIFY-OAUTH] Token exchange failed with status ${tokenResponse.status}`);
+        const errorBody = await tokenResponse.text();
+        console.error(`[SHOPIFY-OAUTH] Token exchange failed with status ${tokenResponse.status}, body: ${errorBody}`);
         return new Response(
           JSON.stringify({ error: CLIENT_ERRORS.AUTH_FAILED }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
