@@ -110,7 +110,7 @@ export function VirtualTryOn({ productImage, productName }: VirtualTryOnProps) {
         <div className="space-y-3">
           <Label className="text-sm font-medium">Your Photo</Label>
           {!userImage ? (
-            <label className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-foreground/30 hover:bg-muted/30 transition-colors">
+            <label className="flex flex-col items-center justify-center aspect-[3/4] border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-foreground/30 hover:bg-muted/30 transition-colors">
               <Upload className="w-8 h-8 text-muted-foreground mb-2" />
               <span className="text-sm text-muted-foreground">Upload your photo</span>
               <span className="text-xs text-muted-foreground mt-1">JPG or PNG, max 5MB</span>
@@ -126,7 +126,7 @@ export function VirtualTryOn({ productImage, productName }: VirtualTryOnProps) {
               <img
                 src={userImage}
                 alt="Your photo"
-                className="w-full h-48 object-cover rounded-xl"
+                className="w-full aspect-[3/4] object-cover rounded-xl"
               />
               <Button
                 size="icon-sm"
@@ -186,7 +186,7 @@ export function VirtualTryOn({ productImage, productName }: VirtualTryOnProps) {
               <img
                 src={resultImage}
                 alt="Try-on result"
-                className="w-full h-64 object-cover"
+                className="w-full aspect-[3/4] object-cover"
               />
               <Badge className="absolute top-3 left-3 bg-foreground text-background">
                 AI Generated
