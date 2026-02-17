@@ -26,6 +26,7 @@ export type Database = {
           shopify_storefront_token: string | null
           slug: string
           updated_at: string
+          widget_script_tag_id: string | null
           woocommerce_connected_at: string | null
           woocommerce_consumer_key: string | null
           woocommerce_consumer_secret: string | null
@@ -42,6 +43,7 @@ export type Database = {
           shopify_storefront_token?: string | null
           slug: string
           updated_at?: string
+          widget_script_tag_id?: string | null
           woocommerce_connected_at?: string | null
           woocommerce_consumer_key?: string | null
           woocommerce_consumer_secret?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           shopify_storefront_token?: string | null
           slug?: string
           updated_at?: string
+          widget_script_tag_id?: string | null
           woocommerce_connected_at?: string | null
           woocommerce_consumer_key?: string | null
           woocommerce_consumer_secret?: string | null
