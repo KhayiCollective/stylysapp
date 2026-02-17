@@ -1,8 +1,18 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Zap, Sparkles, Users, TrendingUp, Check, Calendar, CreditCard } from "lucide-react";
 import heroModel from "@/assets/hero-model.jpg";
 const Index = () => {
+  const [searchParams] = useSearchParams();
+  const shop = searchParams.get("shop");
+  
+  // If running inside Shopify Admin iframe, redirect to embedded dashboard
+  const isEmbedded = typeof window !== "undefined" && window.self !== window.top && shop;
+  
+  if (isEmbedded) {
+    return <Navigate to={`/embedded?${searchParams.toString()}`} replace />;
+  }
+
   return <div className="min-h-screen bg-[hsl(35,30%,95%)]">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(35,30%,95%)]/90 backdrop-blur-sm">
