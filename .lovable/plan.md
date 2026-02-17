@@ -1,20 +1,39 @@
 
+# Show Dashboard Directly When Opened from Shopify Admin
 
-# Update SHOPIFY_CLIENT_SECRET
+## Problem
+When a merchant clicks "STYLYS" in their Shopify Admin sidebar, the app loads at `/` inside an iframe. This shows the marketing landing page with a "Sign In" button, instead of the Dashboard. The `/embedded` route already handles the dashboard view correctly, but it's never reached.
 
-## What we'll do
+## Solution
+Update the `Index` page (the `/` route) to detect when it's running inside the Shopify Admin iframe and automatically redirect to `/embedded` with the shop parameter preserved.
 
-Update the `SHOPIFY_CLIENT_SECRET` stored in your backend secrets with the value you just provided. Then retry the Shopify OAuth flow to confirm the connection works.
-
-## Steps
-
-1. **Update the secret** using the secrets management tool with the value: `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`
-2. **Retry the OAuth flow** at `/connect-shopify` to verify the fix
-3. **Check the logs** to confirm the token exchange succeeds
+## How it works
+- Detect embedded context: the page is in an iframe (`window.self !== window.top`) AND has a `shop` query parameter
+- If embedded, redirect to `/embedded?shop=xxx` which already handles shop verification and renders the Dashboard
+- If not embedded, show the normal marketing landing page
 
 ## Technical Details
 
-- The secret `SHOPIFY_CLIENT_SECRET` already exists and will be overwritten with the new value
-- No code changes are needed — the edge function already reads this secret via `Deno.env.get("SHOPIFY_CLIENT_SECRET")`
-- After updating, the next OAuth attempt should complete the token exchange successfully
+**File: `src/pages/Index.tsx`**
 
+Add early detection logic at the top of the component:
+
+```tsx
+import { Link, Navigate, useSearchParams } from "react-router-dom";
+
+const Index = () => {
+  const [searchParams] = useSearchParams();
+  const shop = searchParams.get("shop");
+  
+  // If running inside Shopify Admin iframe, redirect to embedded dashboard
+  const isEmbedded = typeof window !== "undefined" && window.self !== window.top && shop;
+  
+  if (isEmbedded) {
+    return <Navigate to={`/embedded?${searchParams.toString()}`} replace />;
+  }
+  
+  // ... rest of landing page
+};
+```
+
+This is a minimal change -- the existing `EmbeddedApp` component at `/embedded` already handles shop verification, test mode, and rendering the Dashboard with the `EmbeddedDashboard` layout.
