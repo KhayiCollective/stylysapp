@@ -162,7 +162,7 @@ serve(async (req) => {
 
       const { data: account } = await supabase
         .from("customer_accounts")
-        .select("id, email, name, brand_id, customer_id, created_at")
+        .select("id, email, name, brand_id, customer_id, created_at, photo_url")
         .eq("id", customer.sub)
         .single();
 
@@ -180,6 +180,56 @@ serve(async (req) => {
       }
 
       return json({ user: { ...account, styleProfile } });
+    }
+
+    // --- PHOTO UPLOAD ---
+    if (path === "photo" && req.method === "POST") {
+      const customer = await getCustomerFromAuth(req);
+      if (!customer) return json({ error: "Unauthorized" }, 401);
+
+      const { photoBase64 } = await req.json();
+      if (!photoBase64) return json({ error: "photoBase64 is required" }, 400);
+
+      // Extract base64 data (remove data:image/...;base64, prefix if present)
+      const base64Match = photoBase64.match(/^data:image\/\w+;base64,(.+)$/);
+      const rawBase64 = base64Match ? base64Match[1] : photoBase64;
+
+      // Decode base64 to Uint8Array
+      const binaryString = atob(rawBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const filePath = `${customer.sub}/photo.jpg`;
+
+      // Upload to storage (upsert)
+      const { error: uploadErr } = await supabase.storage
+        .from("customer-photos")
+        .upload(filePath, bytes, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadErr) {
+        console.error("Photo upload error:", uploadErr);
+        return json({ error: "Failed to upload photo" }, 500);
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("customer-photos")
+        .getPublicUrl(filePath);
+
+      const photo_url = urlData.publicUrl + "?t=" + Date.now();
+
+      // Update customer_accounts
+      await supabase
+        .from("customer_accounts")
+        .update({ photo_url })
+        .eq("id", customer.sub);
+
+      return json({ photo_url });
     }
 
     // --- UPDATE PROFILE (style preferences & sizing) ---
