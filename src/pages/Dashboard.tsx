@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, ShoppingCart, Layers, Eye, DollarSign, Users, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { TrendingUp, ShoppingCart, Layers, Eye, DollarSign, Users, ArrowUpRight, ArrowDownRight, Heart } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -55,6 +56,25 @@ const Dashboard = () => {
         .limit(5);
       if (error) throw error;
       return data;
+    }
+  });
+
+  const { data: savedOutfits } = useQuery({
+    queryKey: ["saved-outfits-dashboard"],
+    queryFn: async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("brand_id")
+        .single();
+      if (!profile?.brand_id) return [];
+      const { data, error } = await supabase
+        .from("saved_outfits")
+        .select("*")
+        .eq("brand_id", profile.brand_id)
+        .order("created_at", { ascending: false })
+        .limit(6);
+      if (error) throw error;
+      return data || [];
     }
   });
 
@@ -345,6 +365,62 @@ const Dashboard = () => {
                 <span className="text-2xl font-display font-semibold">{conversionRate}%</span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Customer Outfits */}
+      <div className="mt-8">
+        <Card className="card-editorial">
+          <CardHeader>
+            <CardTitle className="font-display text-xl flex items-center gap-2">
+              <Heart className="w-5 h-5" />
+              Customer Outfits
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(!savedOutfits || savedOutfits.length === 0) ? (
+              <div className="py-8 text-center text-muted-foreground">
+                <Heart className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No customer outfits yet</p>
+                <p className="text-sm">When customers save outfits from the widget, they'll appear here.</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {savedOutfits.length} recent saved outfit{savedOutfits.length !== 1 ? "s" : ""}
+                </p>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {savedOutfits.map((outfit) => {
+                    const items = Array.isArray(outfit.outfit_data) ? outfit.outfit_data : [];
+                    return (
+                      <div key={outfit.id} className="border border-border rounded-lg overflow-hidden">
+                        <div className="grid grid-cols-2 gap-0.5 bg-border">
+                          {items.slice(0, 4).map((item: any, index: number) => (
+                            <div
+                              key={index}
+                              className={`aspect-square bg-muted ${items.length === 3 && index === 2 ? "col-span-2" : ""}`}
+                            >
+                              {(item.image_url || item.imageUrl) ? (
+                                <img src={item.image_url || item.imageUrl} alt={item.name || "Product"} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">No image</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="p-3">
+                          <p className="font-medium text-sm">{outfit.name || "Untitled Outfit"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {items.length} items • {new Date(outfit.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

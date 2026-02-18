@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import stylysIcon from "@/assets/stylys-icon.png";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Package, Settings2, ExternalLink, Sparkles, Menu, Heart, Settings, BookOpen, HelpCircle } from "lucide-react";
+import { LayoutDashboard, Package, Settings2, Sparkles, Menu, Settings, BookOpen, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -22,14 +22,6 @@ const navigation = [{
   name: "Rules",
   href: "/rules",
   icon: Settings2
-}, {
-  name: "Customer Outfits",
-  href: "/wishlist",
-  icon: Heart
-}, {
-  name: "Widget Demo",
-  href: "/widget",
-  icon: ExternalLink
 }, {
   name: "Settings",
   href: "/settings",

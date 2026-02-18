@@ -12,8 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Catalog from "./pages/Catalog";
 import OutfitGenerator from "./pages/OutfitGenerator";
 import Rules from "./pages/Rules";
-import Widget from "./pages/Widget";
-import Wishlist from "./pages/Wishlist";
+
 import CustomerAccount from "./pages/CustomerAccount";
 import Shop from "./pages/Shop";
 import ProductDetail from "./pages/ProductDetail";
@@ -71,8 +70,8 @@ const App = () => (
               <Route path="/catalog" element={<ProtectedRoute><Catalog /></ProtectedRoute>} />
               <Route path="/generator" element={<ProtectedRoute><OutfitGenerator /></ProtectedRoute>} />
               <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
-              <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
-              <Route path="/widget" element={<ProtectedRoute><Widget /></ProtectedRoute>} />
+              <Route path="/wishlist" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/widget" element={<Navigate to="/rules" replace />} />
               <Route path="/widget-preview" element={<WidgetPreview />} />
               <Route path="/settings" element={<ProtectedRoute requireShopify={false}><Settings /></ProtectedRoute>} />
               <Route path="/app-store-assets" element={<ProtectedRoute><AppStoreAssets /></ProtectedRoute>} />
