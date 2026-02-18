@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Palette, Scale, DollarSign, Package, Info, Loader2, Layers, Sparkles, ShoppingBag, Check, RefreshCw } from "lucide-react";
+import { Palette, Scale, DollarSign, Package, Info, Loader2, Layers, Sparkles, ShoppingBag, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -411,118 +411,110 @@ const Rules = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Anchor Product */}
+          <div className="space-y-6">
+            {/* Compact Anchor Product */}
             {demoAnchor && (
-              <div>
-                <div className="aspect-[3/4] rounded-lg overflow-hidden bg-muted mb-4">
+              <div className="flex items-center gap-4 p-3 rounded-lg border border-border bg-card">
+                <div className="w-20 h-28 rounded-md overflow-hidden bg-muted flex-shrink-0">
                   <img src={demoAnchor.imageUrl} alt={demoAnchor.name} className="w-full h-full object-cover" />
                 </div>
-                <h3 className="font-display text-xl font-medium mb-1">{demoAnchor.name}</h3>
-                <p className="text-lg font-medium">${demoAnchor.price.toFixed(2)}</p>
-                <p className="text-muted-foreground mt-2 text-sm">Anchor product for outfit generation</p>
+                <div className="min-w-0">
+                  <p className="uppercase tracking-widest text-[10px] text-muted-foreground mb-1">Anchor Product</p>
+                  <h3 className="font-display text-base font-medium truncate">{demoAnchor.name}</h3>
+                  <p className="text-sm text-muted-foreground">${demoAnchor.price.toFixed(2)}</p>
+                </div>
               </div>
             )}
 
             {/* Complete the Look Card */}
-            <div>
-              <Card className="card-editorial overflow-hidden">
-                <div className="bg-foreground text-background p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Sparkles className="w-5 h-5" />
-                        <span className="uppercase tracking-widest text-xs font-semibold">AI Styled</span>
-                      </div>
-                      <h3 className="font-display text-2xl font-medium">Complete the Look</h3>
+            <Card className="card-editorial overflow-hidden">
+              <div className="bg-foreground text-background p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sparkles className="w-4 h-4" />
+                      <span className="uppercase tracking-widest text-[10px] font-semibold">AI Styled</span>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-background/30 text-background hover:bg-background/10"
-                      onClick={generateDemoOutfits}
-                      disabled={demoGenerating}
-                    >
-                      <RefreshCw className={`w-4 h-4 mr-1 ${demoGenerating ? "animate-spin" : ""}`} />
-                      Refresh
+                    <h3 className="font-display text-lg font-medium">Complete the Look</h3>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-background/30 text-background hover:bg-background/10"
+                    onClick={generateDemoOutfits}
+                    disabled={demoGenerating}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-1 ${demoGenerating ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+
+              <CardContent className="p-4">
+                {demoGenerating ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
+                    <span className="text-sm text-muted-foreground">Generating outfits...</span>
+                  </div>
+                ) : demoOutfits.length === 0 ? (
+                  <div className="py-8 text-center text-muted-foreground text-sm">
+                    No outfits generated yet. Click Refresh to generate.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {demoOutfits.map((outfit, index) => (
+                      <div
+                        key={outfit.id}
+                        onClick={() => setDemoSelectedOutfit(demoSelectedOutfit?.id === outfit.id ? null : outfit)}
+                        className={`p-3 rounded-md cursor-pointer transition-all border-l-2 ${
+                          demoSelectedOutfit?.id === outfit.id
+                            ? "border-l-foreground bg-muted/40"
+                            : "border-l-transparent hover:bg-muted/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="font-display tracking-wide uppercase text-xs font-medium">
+                            {outfit.name || `Look ${index + 1}`}
+                          </span>
+                          <span className="text-xs text-muted-foreground">${outfit.totalPrice.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-end">
+                          {outfit.items.map((item, i) => (
+                            <div key={item.id} className={`${i > 0 ? "-ml-2" : ""} relative`} style={{ zIndex: outfit.items.length - i }}>
+                              <div className="w-16 h-20 rounded-md overflow-hidden bg-muted border-2 border-card shadow-sm">
+                                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                              </div>
+                            </div>
+                          ))}
+                          <div className="ml-3 min-w-0 flex-1">
+                            <p className="text-[10px] text-muted-foreground">{outfit.items.length} items</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {demoSelectedOutfit && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Outfit Total</p>
+                        <p className="font-display text-lg font-medium">${demoSelectedOutfit.totalPrice.toFixed(2)}</p>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px]">Save 15%</Badge>
+                    </div>
+                    <Button variant="editorial" size="sm" className="w-full" disabled>
+                      <ShoppingBag className="w-3.5 h-3.5 mr-1.5" />Add Outfit to Cart
                     </Button>
                   </div>
-                </div>
+                )}
+              </CardContent>
+            </Card>
 
-                <CardContent className="p-6">
-                  {demoGenerating ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
-                      <span className="text-sm text-muted-foreground">Generating outfits...</span>
-                    </div>
-                  ) : demoOutfits.length === 0 ? (
-                    <div className="py-8 text-center text-muted-foreground text-sm">
-                      No outfits generated yet. Click Refresh to generate.
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {demoOutfits.map((outfit, index) => (
-                        <div
-                          key={outfit.id}
-                          onClick={() => setDemoSelectedOutfit(demoSelectedOutfit?.id === outfit.id ? null : outfit)}
-                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                            demoSelectedOutfit?.id === outfit.id
-                              ? "border-foreground bg-muted/50"
-                              : "border-border hover:border-foreground/30"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-4">
-                            <Badge variant="secondary">{outfit.name || `Look ${index + 1}`}</Badge>
-                            <div className="flex items-center gap-2">
-                              <span className="font-display text-lg font-medium">${outfit.totalPrice.toFixed(2)}</span>
-                              {demoSelectedOutfit?.id === outfit.id && (
-                                <div className="w-5 h-5 bg-foreground rounded-full flex items-center justify-center">
-                                  <Check className="w-3 h-3 text-background" />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex gap-3">
-                            {outfit.items.map((item) => (
-                              <div key={item.id} className="flex-1">
-                                <div className="aspect-square rounded-md overflow-hidden bg-muted mb-2">
-                                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                                </div>
-                                <p className="text-xs truncate">{item.name}</p>
-                                <p className="text-xs text-muted-foreground">${item.price}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {demoSelectedOutfit && (
-                    <div className="mt-6 pt-6 border-t border-border">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Complete Outfit Total</p>
-                          <p className="font-display text-2xl font-medium">${demoSelectedOutfit.totalPrice.toFixed(2)}</p>
-                        </div>
-                        <Badge className="bg-success/10 text-success border-success/20">Save 15%</Badge>
-                      </div>
-                      <Button variant="editorial" size="lg" className="w-full" disabled>
-                        <ShoppingBag className="w-4 h-4 mr-2" />Add Outfit to Cart (Demo)
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="mt-4 border-dashed">
-                <CardContent className="py-3">
-                  <p className="text-sm text-muted-foreground text-center">
-                    This preview reflects your current rules. Adjust rules above and click Refresh.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              This preview reflects your current rules. Adjust rules above and click Refresh.
+            </p>
           </div>
         )}
       </div>
