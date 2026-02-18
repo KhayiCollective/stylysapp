@@ -434,7 +434,10 @@ const Rules = () => {
                     <SelectContent>
                       {demoProducts.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name} — ${p.price.toFixed(2)}
+                          <div className="flex items-center gap-2">
+                            <img src={p.imageUrl} alt={p.name} className="w-6 h-8 rounded object-cover flex-shrink-0" />
+                            <span>{p.name} — ${p.price.toFixed(2)}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
