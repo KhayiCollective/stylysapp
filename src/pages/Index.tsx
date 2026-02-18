@@ -124,8 +124,8 @@ const Index = () => {
           </div>
           
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <PricingCard title="Starter" subtitle="Perfect for growing brands" price="$14.99" features={["Up to 500 products", "AI outfit recommendations", "Basic analytics dashboard", "Shopify & WooCommerce integration", "Email support"]} buttonText="Start Free Trial" />
-            <PricingCard title="Professional" subtitle="For established brands" price="$29.99" featured features={["Up to 1,000 products", "Advanced AI outfit generation", "Full analytics & insights", "Priority integrations", "Customer preference tracking", "Priority support"]} buttonText="Start Free Trial" />
+            <PricingCard title="Starter" subtitle="Perfect for growing brands" price="$14.99" planParam="starter" features={["Up to 500 products", "AI outfit recommendations", "Basic analytics dashboard", "Shopify & WooCommerce integration", "Email support"]} buttonText="Start Free Trial" />
+            <PricingCard title="Professional" subtitle="For established brands" price="$29.99" planParam="pro" featured features={["Up to 1,000 products", "Advanced AI outfit generation", "Full analytics & insights", "Priority integrations", "Customer preference tracking", "Priority support"]} buttonText="Start Free Trial" />
             <PricingCard title="Enterprise" subtitle="For large-scale operations" price="Custom" features={["Unlimited products", "Custom AI training", "White-label options", "Dedicated account manager", "Custom integrations", "24/7 premium support"]} buttonText="Contact Sales" />
           </div>
         </div>
@@ -236,15 +236,13 @@ const PricingCard = ({
   price,
   features,
   buttonText,
-  featured = false
+  featured = false,
+  planParam
 
 
 
 
-
-
-
-}: {title: string;subtitle: string;price: string;features: string[];buttonText: string;featured?: boolean;}) => <div className={`rounded-2xl p-8 ${featured ? 'bg-foreground text-background scale-105 shadow-2xl' : 'bg-background border border-border'}`}>
+}: {title: string;subtitle: string;price: string;features: string[];buttonText: string;featured?: boolean;planParam?: string;}) => <div className={`rounded-2xl p-8 ${featured ? 'bg-foreground text-background scale-105 shadow-2xl' : 'bg-background border border-border'}`}>
     {featured && <span className="inline-block px-3 py-1 bg-background/10 rounded-full text-xs font-semibold mb-4">
         Most Popular
       </span>}
@@ -260,7 +258,7 @@ const PricingCard = ({
           <span className={`text-sm ${featured ? 'text-background/90' : 'text-muted-foreground'}`}>{feature}</span>
         </li>)}
     </ul>
-    <Link to={buttonText === "Contact Sales" ? "#" : "/auth"}>
+    <Link to={planParam ? `/auth?plan=${planParam}` : "/support"}>
       <Button className={`w-full rounded-xl h-12 font-semibold ${featured ? 'bg-background text-foreground hover:bg-background/90' : 'bg-foreground text-background hover:bg-foreground/90'}`}>
         {buttonText}
       </Button>
