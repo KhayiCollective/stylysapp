@@ -43,13 +43,19 @@ serve(async (req) => {
 
     console.log("Processing virtual try-on request with", outfitItems.length, "outfit items");
 
-    const outfitDescription = outfitItems.map(i => `${i.name} (${i.category})`).join(", ");
+    const itemInstructions = outfitItems.map((i, idx) => 
+      `- Image ${idx + 2}: "${i.name}" (category: ${i.category}) — extract ONLY the ${i.category} garment from this image. The product image may show a model wearing a full outfit, but ONLY use the ${i.category} piece. Ignore all other clothing visible in this image.`
+    ).join("\n");
 
-    const prompt = `You are a fashion visualization AI. Generate a single realistic photo showing the person in the uploaded photo wearing this complete outfit: ${outfitDescription}.
+    const prompt = `You are a fashion visualization AI. Generate a single realistic photo showing the person in the uploaded photo wearing a complete outfit assembled from the following product images.
+
+CRITICAL: Each product image may show a model wearing multiple garments, but each image represents ONLY ONE specific product for sale. You must extract only the garment matching the specified category from each image:
+
+${itemInstructions}
 
 Requirements:
-1. The person should be wearing ALL the items together as one cohesive outfit
-2. Maintain the person's face, body shape, and pose from their original photo
+1. Dress the person in ALL the extracted garments together as one cohesive outfit
+2. Maintain the person's face, body shape, and pose from their original photo (Image 1)
 3. Natural lighting, realistic fabric draping, proper proportions
 4. Professional fashion photography quality
 5. Keep the original background or use a clean studio background
