@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Palette, Scale, DollarSign, Package, Info, Loader2, Layers } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Palette, Scale, DollarSign, Package, Info, Loader2, Layers, Sparkles, ShoppingBag, Check, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,21 @@ interface DbRule {
   enabled: boolean;
   category: string;
   config: any;
+}
+
+interface WidgetProduct {
+  id: string;
+  name: string;
+  imageUrl: string;
+  price: number;
+  category: string;
+}
+
+interface WidgetOutfit {
+  id: string;
+  name?: string;
+  items: WidgetProduct[];
+  totalPrice: number;
 }
 
 interface CompositionConfig {
@@ -53,6 +69,14 @@ const Rules = () => {
   const [compositionRuleId, setCompositionRuleId] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Widget demo state
+  const [demoProducts, setDemoProducts] = useState<WidgetProduct[]>([]);
+  const [demoAnchor, setDemoAnchor] = useState<WidgetProduct | null>(null);
+  const [demoOutfits, setDemoOutfits] = useState<WidgetOutfit[]>([]);
+  const [demoGenerating, setDemoGenerating] = useState(false);
+  const [demoSelectedOutfit, setDemoSelectedOutfit] = useState<WidgetOutfit | null>(null);
+  const [demoLoaded, setDemoLoaded] = useState(false);
 
   useEffect(() => {
     if (user) fetchRules();
@@ -83,6 +107,73 @@ const Rules = () => {
     }
     setLoading(false);
   };
+
+  // Load demo products
+  const loadDemoProducts = async () => {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("brand_id")
+      .eq("id", user?.id ?? "")
+      .single();
+    if (!profile?.brand_id) return;
+    const { data } = await supabase
+      .from("products")
+      .select("id, name, image_url, price, category")
+      .eq("brand_id", profile.brand_id)
+      .eq("inventory_status", "in_stock")
+      .limit(20);
+    const mapped = (data || []).map(p => ({
+      id: p.id, name: p.name,
+      imageUrl: p.image_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=800&fit=crop",
+      price: Number(p.price), category: p.category,
+    }));
+    setDemoProducts(mapped);
+    if (mapped.length > 0) setDemoAnchor(mapped[0]);
+    setDemoLoaded(true);
+  };
+
+  useEffect(() => {
+    if (user && !demoLoaded) loadDemoProducts();
+  }, [user]);
+
+  const generateDemoOutfits = async () => {
+    if (!demoAnchor || demoProducts.length < 2) return;
+    setDemoGenerating(true);
+    setDemoSelectedOutfit(null);
+    try {
+      const compRule = rules.find(r => r.category === "composition");
+      const compositionRules = compRule?.enabled ? compRule.config : undefined;
+      const { data, error } = await supabase.functions.invoke("generate-outfits", {
+        body: {
+          products: demoProducts.map(p => ({
+            id: p.id, name: p.name, price: p.price,
+            image_url: p.imageUrl, category: p.category, color: null, fit: null,
+          })),
+          anchorProductId: demoAnchor.id,
+          rules: compositionRules,
+        },
+      });
+      if (error) throw error;
+      setDemoOutfits((data.outfits || []).map((o: any) => ({
+        id: o.id, name: o.name,
+        items: (o.products || o.items || []).map((p: any) => ({
+          id: p.id, name: p.name, price: Number(p.price),
+          imageUrl: p.image_url || p.imageUrl || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=500&fit=crop",
+          category: p.category,
+        })),
+        totalPrice: o.totalPrice,
+      })));
+    } catch (err: any) {
+      console.error("Demo outfit generation error:", err);
+      toast({ title: "Failed to generate demo outfits", description: err.message, variant: "destructive" });
+    } finally {
+      setDemoGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (demoAnchor && demoProducts.length >= 2 && demoLoaded) generateDemoOutfits();
+  }, [demoAnchor]);
 
   const handleToggle = async (ruleId: string) => {
     const rule = rules.find(r => r.id === ruleId);
@@ -301,6 +392,139 @@ const Rules = () => {
             <RuleCard key={rule.id} rule={rule} onToggle={handleToggle} />
           ))}
         </div>
+      </div>
+
+      {/* Widget Demo Preview */}
+      <div className="mb-8">
+        <h2 className="font-display text-xl mb-4 flex items-center gap-2">
+          <Sparkles className="w-5 h-5" />
+          Widget Preview
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          See how your rules affect the "Complete the Look" widget. Adjust rules above and refresh the preview.
+        </p>
+
+        {demoProducts.length === 0 && demoLoaded ? (
+          <Card className="border-dashed">
+            <CardContent className="py-8 text-center text-muted-foreground">
+              <p>No products synced yet. Go to the Catalog page to sync your products first.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Anchor Product */}
+            {demoAnchor && (
+              <div>
+                <div className="aspect-[3/4] rounded-lg overflow-hidden bg-muted mb-4">
+                  <img src={demoAnchor.imageUrl} alt={demoAnchor.name} className="w-full h-full object-cover" />
+                </div>
+                <h3 className="font-display text-xl font-medium mb-1">{demoAnchor.name}</h3>
+                <p className="text-lg font-medium">${demoAnchor.price.toFixed(2)}</p>
+                <p className="text-muted-foreground mt-2 text-sm">Anchor product for outfit generation</p>
+              </div>
+            )}
+
+            {/* Complete the Look Card */}
+            <div>
+              <Card className="card-editorial overflow-hidden">
+                <div className="bg-foreground text-background p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-5 h-5" />
+                        <span className="uppercase tracking-widest text-xs font-semibold">AI Styled</span>
+                      </div>
+                      <h3 className="font-display text-2xl font-medium">Complete the Look</h3>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-background/30 text-background hover:bg-background/10"
+                      onClick={generateDemoOutfits}
+                      disabled={demoGenerating}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-1 ${demoGenerating ? "animate-spin" : ""}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+
+                <CardContent className="p-6">
+                  {demoGenerating ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
+                      <span className="text-sm text-muted-foreground">Generating outfits...</span>
+                    </div>
+                  ) : demoOutfits.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground text-sm">
+                      No outfits generated yet. Click Refresh to generate.
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {demoOutfits.map((outfit, index) => (
+                        <div
+                          key={outfit.id}
+                          onClick={() => setDemoSelectedOutfit(demoSelectedOutfit?.id === outfit.id ? null : outfit)}
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                            demoSelectedOutfit?.id === outfit.id
+                              ? "border-foreground bg-muted/50"
+                              : "border-border hover:border-foreground/30"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <Badge variant="secondary">{outfit.name || `Look ${index + 1}`}</Badge>
+                            <div className="flex items-center gap-2">
+                              <span className="font-display text-lg font-medium">${outfit.totalPrice.toFixed(2)}</span>
+                              {demoSelectedOutfit?.id === outfit.id && (
+                                <div className="w-5 h-5 bg-foreground rounded-full flex items-center justify-center">
+                                  <Check className="w-3 h-3 text-background" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-3">
+                            {outfit.items.map((item) => (
+                              <div key={item.id} className="flex-1">
+                                <div className="aspect-square rounded-md overflow-hidden bg-muted mb-2">
+                                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                </div>
+                                <p className="text-xs truncate">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">${item.price}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {demoSelectedOutfit && (
+                    <div className="mt-6 pt-6 border-t border-border">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Complete Outfit Total</p>
+                          <p className="font-display text-2xl font-medium">${demoSelectedOutfit.totalPrice.toFixed(2)}</p>
+                        </div>
+                        <Badge className="bg-success/10 text-success border-success/20">Save 15%</Badge>
+                      </div>
+                      <Button variant="editorial" size="lg" className="w-full" disabled>
+                        <ShoppingBag className="w-4 h-4 mr-2" />Add Outfit to Cart (Demo)
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="mt-4 border-dashed">
+                <CardContent className="py-3">
+                  <p className="text-sm text-muted-foreground text-center">
+                    This preview reflects your current rules. Adjust rules above and click Refresh.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
