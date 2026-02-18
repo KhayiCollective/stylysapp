@@ -8,6 +8,7 @@ import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, S
 interface AccountTabProps {
   brandId?: string;
   onNavigateToQuiz?: () => void;
+  onCustomerLogin?: (photoUrl: string | null, token: string) => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -45,10 +46,11 @@ interface CustomerUser {
   email: string;
   name: string | null;
   customer_id?: string | null;
+  photo_url?: string | null;
   styleProfile?: StyleProfile | null;
 }
 
-export function AccountTab({ brandId, onNavigateToQuiz }: AccountTabProps) {
+export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: AccountTabProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -81,6 +83,7 @@ export function AccountTab({ brandId, onNavigateToQuiz }: AccountTabProps) {
             setCustomerUser(data.user);
             setIsLoggedIn(true);
             populateStyleFromProfile(data.user.styleProfile);
+            onCustomerLogin?.(data.user.photo_url || null, token!);
           } else {
             localStorage.removeItem(getStorageKey(brandId));
           }
@@ -123,6 +126,7 @@ export function AccountTab({ brandId, onNavigateToQuiz }: AccountTabProps) {
       setCustomerUser(data.user);
       setIsLoggedIn(true);
       setPassword("");
+      onCustomerLogin?.(data.user.photo_url || null, data.token);
     } catch {
       setError("Network error. Please try again.");
     } finally {

@@ -21,6 +21,8 @@ interface InlineCustomerWidgetProps {
 export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
   const [activeTab, setActiveTab] = useState("account");
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
+  const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
+  const [customerToken, setCustomerToken] = useState<string | null>(null);
 
   const handleClose = () => {
     try {
@@ -33,6 +35,11 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
   const handleSelectOutfitForTryOn = (items: OutfitItem[]) => {
     setSelectedOutfitItems(items);
     setActiveTab("tryon");
+  };
+
+  const handleCustomerLogin = (photoUrl: string | null, token: string) => {
+    setCustomerPhotoUrl(photoUrl);
+    setCustomerToken(token);
   };
 
   return (
@@ -59,46 +66,26 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
         <TabsList className="w-full rounded-none border-b border-border bg-card h-auto p-0 gap-0 shrink-0">
-          <TabsTrigger
-            value="account"
-            className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1"
-          >
-            <User className="h-3.5 w-3.5" />
-            Account
+          <TabsTrigger value="account" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1">
+            <User className="h-3.5 w-3.5" /> Account
           </TabsTrigger>
-          <TabsTrigger
-            value="quiz"
-            className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Quiz
+          <TabsTrigger value="quiz" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1">
+            <Sparkles className="h-3.5 w-3.5" /> Quiz
           </TabsTrigger>
-          <TabsTrigger
-            value="outfits"
-            className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1"
-          >
-            <ShoppingBag className="h-3.5 w-3.5" />
-            Outfits
+          <TabsTrigger value="outfits" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1">
+            <ShoppingBag className="h-3.5 w-3.5" /> Outfits
           </TabsTrigger>
-          <TabsTrigger
-            value="wishlist"
-            className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1"
-          >
-            <Heart className="h-3.5 w-3.5" />
-            Wishlist
+          <TabsTrigger value="wishlist" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1">
+            <Heart className="h-3.5 w-3.5" /> Wishlist
           </TabsTrigger>
-          <TabsTrigger
-            value="tryon"
-            className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1"
-          >
-            <Camera className="h-3.5 w-3.5" />
-            Try-On
+          <TabsTrigger value="tryon" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-1 text-xs gap-1">
+            <Camera className="h-3.5 w-3.5" /> Try-On
           </TabsTrigger>
         </TabsList>
 
         <div className="flex-1 overflow-y-auto">
           <TabsContent value="account" className="m-0 h-full">
-            <AccountTab brandId={brandId} onNavigateToQuiz={() => setActiveTab("quiz")} />
+            <AccountTab brandId={brandId} onNavigateToQuiz={() => setActiveTab("quiz")} onCustomerLogin={handleCustomerLogin} />
           </TabsContent>
           <TabsContent value="quiz" className="m-0 h-full">
             <StyleQuizTab brandId={brandId} onComplete={() => setActiveTab("outfits")} />
@@ -110,7 +97,13 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
             <WishlistTab brandId={brandId} />
           </TabsContent>
           <TabsContent value="tryon" className="m-0 h-full">
-            <TryOnTab outfitItems={selectedOutfitItems} />
+            <TryOnTab
+              outfitItems={selectedOutfitItems}
+              customerPhotoUrl={customerPhotoUrl || undefined}
+              brandId={brandId}
+              customerToken={customerToken || undefined}
+              onPhotoSaved={(url) => setCustomerPhotoUrl(url)}
+            />
           </TabsContent>
         </div>
       </Tabs>

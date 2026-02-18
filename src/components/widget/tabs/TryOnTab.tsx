@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Camera, Loader2, X, Sparkles, Eye } from "lucide-react";
+import { Upload, Camera, Loader2, X, Sparkles, Eye, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface OutfitItemProp {
   name: string;
@@ -13,14 +15,51 @@ interface OutfitItemProp {
 
 interface TryOnTabProps {
   outfitItems?: OutfitItemProp[];
+  customerPhotoUrl?: string;
+  brandId?: string;
+  customerToken?: string;
+  onPhotoSaved?: (url: string) => void;
 }
 
-export function TryOnTab({ outfitItems }: TryOnTabProps) {
+export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken, onPhotoSaved }: TryOnTabProps) {
   const [userImage, setUserImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showingOriginal, setShowingOriginal] = useState(false);
+  const [isSavedPhoto, setIsSavedPhoto] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+
+  // Auto-load saved photo
+  useEffect(() => {
+    if (customerPhotoUrl && !userImage) {
+      setUserImage(customerPhotoUrl);
+      setIsSavedPhoto(true);
+    }
+  }, [customerPhotoUrl]);
+
+  const savePhotoToAccount = async (base64: string) => {
+    if (!customerToken || !brandId) return;
+    setSavingPhoto(true);
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/photo`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${customerToken}`,
+        },
+        body: JSON.stringify({ photoBase64: base64 }),
+      });
+      const data = await resp.json();
+      if (resp.ok && data.photo_url) {
+        setIsSavedPhoto(true);
+        onPhotoSaved?.(data.photo_url);
+      }
+    } catch {
+      // silently fail
+    }
+    setSavingPhoto(false);
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -31,10 +70,16 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
       }
       const reader = new FileReader();
       reader.onload = (event) => {
-        setUserImage(event.target?.result as string);
+        const base64 = event.target?.result as string;
+        setUserImage(base64);
         setResultImage(null);
         setShowingOriginal(false);
         setError(null);
+        setIsSavedPhoto(false);
+        // Auto-save to account if logged in
+        if (customerToken) {
+          savePhotoToAccount(base64);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -106,7 +151,7 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
         ))}
       </div>
 
-      {/* Upload / Result area — single container */}
+      {/* Upload / Result area */}
       {!userImage ? (
         <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-colors">
           <Upload className="h-6 w-6 text-muted-foreground mb-2" />
@@ -121,6 +166,20 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
             alt={hasResult && !showingOriginal ? "Try-on result" : "Your photo"}
             className="w-full aspect-[3/4] object-cover rounded-lg"
           />
+          {/* Saved photo indicator */}
+          {isSavedPhoto && !hasResult && (
+            <Badge variant="secondary" className="absolute top-2 left-2 text-[10px] gap-1">
+              <Save className="h-3 w-3" />
+              Your saved photo
+            </Badge>
+          )}
+          {/* Saving indicator */}
+          {savingPhoto && (
+            <Badge variant="secondary" className="absolute top-2 left-2 text-[10px] gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Saving...
+            </Badge>
+          )}
           {/* AI Generated badge */}
           {hasResult && !showingOriginal && (
             <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">
@@ -140,7 +199,7 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
           )}
           {/* Clear button */}
           <button
-            onClick={() => { setUserImage(null); setResultImage(null); setShowingOriginal(false); }}
+            onClick={() => { setUserImage(null); setResultImage(null); setShowingOriginal(false); setIsSavedPhoto(false); }}
             className="absolute top-2 right-2 h-6 w-6 bg-background/80 rounded-full flex items-center justify-center"
           >
             <X className="h-3 w-3" />
