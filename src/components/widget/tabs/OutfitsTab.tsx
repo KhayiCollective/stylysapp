@@ -45,10 +45,25 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
     setLoading(true);
     setError("");
     try {
+      // Fetch composition rules for this brand
+      let compositionRules = undefined;
+      try {
+        const rulesResp = await fetch(`${SUPABASE_URL}/rest/v1/rules?category=eq.composition&brand_id=eq.${brandId}&select=config,enabled&limit=1`, {
+          headers: { 
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type": "application/json"
+          },
+        });
+        const rulesData = await rulesResp.json();
+        if (rulesData?.[0]?.enabled && rulesData[0].config) {
+          compositionRules = rulesData[0].config;
+        }
+      } catch { /* ignore, use defaults */ }
+
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_id: brandId }),
+        body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
       });
       const data = await resp.json();
       if (!resp.ok) { setError(data.error || "Failed to load outfits"); return; }
