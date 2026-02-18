@@ -2,8 +2,11 @@ import { Link } from "react-router-dom";
 import { CartDrawer } from "./CartDrawer";
 import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
+import { useWidgetControl } from "./ShopLayout";
 
 export const ShopHeader = () => {
+  const { openAccountTab } = useWidgetControl();
+
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
       <div className="container mx-auto px-4 py-4">
@@ -21,19 +24,17 @@ export const ShopHeader = () => {
             >
               Shop
             </Link>
-            <Link 
-              to="/shop/account" 
+            <button 
+              onClick={openAccountTab}
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Account
-            </Link>
+            </button>
           </nav>
           
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" asChild className="md:hidden">
-              <Link to="/shop/account">
-                <User className="h-5 w-5" />
-              </Link>
+            <Button variant="ghost" size="icon" className="md:hidden" onClick={openAccountTab}>
+              <User className="h-5 w-5" />
             </Button>
             <CartDrawer />
           </div>
