@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 const SHOPIFY_API_VERSION = "2025-01";
 
@@ -29,7 +29,7 @@ serve(async (req) => {
     console.log(`[SHOPIFY-PROXY] Request for brand: ${brandId || "unknown"}`);
 
     // Get brand credentials from database
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     let brandQuery = supabase.from("brands").select("shopify_store_domain, shopify_storefront_token");
 
@@ -38,6 +38,7 @@ serve(async (req) => {
     } else {
       // If no brandId provided, try to get from auth
       const authHeader = req.headers.get("Authorization");
+      let foundBrandId = false;
       if (authHeader) {
         const token = authHeader.replace("Bearer ", "");
         const { data: userData } = await supabase.auth.getUser(token);
@@ -50,8 +51,13 @@ serve(async (req) => {
           
           if (profile?.brand_id) {
             brandQuery = brandQuery.eq("id", profile.brand_id);
+            foundBrandId = true;
           }
         }
+      }
+      // Fallback: find the brand that has Shopify connected
+      if (!foundBrandId) {
+        brandQuery = brandQuery.not("shopify_store_domain", "is", null).not("shopify_storefront_token", "is", null);
       }
     }
 
