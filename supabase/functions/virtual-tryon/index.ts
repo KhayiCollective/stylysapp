@@ -5,10 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface OutfitItem {
+  name: string;
+  imageUrl: string;
+  category: string;
+}
+
 interface TryOnRequest {
   userImageBase64: string;
-  productImageUrl: string;
-  productCategory: string;
+  outfitItems: OutfitItem[];
 }
 
 serve(async (req) => {
@@ -27,30 +32,41 @@ serve(async (req) => {
     }
 
     const body: TryOnRequest = await req.json();
-    const { userImageBase64, productImageUrl, productCategory } = body;
+    const { userImageBase64, outfitItems } = body;
 
-    if (!userImageBase64 || !productImageUrl) {
+    if (!userImageBase64 || !outfitItems?.length) {
       return new Response(
-        JSON.stringify({ error: "User image and product image are required" }),
+        JSON.stringify({ error: "User image and outfit items are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Processing virtual try-on request...");
-    console.log("Product category:", productCategory);
+    console.log("Processing virtual try-on request with", outfitItems.length, "outfit items");
 
-    // Use Gemini's image generation capability for virtual try-on
-    const prompt = `You are a fashion visualization AI. Create a realistic visualization showing how this ${productCategory} item would look when worn.
+    const outfitDescription = outfitItems.map(i => `${i.name} (${i.category})`).join(", ");
 
-The user has uploaded their photo and wants to see how the clothing item would look on them.
+    const prompt = `You are a fashion visualization AI. Generate a single realistic photo showing the person in the uploaded photo wearing this complete outfit: ${outfitDescription}.
 
-Generate a realistic composite image that shows the clothing item naturally fitted on the person, maintaining:
-1. Proper proportions and fit
-2. Natural lighting that matches the original photo
-3. Realistic fabric draping and shadows
-4. The person's original pose and background
+Requirements:
+1. The person should be wearing ALL the items together as one cohesive outfit
+2. Maintain the person's face, body shape, and pose from their original photo
+3. Natural lighting, realistic fabric draping, proper proportions
+4. Professional fashion photography quality
+5. Keep the original background or use a clean studio background
 
-Make it look as realistic as possible, like a professional fashion photo.`;
+Generate the composite image now.`;
+
+    // Build content array: text prompt + user photo + all outfit item images
+    const contentParts: any[] = [
+      { type: "text", text: prompt },
+      { type: "image_url", image_url: { url: userImageBase64 } },
+    ];
+
+    for (const item of outfitItems) {
+      if (item.imageUrl) {
+        contentParts.push({ type: "image_url", image_url: { url: item.imageUrl } });
+      }
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -59,21 +75,11 @@ Make it look as realistic as possible, like a professional fashion photo.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image-preview",
+        model: "google/gemini-3-pro-image-preview",
         messages: [
           {
             role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { 
-                type: "image_url", 
-                image_url: { url: userImageBase64 } 
-              },
-              { 
-                type: "image_url", 
-                image_url: { url: productImageUrl } 
-              }
-            ]
+            content: contentParts,
           }
         ],
         modalities: ["image", "text"]
@@ -106,7 +112,6 @@ Make it look as realistic as possible, like a professional fashion photo.`;
     const aiResponse = await response.json();
     console.log("AI response received");
 
-    // Extract generated image from response
     const generatedImage = aiResponse.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     const textResponse = aiResponse.choices?.[0]?.message?.content;
 

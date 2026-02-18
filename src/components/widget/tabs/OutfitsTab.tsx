@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Heart, ShoppingBag, Sparkles, RefreshCw, Loader2, LogIn } from "lucide-react";
+import { Heart, ShoppingBag, Sparkles, RefreshCw, Loader2, LogIn, Camera } from "lucide-react";
 
 interface OutfitItem {
   id: string;
@@ -22,6 +22,7 @@ interface Outfit {
 
 interface OutfitsTabProps {
   brandId?: string;
+  onSelectOutfitForTryOn?: (items: { name: string; imageUrl: string; category: string }[]) => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -30,7 +31,7 @@ function getToken(brandId?: string) {
   return localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
 }
 
-export function OutfitsTab({ brandId }: OutfitsTabProps) {
+export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps) {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -77,7 +78,6 @@ export function OutfitsTab({ brandId }: OutfitsTabProps) {
     setSaving(outfit.id);
     try {
       if (savedIds.has(outfit.id)) {
-        // For now just toggle locally — delete requires saved_outfit db id
         setSavedIds(prev => { const n = new Set(prev); n.delete(outfit.id); return n; });
       } else {
         const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/save`, {
@@ -91,6 +91,15 @@ export function OutfitsTab({ brandId }: OutfitsTabProps) {
       }
     } catch { /* ignore */ }
     setSaving(null);
+  };
+
+  const handleTryOn = (outfit: Outfit) => {
+    const items = outfit.items.map(i => ({
+      name: i.name,
+      imageUrl: i.imageUrl || i.image_url || "",
+      category: i.category,
+    }));
+    onSelectOutfitForTryOn?.(items);
   };
 
   return (
@@ -156,11 +165,23 @@ export function OutfitsTab({ brandId }: OutfitsTabProps) {
               ))}
             </div>
 
-            <div className="p-3 flex items-center justify-between border-t border-border">
+            <div className="p-3 flex items-center justify-between border-t border-border gap-2">
               <span className="font-semibold text-sm">${outfit.totalPrice.toFixed(2)}</span>
-              <Button size="sm" className="text-xs h-8 gap-1">
-                <ShoppingBag className="h-3 w-3" />Add All to Cart
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 gap-1"
+                  onClick={() => handleTryOn(outfit)}
+                >
+                  <Camera className="h-3 w-3" />
+                  Try On
+                </Button>
+                <Button size="sm" className="text-xs h-8 gap-1">
+                  <ShoppingBag className="h-3 w-3" />
+                  Add All
+                </Button>
+              </div>
             </div>
           </div>
         ))

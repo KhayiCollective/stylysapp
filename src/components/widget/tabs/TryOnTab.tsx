@@ -1,20 +1,25 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Camera, Loader2, X, Sparkles } from "lucide-react";
+import { Upload, Camera, Loader2, X, Sparkles, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-export function TryOnTab() {
+interface OutfitItemProp {
+  name: string;
+  imageUrl: string;
+  category: string;
+}
+
+interface TryOnTabProps {
+  outfitItems?: OutfitItemProp[];
+}
+
+export function TryOnTab({ outfitItems }: TryOnTabProps) {
   const [userImage, setUserImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // For demo — in production, selected from outfits
-  const [productImage] = useState("https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=600");
-  const [productName] = useState("Silk Midi Dress");
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -34,7 +39,7 @@ export function TryOnTab() {
   };
 
   const generateTryOn = async () => {
-    if (!userImage) return;
+    if (!userImage || !outfitItems?.length) return;
     setIsProcessing(true);
     setError(null);
 
@@ -42,8 +47,11 @@ export function TryOnTab() {
       const { data, error: fnError } = await supabase.functions.invoke("virtual-tryon", {
         body: {
           userImageBase64: userImage,
-          productImageUrl: productImage,
-          productCategory: "clothing",
+          outfitItems: outfitItems.map(i => ({
+            name: i.name,
+            imageUrl: i.imageUrl,
+            category: i.category,
+          })),
         },
       });
 
@@ -61,20 +69,36 @@ export function TryOnTab() {
     }
   };
 
+  // No outfit selected — prompt user
+  if (!outfitItems || outfitItems.length === 0) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center text-center gap-4 min-h-[400px]">
+        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+          <Camera className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h3 className="font-semibold text-base">No outfit selected</h3>
+        <p className="text-sm text-muted-foreground max-w-[260px]">
+          Go to the <strong>Outfits</strong> tab and tap <strong>"Try On"</strong> on any look to see how it looks on you.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 space-y-4">
       <div>
         <h3 className="font-semibold text-base">Virtual Try-On</h3>
-        <p className="text-xs text-muted-foreground">See how items look on you with AI</p>
+        <p className="text-xs text-muted-foreground">See how this outfit looks on you with AI</p>
       </div>
 
-      {/* Product preview */}
-      <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-        <img src={productImage} alt={productName} className="w-12 h-12 rounded-md object-cover" />
-        <div>
-          <p className="text-sm font-medium">{productName}</p>
-          <Badge variant="secondary" className="text-[10px]">Selected Item</Badge>
-        </div>
+      {/* Outfit items preview */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {outfitItems.map((item, idx) => (
+          <div key={idx} className="flex-shrink-0 w-20">
+            <img src={item.imageUrl} alt={item.name} className="w-20 h-20 rounded-md object-cover border border-border" />
+            <p className="text-[10px] text-muted-foreground truncate mt-1">{item.name}</p>
+          </div>
+        ))}
       </div>
 
       {/* Upload */}

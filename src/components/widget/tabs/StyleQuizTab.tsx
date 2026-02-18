@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, ArrowRight, ArrowLeft, Sparkles } from "lucide-react";
+import { Check, ArrowRight, ArrowLeft, Sparkles, ShoppingBag } from "lucide-react";
 
 interface StyleQuizTabProps {
   brandId?: string;
+  onComplete?: () => void;
 }
 
 const STYLE_OPTIONS = ["Minimalist", "Bohemian", "Classic", "Streetwear", "Romantic", "Edgy", "Preppy", "Athleisure"];
@@ -14,7 +15,7 @@ const COLOR_OPTIONS = ["Black", "White", "Navy", "Beige", "Red", "Green", "Pink"
 const BODY_SHAPES = ["Hourglass", "Pear", "Apple", "Rectangle", "Triangle", "Inverted Triangle"];
 const OCCASIONS = ["Work", "Casual", "Date Night", "Weekend", "Formal", "Travel", "Workout"];
 
-export function StyleQuizTab({ brandId }: StyleQuizTabProps) {
+export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
   const [step, setStep] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [email, setEmail] = useState("");
@@ -31,7 +32,6 @@ export function StyleQuizTab({ brandId }: StyleQuizTabProps) {
   const totalSteps = 5;
 
   const handleSubmit = () => {
-    // In production, this posts to the widget edge function
     console.log("Quiz submitted:", { email, selectedStyles, preferredColors, avoidedColors, bodyShape, occasions });
     setCompleted(true);
   };
@@ -44,8 +44,12 @@ export function StyleQuizTab({ brandId }: StyleQuizTabProps) {
         </div>
         <h3 className="font-semibold text-lg">You're all set!</h3>
         <p className="text-sm text-muted-foreground max-w-[280px]">
-          We've saved your style profile. Check the Outfits tab for personalized recommendations.
+          We've saved your style profile. View your personalized outfit recommendations now.
         </p>
+        <Button size="sm" className="gap-2" onClick={() => onComplete?.()}>
+          <ShoppingBag className="h-4 w-4" />
+          View My Outfits
+        </Button>
         <Button variant="outline" size="sm" onClick={() => { setCompleted(false); setStep(0); }}>
           Retake Quiz
         </Button>
