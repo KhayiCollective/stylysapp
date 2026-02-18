@@ -78,6 +78,13 @@ Deno.serve(async (req) => {
   btn.onclick = toggle;
   overlay.onclick = toggle;
 
+  // Listen for close message from widget iframe
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'stylys-close' && isOpen) {
+      toggle();
+    }
+  });
+
   document.body.appendChild(overlay);
   document.body.appendChild(panel);
   document.body.appendChild(btn);
