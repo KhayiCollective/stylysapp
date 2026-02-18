@@ -440,7 +440,7 @@ const Rules = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-background/30 text-background hover:bg-background/10"
+                    className="border-background/30 text-foreground hover:bg-background/10"
                     onClick={generateDemoOutfits}
                     disabled={demoGenerating}
                   >
