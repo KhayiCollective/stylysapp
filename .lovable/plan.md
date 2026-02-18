@@ -1,75 +1,116 @@
 
 
-# Reorder Widget Flow + Smarter Virtual Try-On
+# Speed Up Virtual Try-On + Outfit Composition Rules
 
 ## Overview
-Three changes: (1) move Account to be the first tab so customers sign in/up before anything else, (2) remove the email step from the quiz since the account already captures it, and (3) make the virtual try-on prompt smarter about focusing on the actual product being sold rather than the full styling shown in a product image.
+Three changes: (1) speed up the virtual try-on by using a faster AI model, (2) make the outfit generator include shoes/accessories when the catalog has them, and (3) add configurable "Outfit Composition" rules on the merchant Rules page that control how many items and which categories to include -- persisted to the database.
 
 ---
 
-## 1. New Tab Order: Account First
+## 1. Speed Up Virtual Try-On
 
-**Current:** Quiz > Outfits > Wishlist > Try-On > Account
+**Problem:** Currently uses `google/gemini-3-pro-image-preview` which is the highest-quality (and slowest) image model.
 
-**New:** Account > Quiz > Outfits > Wishlist > Try-On
-
-The customer signs in or creates an account first, then takes the quiz, browses outfits, and tries them on.
-
-### Files:
-- **`InlineCustomerWidget.tsx`**: Change default tab to `"account"`, reorder TabsTriggers and TabsContents
-- **`CustomerWidget.tsx`**: Same reorder
-
----
-
-## 2. Remove Email Step from Quiz
-
-The quiz currently has 5 steps starting with an email collection step (step 0). Since the customer already has an account with their email, this step is unnecessary.
-
-### File: `StyleQuizTab.tsx`
-- Remove step 0 (email input)
-- Reduce `totalSteps` from 5 to 4
-- Shift all remaining steps down (Style becomes step 0, Colors step 1, Body Shape step 2, Occasions step 3)
-- Remove the `email` state variable and the `disabled={step === 0 && !email}` check on Next button
-- Remove `email` from the submit log
-
----
-
-## 3. Smarter Virtual Try-On Prompting
-
-Currently the AI prompt treats all outfit items equally. The user wants the try-on to be aware that a product image might show a full look (top + bottom) but only one piece is the actual product for sale.
+**Solution:** Switch to `google/gemini-2.5-flash-image` (also known as "Nano banana") which is optimized for fast image generation. This trades a small amount of quality for significantly faster response times.
 
 ### File: `supabase/functions/virtual-tryon/index.ts`
-- Update the prompt to instruct the AI to focus on each item's **category** label to understand what specific garment piece to use from each product image
-- For example: "The product image for 'Classic Denim Jeans' (category: bottoms) may show a model wearing a top and bottom -- only use the **bottoms** from this image"
-- The prompt will iterate through items and explicitly call out: "From the image of [name], use only the [category] piece"
+- Change model from `google/gemini-3-pro-image-preview` to `google/gemini-2.5-flash-image`
+- Simplify the prompt slightly to reduce token processing time (shorter = faster)
 
-### File: `OutfitsTab.tsx`
-- No changes needed -- it already passes `category` per item
+---
+
+## 2. Outfit Generator: Include Shoes and Accessories
+
+**Problem:** The AI prompt says "typically a top, bottom, and optional accessories/layers" but doesn't strongly encourage including shoes, bags, sunglasses, hats, etc.
+
+**Solution:** Update the `generate-outfits` edge function to:
+- Accept an optional `rules` parameter (outfit composition settings from the merchant)
+- Use those rules in the AI prompt to specify exactly which categories to include and how many items per outfit
+- Default behavior: include accessories/shoes if available in the catalog
+
+### File: `supabase/functions/generate-outfits/index.ts`
+- Add `rules` to the request interface: `{ minItems?: number, maxItems?: number, requiredCategories?: string[], optionalCategories?: string[] }`
+- Update the system prompt to instruct the AI to include shoes and accessories when available
+- Pass the rules into the prompt so the AI knows how many items and which categories the merchant wants
+
+---
+
+## 3. Merchant Rules Page: Outfit Composition Settings
+
+**Problem:** The Rules page uses hardcoded local state and doesn't persist to the `rules` database table. There's no way for merchants to control outfit composition (item count, categories).
+
+**Solution:** 
+- Wire the Rules page to the `rules` database table (read on load, update on toggle)
+- Add a new "Outfit Composition" section with configurable settings:
+  - **Min/Max items per outfit** (slider or number input, e.g. 2-6)
+  - **Required categories** (multi-select: tops, bottoms, etc. -- always included)
+  - **Optional categories** (multi-select: shoes, bags, sunglasses, hats, jewelry -- included when available)
+- Store these as a new rule row in the `rules` table with `category: "composition"` and `config` JSONB holding the settings
+- The Outfit Generator and Widget pages read these rules before calling `generate-outfits` and pass them along
+
+### Files:
+
+**`src/pages/Rules.tsx`**
+- Fetch rules from the `rules` DB table on mount instead of using hardcoded `initialRules`
+- Save toggle changes to the DB via `supabase.from("rules").update()`
+- Add a new "Outfit Composition" section with:
+  - Min items slider (default: 3)
+  - Max items slider (default: 5)
+  - Required categories checkboxes (default: tops, bottoms)
+  - Optional categories checkboxes (default: shoes, bags, accessories, hats, sunglasses, jewelry)
+- On change, upsert to `rules` table with `name: "Outfit Composition"`, `category: "composition"`, `config: { minItems, maxItems, requiredCategories, optionalCategories }`
+
+**`src/pages/OutfitGenerator.tsx`**
+- Before calling `generate-outfits`, fetch the composition rule from the `rules` table
+- Pass `rules` config in the request body to the edge function
+
+**`src/components/widget/tabs/OutfitsTab.tsx`**
+- Same: fetch composition rules for the brand and pass to the edge function
+
+**`src/pages/Widget.tsx`**
+- Same: pass rules to edge function
 
 ---
 
 ## Technical Details
 
-### `InlineCustomerWidget.tsx` and `CustomerWidget.tsx`
-- Default tab: `"account"`
-- Tab order: Account, Quiz, Outfits, Wishlist, Try-On
-- After account login/signup, the AccountTab could offer a "Take Style Quiz" button (already has a "Complete Your Profile" prompt that links to style preferences -- we can add a callback to switch to the Quiz tab)
+### Database
+- No schema changes needed -- the existing `rules` table already has `config: jsonb` and `category: text` columns
+- A seed rule for "Outfit Composition" is already created by `handle_new_user()` as "Category Balance" -- we'll add a new composition-specific rule via migration (INSERT into rules for existing brands)
 
-### `StyleQuizTab.tsx`
-- Remove step 0 (email), remove `email` state
-- Steps become: 0=Style, 1=Colors, 2=Body Shape, 3=Occasions
-- `totalSteps = 4`
-- Next button always enabled on step 0 (no email check)
+### New rule row structure:
+```text
+name: "Outfit Composition"
+category: "composition"  
+config: {
+  "minItems": 3,
+  "maxItems": 5,
+  "requiredCategories": ["tops", "bottoms"],
+  "optionalCategories": ["shoes", "bags", "accessories", "hats", "sunglasses", "jewelry"]
+}
+enabled: true
+```
 
-### `supabase/functions/virtual-tryon/index.ts`
-- Enhanced prompt with per-item instructions like:
-  ```
-  For each product image provided:
-  - "[Item Name]" (category: [category]) -- extract ONLY the [category] garment from this image, ignore other clothing shown
-  ```
-- This tells the AI that if a "Tailored Trousers" image shows a model in a blazer and trousers, it should only use the trousers
+### Migration needed:
+- INSERT a default "Outfit Composition" rule for all existing brands that don't have one yet
 
-### `AccountTab.tsx`
-- Add an `onNavigateToQuiz` callback prop
-- On the logged-in home view, the "Complete Your Profile" section gets a button that calls `onNavigateToQuiz()` to switch to the Quiz tab
+### Edge function changes (`generate-outfits/index.ts`):
+- Accept `rules` in request body
+- Updated prompt example:
+```text
+COMPOSITION RULES:
+- Each outfit MUST contain 3-5 items
+- REQUIRED categories (always include): tops, bottoms
+- OPTIONAL categories (include when available in catalog): shoes, bags, accessories, hats, sunglasses, jewelry
+- Always try to include at least one item from the optional categories if the catalog has them
+```
+
+### Files to modify:
+1. `supabase/functions/virtual-tryon/index.ts` -- faster model
+2. `supabase/functions/generate-outfits/index.ts` -- accept rules, include accessories
+3. `src/pages/Rules.tsx` -- DB-backed rules + composition UI
+4. `src/pages/OutfitGenerator.tsx` -- fetch rules, pass to edge function
+5. `src/pages/Widget.tsx` -- fetch rules, pass to edge function
+6. `src/components/widget/tabs/OutfitsTab.tsx` -- pass rules to edge function
+7. Database migration -- seed composition rule for existing brands
 
