@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Palette, Scale, DollarSign, Package, Info, Loader2, Layers, Sparkles, ShoppingBag, RefreshCw } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -418,10 +419,26 @@ const Rules = () => {
                 <div className="w-20 h-28 rounded-md overflow-hidden bg-muted flex-shrink-0">
                   <img src={demoAnchor.imageUrl} alt={demoAnchor.name} className="w-full h-full object-cover" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="uppercase tracking-widest text-[10px] text-muted-foreground mb-1">Anchor Product</p>
-                  <h3 className="font-display text-base font-medium truncate">{demoAnchor.name}</h3>
-                  <p className="text-sm text-muted-foreground">${demoAnchor.price.toFixed(2)}</p>
+                  <Select
+                    value={demoAnchor.id}
+                    onValueChange={(val) => {
+                      const found = demoProducts.find((p) => p.id === val);
+                      if (found) setDemoAnchor(found);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {demoProducts.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} — ${p.price.toFixed(2)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             )}
