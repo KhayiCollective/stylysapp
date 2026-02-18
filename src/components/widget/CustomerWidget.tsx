@@ -11,11 +11,25 @@ import { AccountTab } from "./tabs/AccountTab";
 
 interface CustomerWidgetProps {
   brandId?: string;
+  externalOpen?: boolean;
+  externalTab?: string;
+  onOpenChange?: (open: boolean) => void;
+  onTabChange?: (tab: string) => void;
 }
 
-export function CustomerWidget({ brandId }: CustomerWidgetProps) {
-  const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("outfits");
+export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChange, onTabChange }: CustomerWidgetProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [internalTab, setInternalTab] = useState("outfits");
+
+  const open = externalOpen ?? internalOpen;
+  const activeTab = externalTab ?? internalTab;
+
+  const setOpen = (v: boolean) => {
+    onOpenChange ? onOpenChange(v) : setInternalOpen(v);
+  };
+  const setActiveTab = (v: string) => {
+    onTabChange ? onTabChange(v) : setInternalTab(v);
+  };
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {

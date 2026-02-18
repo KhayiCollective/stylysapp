@@ -1,7 +1,16 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, createContext, useContext } from "react";
 import { StylingChatbot } from "./StylingChatbot";
 import { SavedOutfitsWidget } from "./SavedOutfitsWidget";
+import { CustomerWidget } from "../widget/CustomerWidget";
 import { useToast } from "@/hooks/use-toast";
+
+// Context to allow ShopHeader to open the widget's Account tab
+interface WidgetControl {
+  openAccountTab: () => void;
+}
+
+const WidgetControlContext = createContext<WidgetControl>({ openAccountTab: () => {} });
+export const useWidgetControl = () => useContext(WidgetControlContext);
 
 interface OutfitItem {
   id: string;
@@ -48,6 +57,8 @@ const initialSavedOutfits: SavedOutfit[] = [
 
 export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>(initialSavedOutfits);
+  const [widgetOpen, setWidgetOpen] = useState(false);
+  const [widgetTab, setWidgetTab] = useState("outfits");
   const { toast } = useToast();
 
   const handleRemoveOutfit = (outfitId: string) => {
@@ -59,19 +70,33 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
     console.log("Adding to cart:", outfit);
   };
 
+  const openAccountTab = () => {
+    setWidgetTab("account");
+    setWidgetOpen(true);
+  };
+
   return (
-    <div className="relative min-h-screen">
-      {children}
-      
-      {/* Saved Outfits Widget - Bottom Left */}
-      <SavedOutfitsWidget
-        savedOutfits={savedOutfits}
-        onRemove={handleRemoveOutfit}
-        onAddToCart={handleAddToCart}
-      />
-      
-      {/* AI Styling Chatbot - Bottom Right */}
-      <StylingChatbot products={products} />
-    </div>
+    <WidgetControlContext.Provider value={{ openAccountTab }}>
+      <div className="relative min-h-screen">
+        {children}
+        
+        {/* Saved Outfits Widget - Bottom Left */}
+        <SavedOutfitsWidget
+          savedOutfits={savedOutfits}
+          onRemove={handleRemoveOutfit}
+          onAddToCart={handleAddToCart}
+        />
+        
+        {/* AI Styling Chatbot - Bottom Right */}
+        <StylingChatbot products={products} />
+
+        <CustomerWidget
+          externalOpen={widgetOpen}
+          externalTab={widgetTab}
+          onOpenChange={setWidgetOpen}
+          onTabChange={setWidgetTab}
+        />
+      </div>
+    </WidgetControlContext.Provider>
   );
 }
