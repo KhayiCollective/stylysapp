@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Camera, User, ShoppingBag, X, Sparkles } from "lucide-react";
-import stylysIcon from "@/assets/stylys-icon.png";
+import stylysIcon from "@/assets/S_no_border.png";
 import { StyleQuizTab } from "./tabs/StyleQuizTab";
 import { OutfitsTab } from "./tabs/OutfitsTab";
 import { WishlistTab } from "./tabs/WishlistTab";

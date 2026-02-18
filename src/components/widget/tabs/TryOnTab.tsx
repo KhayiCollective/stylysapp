@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Camera, Loader2, X, Sparkles, ShoppingBag } from "lucide-react";
+import { Upload, Camera, Loader2, X, Sparkles, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OutfitItemProp {
@@ -20,6 +20,7 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showingOriginal, setShowingOriginal] = useState(false);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -32,6 +33,7 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
       reader.onload = (event) => {
         setUserImage(event.target?.result as string);
         setResultImage(null);
+        setShowingOriginal(false);
         setError(null);
       };
       reader.readAsDataURL(file);
@@ -59,6 +61,7 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
 
       if (data?.success && data?.resultImage) {
         setResultImage(data.resultImage);
+        setShowingOriginal(false);
       } else {
         setError(data?.message || "Could not generate try-on. Try a different photo.");
       }
@@ -69,7 +72,6 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
     }
   };
 
-  // No outfit selected — prompt user
   if (!outfitItems || outfitItems.length === 0) {
     return (
       <div className="p-6 flex flex-col items-center justify-center text-center gap-4 min-h-[400px]">
@@ -83,6 +85,9 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
       </div>
     );
   }
+
+  const displayImage = resultImage && !showingOriginal ? resultImage : userImage;
+  const hasResult = !!resultImage;
 
   return (
     <div className="p-4 space-y-4">
@@ -101,7 +106,7 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
         ))}
       </div>
 
-      {/* Upload */}
+      {/* Upload / Result area — single container */}
       {!userImage ? (
         <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-colors">
           <Upload className="h-6 w-6 text-muted-foreground mb-2" />
@@ -111,9 +116,31 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
         </label>
       ) : (
         <div className="relative">
-          <img src={userImage} alt="Your photo" className="w-full aspect-[3/4] object-cover rounded-lg" />
+          <img
+            src={displayImage!}
+            alt={hasResult && !showingOriginal ? "Try-on result" : "Your photo"}
+            className="w-full aspect-[3/4] object-cover rounded-lg"
+          />
+          {/* AI Generated badge */}
+          {hasResult && !showingOriginal && (
+            <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">
+              <Sparkles className="h-3 w-3 mr-1" />
+              AI Generated
+            </Badge>
+          )}
+          {/* Toggle original/result */}
+          {hasResult && (
+            <button
+              onClick={() => setShowingOriginal(!showingOriginal)}
+              className="absolute bottom-2 left-2 h-7 px-2.5 bg-background/80 backdrop-blur-sm rounded-full flex items-center gap-1.5 text-[11px] font-medium text-foreground border border-border/50 hover:bg-background/95 transition-colors"
+            >
+              <Eye className="h-3 w-3" />
+              {showingOriginal ? "View Result" : "View Original"}
+            </button>
+          )}
+          {/* Clear button */}
           <button
-            onClick={() => { setUserImage(null); setResultImage(null); }}
+            onClick={() => { setUserImage(null); setResultImage(null); setShowingOriginal(false); }}
             className="absolute top-2 right-2 h-6 w-6 bg-background/80 rounded-full flex items-center justify-center"
           >
             <X className="h-3 w-3" />
@@ -139,20 +166,10 @@ export function TryOnTab({ outfitItems }: TryOnTabProps) {
         ) : (
           <>
             <Camera className="h-4 w-4" />
-            Try It On
+            {hasResult ? "Try Again" : "Try It On"}
           </>
         )}
       </Button>
-
-      {resultImage && (
-        <div className="relative rounded-lg overflow-hidden border border-border">
-          <img src={resultImage} alt="Try-on result" className="w-full aspect-[3/4] object-cover" />
-          <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">
-            <Sparkles className="h-3 w-3 mr-1" />
-            AI Generated
-          </Badge>
-        </div>
-      )}
     </div>
   );
 }
