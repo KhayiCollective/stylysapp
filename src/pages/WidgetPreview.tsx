@@ -1,14 +1,31 @@
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { InlineCustomerWidget } from "@/components/widget/InlineCustomerWidget";
 import { CustomerWidget } from "@/components/widget/CustomerWidget";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
 const WidgetPreview = () => {
   const [searchParams] = useSearchParams();
   const brandId = searchParams.get("brand_id") || undefined;
+  const [isIframe, setIsIframe] = useState(false);
 
+  useEffect(() => {
+    try {
+      setIsIframe(window.self !== window.top);
+    } catch {
+      setIsIframe(true); // cross-origin = definitely in iframe
+    }
+  }, []);
+
+  // When loaded in an iframe (Shopify store), render the widget directly
+  if (isIframe) {
+    return <InlineCustomerWidget brandId={brandId} />;
+  }
+
+  // Standalone merchant preview mode
   return (
     <div className="min-h-screen bg-[#f8f6f3]">
-      {/* Simulated store header */}
       <header className="border-b border-border/50 bg-white">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between h-16">
           <Link to="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm">
@@ -20,7 +37,6 @@ const WidgetPreview = () => {
         </div>
       </header>
 
-      {/* Simulated product page */}
       <main className="max-w-6xl mx-auto px-6 py-12">
         <div className="grid md:grid-cols-2 gap-12">
           <div className="aspect-[3/4] rounded-xl overflow-hidden bg-muted">
@@ -45,7 +61,6 @@ const WidgetPreview = () => {
         </div>
       </main>
 
-      {/* The actual widget */}
       <CustomerWidget brandId={brandId} />
     </div>
   );
