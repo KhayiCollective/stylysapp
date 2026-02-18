@@ -1,41 +1,27 @@
 
 
-# Widget Demo: Smaller Anchor Image + Editorial Outfit Cards
+# Add Anchor Product Selector to Widget Demo
 
-## Changes
+## What Changes
 
-### 1. Shrink the Anchor Product Image
-The current anchor product takes up a full `aspect-[3/4]` half of the grid, which is oversized for a preview context. Replace the large hero image with a compact horizontal layout: a smaller thumbnail alongside product details, all in one row.
+Replace the static anchor product display with a dropdown selector that lets the merchant pick any product from their synced catalog. When a new anchor is selected, the demo automatically regenerates outfits.
 
-### 2. Redesign Outfit Cards to Be More Editorial
-Replace the current boxy list of outfits with a magazine-style editorial layout:
-- Each outfit gets a horizontal card with overlapping/staggered product images (editorial collage feel)
-- Outfit name displayed in a refined serif/display font style with a subtle occasion tag
-- Product thumbnails shown in a tighter filmstrip row with minimal spacing
-- Selected outfit uses a subtle highlight border instead of the heavy checked-circle treatment
-- Pricing shown in a more understated way
+## Technical Details
 
-### File: `src/pages/Rules.tsx` (lines ~397-527)
+### File: `src/pages/Rules.tsx`
 
-**Anchor section (lines 416-425):**
-- Replace `aspect-[3/4]` full-column image with a compact row: small `w-24 h-32` thumbnail + text beside it
-- Remove the separate column layout -- anchor + outfits card stack vertically instead of side-by-side grid
+**Anchor product section (lines 416-427):**
+- Add a `Select` dropdown (from `@radix-ui/react-select`, already in the project) next to the anchor product thumbnail
+- The dropdown lists all `demoProducts` by name, with the current anchor pre-selected
+- On change, update `demoAnchor` state -- the existing `useEffect` on `demoAnchor` already triggers `generateDemoOutfits` automatically
 
-**Outfit cards (lines 462-497):**
-- Change product image layout from equal `flex-1` squares to a horizontal filmstrip with `w-16 h-20` thumbnails using `aspect-[3/4]` ratio and `-ml-2` overlap for editorial collage effect
-- Style outfit name with `font-display tracking-wide uppercase text-xs` for editorial feel
-- Move price to a subtle right-aligned position
-- Add a thin left border accent on the selected outfit instead of the full border + checkmark
+**Layout:**
+- Keep the compact horizontal card layout
+- Add the `Select` component inline after the product name/price, or replace the static text section with a select + thumbnail combo
+- The thumbnail updates to show the newly selected product's image
 
-**Selected outfit footer (lines 501-514):**
-- Keep the total and CTA but style more minimally -- smaller font, understated button
+**Imports:**
+- Add `Select, SelectContent, SelectItem, SelectTrigger, SelectValue` from `@/components/ui/select`
 
-### Technical Details
-
-All changes are in a single file (`src/pages/Rules.tsx`), purely CSS/layout adjustments. No logic or data changes needed.
-
-- Anchor section: switch from `grid lg:grid-cols-2` to a single column with a compact inline anchor card
-- Outfit items: overlapping thumbnails via negative margin, smaller image sizing
-- Typography: leverage existing `font-display` class with tighter tracking for editorial headers
-- Spacing: reduce padding in outfit cards from `p-4` to `p-3` for a tighter, magazine-like density
+**No new state needed** -- `demoAnchor` and `demoProducts` already exist. Just wire the Select's `onValueChange` to find the matching product and call `setDemoAnchor`.
 
