@@ -15,15 +15,19 @@ import { ShopifyTestMode } from '@/components/ShopifyTestMode';
 import { ShopifySyncStatus } from '@/components/ShopifySyncStatus';
 import { WebhookStatusIndicator } from '@/components/catalog/WebhookStatusIndicator';
 import { SyncHistoryLog } from '@/components/catalog/SyncHistoryLog';
-import { User, Building2, Loader2, Save, LogOut, BookOpen } from 'lucide-react';
+import { User, Building2, Loader2, Save, LogOut, BookOpen, CreditCard, Crown, Sparkles } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useSubscription } from '@/hooks/useSubscription';
+import { TIERS } from '@/lib/tiers';
+import { Badge } from '@/components/ui/badge';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isDevUser } = useUserRole();
+  const { subscribed, loading: subLoading, tierName, isTrialing, trialEnd, subscriptionEnd, checkSubscription } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -277,6 +281,85 @@ export default function Settings() {
                 Save Brand
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Billing Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Billing & Subscription
+            </CardTitle>
+            <CardDescription>
+              Manage your subscription plan
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {subLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking subscription...
+              </div>
+            ) : subscribed ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Crown className="h-5 w-5 text-amber-500" />
+                  <span className="font-semibold text-lg capitalize">{tierName || 'Active'} Plan</span>
+                  {isTrialing && <Badge variant="secondary">Trial</Badge>}
+                </div>
+                {isTrialing && trialEnd && (
+                  <p className="text-sm text-muted-foreground">
+                    Trial ends {new Date(trialEnd).toLocaleDateString()}
+                  </p>
+                )}
+                {!isTrialing && subscriptionEnd && (
+                  <p className="text-sm text-muted-foreground">
+                    Renews {new Date(subscriptionEnd).toLocaleDateString()}
+                  </p>
+                )}
+                <Button variant="outline" onClick={async () => {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (!session) return;
+                  const { data, error } = await supabase.functions.invoke('customer-portal', {
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                  });
+                  if (!error && data?.url) window.open(data.url, '_blank');
+                }}>
+                  Manage Subscription
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">You don't have an active subscription.</p>
+                <div className="flex gap-3">
+                  <Button onClick={async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) return;
+                    const { data, error } = await supabase.functions.invoke('create-checkout', {
+                      headers: { Authorization: `Bearer ${session.access_token}` },
+                      body: { priceId: TIERS.starter.priceId },
+                    });
+                    if (!error && data?.url) window.location.href = data.url;
+                  }} variant="outline">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Starter — $14.99/mo
+                  </Button>
+                  <Button onClick={async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) return;
+                    const { data, error } = await supabase.functions.invoke('create-checkout', {
+                      headers: { Authorization: `Bearer ${session.access_token}` },
+                      body: { priceId: TIERS.professional.priceId },
+                    });
+                    if (!error && data?.url) window.location.href = data.url;
+                  }}>
+                    <Crown className="h-4 w-4 mr-2" />
+                    Professional — $29.99/mo
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
