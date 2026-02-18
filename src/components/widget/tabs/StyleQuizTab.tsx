@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Check, ArrowRight, ArrowLeft, Sparkles, ShoppingBag } from "lucide-react";
 
 interface StyleQuizTabProps {
@@ -18,7 +16,6 @@ const OCCASIONS = ["Work", "Casual", "Date Night", "Weekend", "Formal", "Travel"
 export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
   const [step, setStep] = useState(0);
   const [completed, setCompleted] = useState(false);
-  const [email, setEmail] = useState("");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [preferredColors, setPreferredColors] = useState<string[]>([]);
   const [avoidedColors, setAvoidedColors] = useState<string[]>([]);
@@ -29,10 +26,10 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
     setter(list.includes(item) ? list.filter((i) => i !== item) : [...list, item]);
   };
 
-  const totalSteps = 5;
+  const totalSteps = 4;
 
   const handleSubmit = () => {
-    console.log("Quiz submitted:", { email, selectedStyles, preferredColors, avoidedColors, bodyShape, occasions });
+    console.log("Quiz submitted:", { selectedStyles, preferredColors, avoidedColors, bodyShape, occasions });
     setCompleted(true);
   };
 
@@ -70,28 +67,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
       </div>
 
       <div className="flex-1">
-        {/* Step 0: Email */}
+        {/* Step 0: Style */}
         {step === 0 && (
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold text-base mb-1">Let's get started</h3>
-              <p className="text-sm text-muted-foreground">Enter your email to save your style profile and get personalized recommendations.</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quiz-email" className="text-sm">Email</Label>
-              <Input
-                id="quiz-email"
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Step 1: Style */}
-        {step === 1 && (
           <div className="space-y-4">
             <div>
               <h3 className="font-semibold text-base mb-1">What's your style?</h3>
@@ -113,8 +90,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
           </div>
         )}
 
-        {/* Step 2: Colors */}
-        {step === 2 && (
+        {/* Step 1: Colors */}
+        {step === 1 && (
           <div className="space-y-5">
             <div>
               <h3 className="font-semibold text-base mb-1">Colors you love</h3>
@@ -151,8 +128,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
           </div>
         )}
 
-        {/* Step 3: Body Shape */}
-        {step === 3 && (
+        {/* Step 2: Body Shape */}
+        {step === 2 && (
           <div className="space-y-4">
             <div>
               <h3 className="font-semibold text-base mb-1">Body shape</h3>
@@ -177,8 +154,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
           </div>
         )}
 
-        {/* Step 4: Occasions */}
-        {step === 4 && (
+        {/* Step 3: Occasions */}
+        {step === 3 && (
           <div className="space-y-4">
             <div>
               <h3 className="font-semibold text-base mb-1">What do you dress for?</h3>
@@ -216,7 +193,7 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
           <Button
             size="sm"
             onClick={() => setStep(step + 1)}
-            disabled={step === 0 && !email}
+            disabled={false}
           >
             Next
             <ArrowRight className="h-4 w-4 ml-1" />

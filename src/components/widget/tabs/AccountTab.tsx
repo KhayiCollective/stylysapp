@@ -7,6 +7,7 @@ import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, S
 
 interface AccountTabProps {
   brandId?: string;
+  onNavigateToQuiz?: () => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -47,7 +48,7 @@ interface CustomerUser {
   styleProfile?: StyleProfile | null;
 }
 
-export function AccountTab({ brandId }: AccountTabProps) {
+export function AccountTab({ brandId, onNavigateToQuiz }: AccountTabProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -430,9 +431,15 @@ export function AccountTab({ brandId }: AccountTabProps) {
               <Sparkles className="h-4 w-4 text-primary" />
               <p className="text-sm font-medium">Complete Your Profile</p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Set your style preferences to get personalized outfit recommendations from the Outfits tab.
+            <p className="text-xs text-muted-foreground mb-2">
+              Take the style quiz to get personalized outfit recommendations.
             </p>
+            {onNavigateToQuiz && (
+              <Button size="sm" variant="outline" className="gap-2" onClick={onNavigateToQuiz}>
+                <Sparkles className="h-3.5 w-3.5" />
+                Take Style Quiz
+              </Button>
+            )}
           </div>
         )}
       </div>
