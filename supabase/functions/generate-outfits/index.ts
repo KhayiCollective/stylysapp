@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +15,13 @@ interface Product {
   fit: string | null;
 }
 
+interface CompositionRules {
+  minItems?: number;
+  maxItems?: number;
+  requiredCategories?: string[];
+  optionalCategories?: string[];
+}
+
 interface OutfitRequest {
   products: Product[];
   anchorProductId?: string;
@@ -23,6 +29,7 @@ interface OutfitRequest {
   style?: string;
   budget?: number;
   colorPreferences?: string[];
+  rules?: CompositionRules;
 }
 
 serve(async (req) => {
@@ -41,7 +48,7 @@ serve(async (req) => {
     }
 
     const body: OutfitRequest = await req.json();
-    const { products, anchorProductId, occasion, style, budget, colorPreferences } = body;
+    const { products, anchorProductId, occasion, style, budget, colorPreferences, rules } = body;
 
     if (!products || products.length === 0) {
       return new Response(
@@ -50,12 +57,10 @@ serve(async (req) => {
       );
     }
 
-    // Find anchor product if specified
     const anchorProduct = anchorProductId 
       ? products.find(p => p.id === anchorProductId) 
       : null;
 
-    // Prepare product catalog for AI
     const productCatalog = products.map(p => ({
       id: p.id,
       name: p.name,
@@ -65,15 +70,35 @@ serve(async (req) => {
       fit: p.fit || "regular"
     }));
 
+    // Build composition rules section for the prompt
+    const minItems = rules?.minItems ?? 3;
+    const maxItems = rules?.maxItems ?? 5;
+    const required = rules?.requiredCategories ?? ["tops", "bottoms"];
+    const optional = rules?.optionalCategories ?? ["shoes", "bags", "accessories", "hats", "sunglasses", "jewelry"];
+
+    // Check which optional categories actually exist in the catalog
+    const catalogCategories = [...new Set(products.map(p => p.category.toLowerCase()))];
+    const availableOptional = optional.filter(cat => 
+      catalogCategories.some(cc => cc.includes(cat) || cat.includes(cc))
+    );
+
+    const compositionSection = `
+COMPOSITION RULES:
+- Each outfit MUST contain ${minItems}-${maxItems} items
+- REQUIRED categories (always include one from each): ${required.join(", ")}
+- OPTIONAL categories (include when available in catalog): ${availableOptional.length > 0 ? availableOptional.join(", ") : "none available"}
+- Always try to include at least one item from the optional categories if the catalog has them
+- Available categories in this catalog: ${catalogCategories.join(", ")}`;
+
     const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Your job is to create cohesive, stylish outfit combinations from a product catalog.
 
 RULES:
-1. Each outfit must have 2-5 items that work together aesthetically
+1. Follow the composition rules below for item count and category selection
 2. Consider color harmony - complementary or analogous colors work best
-3. Balance categories - typically a top, bottom, and optional accessories/layers
-4. Stay within budget if specified
-5. Match the occasion/style if specified
-6. If an anchor product is specified, build the outfit around it
+3. Stay within budget if specified
+4. Match the occasion/style if specified
+5. If an anchor product is specified, build the outfit around it
+${compositionSection}
 
 OUTPUT FORMAT:
 Return a JSON array of exactly 3 outfit objects with this structure:
@@ -154,10 +179,8 @@ Create 3 distinct outfit combinations that would look great together.`;
       );
     }
 
-    // Parse AI response - handle potential markdown code blocks
     let parsedContent;
     try {
-      // Remove markdown code blocks if present
       let cleanContent = content.trim();
       if (cleanContent.startsWith("```json")) {
         cleanContent = cleanContent.slice(7);
@@ -176,7 +199,6 @@ Create 3 distinct outfit combinations that would look great together.`;
       );
     }
 
-    // Build full outfit objects with product details
     const outfits = parsedContent.outfits.map((outfit: any, index: number) => {
       const outfitProducts = outfit.productIds
         .map((id: string) => products.find(p => p.id === id))

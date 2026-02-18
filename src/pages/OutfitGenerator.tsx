@@ -83,6 +83,18 @@ const OutfitGenerator = () => {
     setIsGenerating(true);
 
     try {
+      // Fetch composition rules
+      let compositionRules = undefined;
+      const { data: rulesData } = await supabase
+        .from("rules")
+        .select("config, enabled")
+        .eq("category", "composition")
+        .single();
+      
+      if (rulesData?.enabled && rulesData.config) {
+        compositionRules = rulesData.config;
+      }
+
       const { data, error } = await supabase.functions.invoke("generate-outfits", {
         body: {
           products: products.map(p => ({
@@ -90,6 +102,7 @@ const OutfitGenerator = () => {
             category: p.category, color: p.color, fit: p.fit,
           })),
           anchorProductId: selectedAnchor.id,
+          rules: compositionRules,
         },
       });
 
