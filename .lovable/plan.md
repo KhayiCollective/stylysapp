@@ -1,44 +1,41 @@
 
 
-# Consolidate Navigation: Move Customer Outfits to Dashboard + Widget Demo to Rules
+# Widget Demo: Smaller Anchor Image + Editorial Outfit Cards
 
-## What Changes
+## Changes
 
-### 1. Remove Two Sidebar Items
-Remove "Customer Outfits" (`/wishlist`) and "Widget Demo" (`/widget`) from the sidebar navigation in `DashboardLayout.tsx`. The sidebar will have: Dashboard, Catalog, Rules, Settings, Docs, Support.
+### 1. Shrink the Anchor Product Image
+The current anchor product takes up a full `aspect-[3/4]` half of the grid, which is oversized for a preview context. Replace the large hero image with a compact horizontal layout: a smaller thumbnail alongside product details, all in one row.
 
-### 2. Add Customer Outfits Section to Dashboard
-Move the saved-outfits grid from `Wishlist.tsx` into the bottom of `Dashboard.tsx` as a new "Customer Outfits" card section. It will show the most recent saved outfits (limit ~6) with a count summary. This keeps the merchant's analytics and customer engagement data in one view.
+### 2. Redesign Outfit Cards to Be More Editorial
+Replace the current boxy list of outfits with a magazine-style editorial layout:
+- Each outfit gets a horizontal card with overlapping/staggered product images (editorial collage feel)
+- Outfit name displayed in a refined serif/display font style with a subtle occasion tag
+- Product thumbnails shown in a tighter filmstrip row with minimal spacing
+- Selected outfit uses a subtle highlight border instead of the heavy checked-circle treatment
+- Pricing shown in a more understated way
 
-### 3. Embed Widget Demo at Bottom of Rules Page
-Move the "Complete the Look" widget preview from `Widget.tsx` into the bottom of `Rules.tsx`. This way, when a merchant toggles rules or adjusts composition settings, they can immediately scroll down and see how those rules affect the live widget demo -- making it a feedback loop for fine-tuning.
+### File: `src/pages/Rules.tsx` (lines ~397-527)
 
-### 4. Clean Up Routes
-Remove the `/wishlist` and `/widget` routes from `App.tsx` (or redirect them to `/dashboard` and `/rules` respectively). The standalone page files can be kept for reference or deleted.
+**Anchor section (lines 416-425):**
+- Replace `aspect-[3/4]` full-column image with a compact row: small `w-24 h-32` thumbnail + text beside it
+- Remove the separate column layout -- anchor + outfits card stack vertically instead of side-by-side grid
 
----
+**Outfit cards (lines 462-497):**
+- Change product image layout from equal `flex-1` squares to a horizontal filmstrip with `w-16 h-20` thumbnails using `aspect-[3/4]` ratio and `-ml-2` overlap for editorial collage effect
+- Style outfit name with `font-display tracking-wide uppercase text-xs` for editorial feel
+- Move price to a subtle right-aligned position
+- Add a thin left border accent on the selected outfit instead of the full border + checkmark
 
-## Technical Details
+**Selected outfit footer (lines 501-514):**
+- Keep the total and CTA but style more minimally -- smaller font, understated button
 
-### `src/components/layout/DashboardLayout.tsx`
-- Remove the two navigation entries: `{ name: "Customer Outfits", href: "/wishlist", icon: Heart }` and `{ name: "Widget Demo", href: "/widget", icon: ExternalLink }`
+### Technical Details
 
-### `src/pages/Dashboard.tsx`
-- Add a query for `saved_outfits` (same logic as current `Wishlist.tsx`): fetch by `brand_id`, order by `created_at desc`, limit 6
-- Render a new "Customer Outfits" card at the bottom of the dashboard with the outfit grid (image mosaic + item count + date)
-- Show empty state if none exist yet
+All changes are in a single file (`src/pages/Rules.tsx`), purely CSS/layout adjustments. No logic or data changes needed.
 
-### `src/pages/Rules.tsx`
-- Add the widget demo section at the bottom after all rule categories
-- Port the core logic from `Widget.tsx`: fetch products, select anchor product, generate outfits using the current rules, display the "Complete the Look" card
-- The key benefit: when a merchant changes a rule above and scrolls down, the demo reflects those changes (they can click a "Refresh Preview" button to re-generate with the updated rules)
+- Anchor section: switch from `grid lg:grid-cols-2` to a single column with a compact inline anchor card
+- Outfit items: overlapping thumbnails via negative margin, smaller image sizing
+- Typography: leverage existing `font-display` class with tighter tracking for editorial headers
+- Spacing: reduce padding in outfit cards from `p-4` to `p-3` for a tighter, magazine-like density
 
-### `src/App.tsx`
-- Remove or redirect the `/wishlist` and `/widget` routes
-- Keep the page files intact (no deletion needed) to avoid breaking any deep links -- just remove from nav
-
-### Files to modify:
-1. `src/components/layout/DashboardLayout.tsx` -- remove 2 nav items
-2. `src/pages/Dashboard.tsx` -- add customer outfits section
-3. `src/pages/Rules.tsx` -- add widget demo preview at bottom
-4. `src/App.tsx` -- remove/redirect old routes
