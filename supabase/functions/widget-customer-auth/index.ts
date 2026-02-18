@@ -92,7 +92,7 @@ serve(async (req) => {
         return json({ error: "An account with this email already exists" }, 409);
       }
 
-      const password_hash = await bcrypt.hash(password);
+      const password_hash = bcrypt.hashSync(password);
 
       // Create a linked customer record for style preferences
       const { data: customer, error: custErr } = await supabase
@@ -145,7 +145,7 @@ serve(async (req) => {
         return json({ error: "Invalid email or password" }, 401);
       }
 
-      const valid = await bcrypt.compare(password, account.password_hash);
+      const valid = bcrypt.compareSync(password, account.password_hash);
       if (!valid) {
         return json({ error: "Invalid email or password" }, 401);
       }
