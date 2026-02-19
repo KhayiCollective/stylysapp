@@ -1,56 +1,76 @@
 
+# Body-Aware Virtual Try-On
 
-# Auto-Recommend Outfits on Product Detail Page
+## What Changes
 
-## What This Does
+The virtual try-on will use the customer's saved body shape and sizing information from their account profile to generate more accurate, personalized results. When a logged-in customer triggers "Try It On," their body shape (e.g., Hourglass, Pear) and sizes (tops, bottoms, shoes) are sent along with the photo and outfit items to the AI, which uses this context to render garments with realistic fit and proportions.
 
-When a customer views any product in the shop, they will automatically see AI-generated outfit recommendations below the product details. The outfits are built around the product they are viewing as the "anchor" item, making it easy to shop a complete look. Each recommended item is clickable to add to cart, and customers can also try on the full outfit via Virtual Try-On.
+## How It Works Today
 
-## How It Will Work
+- The AI prompt says "Maintain the person's face, body shape, and pose" but only has the photo to work from
+- Customer profile data (body shape, size info) exists in the database but is never passed to the try-on function
+- The AI guesses proportions purely from the uploaded image
 
-1. When the Product Detail page loads, it fetches companion products from the synced catalog (database `products` table)
-2. It calls the existing `generate-outfits` backend function with the current product as the anchor
-3. A new "Complete the Look" section appears below the product info showing 2-3 outfit recommendations
-4. Each outfit shows its items as clickable cards with "Add All to Cart" functionality
-5. Customers can click any outfit item to try it on virtually
+## What Will Change
 
-## Changes
+### 1. Pass profile data from widget to the edge function
 
-### New Component: `src/components/shop/RecommendedOutfits.tsx`
-- Accepts the current product (title, handle, image, category) as props
-- Fetches complementary products from the database using the brand's catalog
-- Calls the `generate-outfits` backend function with the current product as anchor
-- Displays 2-3 outfit cards in a horizontal scroll or grid
-- Each outfit card shows:
-  - Outfit name and occasion
-  - Product thumbnails in a grid
-  - Total outfit price
-  - "Add All to Cart" button
-  - "Try On" button (links to Virtual Try-On)
-- Shows a loading skeleton while generating
-- Gracefully handles cases where no products are in the catalog (shows nothing)
+**File: `src/components/widget/InlineCustomerWidget.tsx`**
+- Store the customer's `styleProfile` (body shape + sizing) in state when they log in
+- Pass `bodyShape` and `sizeInfo` down to the `TryOnTab` component as new props
 
-### Modified: `src/pages/ProductDetail.tsx`
-- Import and render `RecommendedOutfits` below the existing product info grid
-- Pass the current product's details (title, first image, handle) to the component
-- Add Virtual Try-On sidebar or section alongside the recommendations
-- The recommendations section appears after the main product content with a "Complete the Look" heading
+**File: `src/components/widget/tabs/TryOnTab.tsx`**
+- Accept new optional props: `bodyShape` and `sizeInfo`
+- Include these in the request body when calling the `virtual-tryon` function
 
-### Modified: `supabase/functions/generate-outfits/index.ts`
-- No changes needed -- the existing function already supports `anchorProductId` and returns outfit combinations. It will be called from the frontend with the catalog products and current product as anchor.
+### 2. Enhance the AI prompt with body context
+
+**File: `supabase/functions/virtual-tryon/index.ts`**
+- Accept optional `bodyShape` and `sizeInfo` fields in the request body
+- When present, add a body context section to the AI prompt that instructs the model to:
+  - Adjust garment draping and silhouette based on the body shape (e.g., "Pear shape: wider hips, narrower shoulders")
+  - Use sizing info to determine how fitted or loose garments should appear (e.g., size XS tops should look snug, size 32 bottoms should fit accordingly)
+  - Ensure proportions match the described body type even if the photo is partially cropped or unclear
+
+### 3. Show profile status on the Try-On tab
+
+**File: `src/components/widget/tabs/TryOnTab.tsx`**
+- When body shape / sizing data is available, show a small badge like "Personalized to your body profile" above the generate button
+- When not available, show a subtle hint: "Add your body shape and sizing in Account for better results"
 
 ## Technical Details
 
-- The `RecommendedOutfits` component will query the `products` table to get the brand's catalog (using the brand slug or ID from the shop context)
-- Since the shop pages are public-facing (no auth), the component will call `generate-outfits` via `supabase.functions.invoke` with the product list
-- Products table already has an RLS policy allowing public reads (`Widget can view products by brand_id` with `true` expression)
-- The outfit generation uses the existing Lovable AI integration (Gemini 2.5 Flash) -- no new API keys needed
-- Cart integration reuses the existing `useCartStore` for "Add All to Cart"
-- Results are cached in component state to avoid re-generating on every render
+### Updated request interface (edge function)
+```text
+TryOnRequest {
+  userImageBase64: string
+  outfitItems: OutfitItem[]
+  bodyShape?: string          // e.g. "Hourglass", "Pear"
+  sizeInfo?: {                // e.g. { tops: "M", bottoms: "28", shoes: "8" }
+    tops?: string
+    bottoms?: string
+    shoes?: string
+  }
+}
+```
 
-### Files to Create
-- `src/components/shop/RecommendedOutfits.tsx` -- the outfit recommendation section
+### AI prompt addition (when body data is present)
+A new section will be injected into the existing prompt:
+```text
+BODY PROFILE:
+- Body shape: Pear (wider hips relative to shoulders, defined waist)
+- Sizing: Tops M, Bottoms 28, Shoes 8
+- Adjust garment fit and draping to match this body type
+- Tops should fit as a medium would on this body shape
+- Bottoms should sit and drape as a size 28 would on a pear-shaped figure
+```
 
-### Files to Modify
-- `src/pages/ProductDetail.tsx` -- add the RecommendedOutfits section below product details
+Body shape descriptions will be mapped from the shape name to a brief physical description so the AI has clear anatomical context.
 
+### Files to modify
+- `supabase/functions/virtual-tryon/index.ts` -- add body context to prompt
+- `src/components/widget/tabs/TryOnTab.tsx` -- accept and send profile data, show personalization indicator
+- `src/components/widget/InlineCustomerWidget.tsx` -- pass style profile data to TryOnTab
+
+### No database changes needed
+All the data (body shape, size info) already exists in the `customers` table and is already fetched via the `widget-customer-auth/me` endpoint.
