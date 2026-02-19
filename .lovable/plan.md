@@ -1,33 +1,46 @@
 
 
-# Fix: Virtual Try-On "AI Services Temporarily Unavailable"
+# Fix: Widget Outfits "AI Service Temporarily Unavailable"
 
 ## Problem
 
-The `virtual-tryon` backend function is configured with `verify_jwt = true`, which means it requires a valid Supabase authentication token. However, the Virtual Try-On is triggered from the customer widget, which does not use Supabase auth -- it uses a custom customer token. The request is being rejected at the gateway level before the function code even executes, resulting in no logs and a generic "temporarily unavailable" error.
+The `widget-outfits` edge function is getting a 500 error from the AI gateway when calling `google/gemini-2.5-flash`. The current code only logs the status code (`AI error: 500`) but not the response body, so we can't see the actual reason for the failure.
 
-## Fix
+## Root Cause
 
-### 1. Update `supabase/config.toml`
+The AI gateway is returning 500 errors. This could be:
+- A transient issue with the `google/gemini-2.5-flash` model
+- The request payload being too large (50 products serialized as JSON in the prompt)
+- A rate limit or quota issue surfacing as 500
 
-Change the virtual-tryon function to `verify_jwt = false` so the request can reach the function code:
+## Fixes
 
+### 1. Add detailed error logging (`supabase/functions/widget-outfits/index.ts`)
+
+Log the full error response body from the AI gateway so we can see the actual failure reason:
+
+```typescript
+if (!aiResp.ok) {
+  const errBody = await aiResp.text();
+  console.error("AI error:", aiResp.status, errBody);
+  return json({ error: "AI service temporarily unavailable" }, 500);
+}
 ```
-[functions.virtual-tryon]
-verify_jwt = false
-```
 
-### 2. Update `src/components/widget/tabs/TryOnTab.tsx`
+### 2. Add retry with fallback model
 
-The component currently calls the function using `supabase.functions.invoke()`, which automatically attaches the Supabase anon key. This should work once JWT verification is disabled. No changes needed here -- the existing code is fine.
+If `google/gemini-2.5-flash` fails, retry once with `google/gemini-2.5-flash-lite` as a fallback. This provides resilience against single-model outages.
 
-## Why This Fixes It
+### 3. Reduce prompt size
 
-- The widget doesn't have a Supabase user session, so JWT verification fails silently at the gateway
-- Setting `verify_jwt = false` lets the request through to the function code
-- This is the same pattern used by all other widget-facing functions (`widget-outfits`, `widget-customer-auth`, `widget-loader`, etc.) which all have `verify_jwt = false`
+The current code sends up to 50 products with all fields. Trim this to essential fields only (id, name, category, color) and reduce the limit to 30 products. Smaller prompts are less likely to cause gateway errors.
+
+### 4. Add client-side retry in OutfitsTab
+
+In `OutfitsTab.tsx`, if the first request fails with a 500 error, retry once automatically after a short delay before showing the error to the user.
 
 ## Files to Modify
 
-- `supabase/config.toml` -- set `verify_jwt = false` for virtual-tryon (one-line change)
+- `supabase/functions/widget-outfits/index.ts` -- add error body logging, model fallback retry, reduce payload size
+- `src/components/widget/tabs/OutfitsTab.tsx` -- add automatic retry on 500 errors
 
