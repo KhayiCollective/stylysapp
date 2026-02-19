@@ -1,66 +1,41 @@
 
 
-# Fix: Virtual Try-On — Model-Specific Configuration
+# Fix: Virtual Try-On — Correct `modalities` Parameter for All Image Models
 
 ## Problem
 
-All three models fail for different reasons:
+The `callAI` function only adds `modalities: ["image", "text"]` when the model name contains `"image-preview"`. But `google/gemini-2.5-flash-image` also **requires** this parameter to generate images — its name contains `"flash-image"`, not `"image-preview"`, so it never gets the parameter.
 
-1. **`google/gemini-3-pro-image-preview`** -- 500 gateway outage (temporary, out of our control)
-2. **`google/gemini-3-flash-preview`** -- 404 because it does NOT support `modalities: ["image", "text"]`
-3. **`openai/gpt-5`** -- 400 because it does NOT accept the `modalities` parameter at all
-
-The `callAI` function blindly sends `modalities: ["image", "text"]` to every model, which only works with the one model that's currently down.
+Result:
+- `gemini-3-pro-image-preview` — gateway 500 (temporary outage, out of our control)
+- `gemini-2.5-flash-image` — likely fails because it's missing the required `modalities` parameter
+- `openai/gpt-5` — responds with text description instead of an image (it cannot generate images)
 
 ## Solution
 
-Two changes to `supabase/functions/virtual-tryon/index.ts`:
+One small change in `supabase/functions/virtual-tryon/index.ts`:
 
-### Change 1: Make `callAI` conditionally include `modalities`
+### Update the `modalities` condition (line 108)
 
-Only send `modalities: ["image", "text"]` for models that support it (the `gemini-3-*-image-preview` model). For other models, omit it entirely.
-
+Change from:
 ```typescript
-async function callAI(apiKey: string, contentParts: any[], model: string) {
-  const body: any = {
-    model,
-    messages: [{ role: "user", content: contentParts }],
-  };
-  // Only image-preview models support the modalities parameter
-  if (model.includes("image-preview")) {
-    body.modalities = ["image", "text"];
-  }
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  return response;
-}
+if (model.includes("image-preview")) {
 ```
 
-### Change 2: Update the fallback model list
-
-Replace `google/gemini-3-flash-preview` (which doesn't support image output) with `google/gemini-2.5-flash-image`, which is specifically designed for image generation.
-
+To:
 ```typescript
-const models = [
-  "google/gemini-3-pro-image-preview",  // Primary image model
-  "google/gemini-2.5-flash-image",       // Dedicated image generation model
-  "openai/gpt-5",                        // General multimodal fallback
-];
+if (model.includes("image-preview") || model.includes("flash-image")) {
 ```
 
-### Why This Fixes It
+This ensures `google/gemini-2.5-flash-image` receives the `modalities: ["image", "text"]` parameter it needs to generate images, while still keeping it off for `openai/gpt-5`.
 
-- When `gemini-3-pro-image-preview` is down (500), it falls through to `gemini-2.5-flash-image` which is a dedicated image model and won't reject the request
-- `openai/gpt-5` will no longer get the unsupported `modalities` parameter, so it can attempt the request too
-- No extra credits wasted on requests that are guaranteed to fail
+### Why this should work
 
-### Files to Modify
+- When `gemini-3-pro-image-preview` is down (500), the fallback `gemini-2.5-flash-image` will now get the correct parameters to actually generate an image
+- `openai/gpt-5` remains as a last resort — it returns text but won't crash
+- No other files need changes
 
-- `supabase/functions/virtual-tryon/index.ts` -- update `callAI` function and models array (both initial attempt and retry)
+### Files to modify
+
+- `supabase/functions/virtual-tryon/index.ts` — line 108, update the condition
 
