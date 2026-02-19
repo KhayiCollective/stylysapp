@@ -60,11 +60,20 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
         }
       } catch { /* ignore, use defaults */ }
 
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
+      let resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
       });
+      // Auto-retry once on 500
+      if (!resp.ok && resp.status >= 500) {
+        await new Promise(r => setTimeout(r, 1500));
+        resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
+        });
+      }
       const data = await resp.json();
       if (!resp.ok) { setError(data.error || "Failed to load outfits"); return; }
       setOutfits((data.outfits || []).map((o: any) => ({
