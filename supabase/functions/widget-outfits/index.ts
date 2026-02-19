@@ -54,7 +54,7 @@ serve(async (req) => {
         .select("id, name, price, image_url, category, color, fit")
         .eq("brand_id", brand_id)
         .eq("inventory_status", "in_stock")
-        .limit(50);
+        .limit(30);
 
       if (prodErr || !products?.length) {
         return json({ error: "No products available" }, 404);
@@ -65,7 +65,7 @@ serve(async (req) => {
 
       const anchorProduct = anchor_product_id ? products.find(p => p.id === anchor_product_id) : null;
       const productCatalog = products.map(p => ({
-        id: p.id, name: p.name, price: p.price, category: p.category, color: p.color || "unknown", fit: p.fit || "regular"
+        id: p.id, name: p.name, category: p.category, color: p.color || "unknown"
       }));
 
       const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Create cohesive outfit combinations from a product catalog.
@@ -81,21 +81,30 @@ Return exactly 3 outfits. Only valid JSON, no other text.`;
 ${anchorProduct ? `\nANCHOR (must include): ${anchorProduct.name} (${anchorProduct.category})` : ""}
 ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}`;
 
-      const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        }),
-      });
+      const aiMessages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
+      const models = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"];
+      let aiData: any = null;
 
-      if (!aiResp.ok) {
-        console.error("AI error:", aiResp.status);
-        return json({ error: "AI service temporarily unavailable" }, 500);
+      for (const model of models) {
+        const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model, messages: aiMessages }),
+        });
+
+        if (aiResp.ok) {
+          aiData = await aiResp.json();
+          break;
+        }
+
+        const errBody = await aiResp.text();
+        console.error(`AI error (${model}):`, aiResp.status, errBody);
+        // Try next model
       }
 
-      const aiData = await aiResp.json();
+      if (!aiData) {
+        return json({ error: "AI service temporarily unavailable" }, 500);
+      }
       let content = aiData.choices?.[0]?.message?.content?.trim() || "";
       if (content.startsWith("```json")) content = content.slice(7);
       else if (content.startsWith("```")) content = content.slice(3);
