@@ -23,6 +23,8 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
   const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
   const [customerToken, setCustomerToken] = useState<string | null>(null);
+  const [bodyShape, setBodyShape] = useState<string | undefined>();
+  const [sizeInfo, setSizeInfo] = useState<Record<string, string> | undefined>();
 
   const handleClose = () => {
     try {
@@ -37,9 +39,11 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
     setActiveTab("tryon");
   };
 
-  const handleCustomerLogin = (photoUrl: string | null, token: string) => {
+  const handleCustomerLogin = (photoUrl: string | null, token: string, styleProfile?: { body_shape?: string; size_info?: Record<string, string> }) => {
     setCustomerPhotoUrl(photoUrl);
     setCustomerToken(token);
+    setBodyShape(styleProfile?.body_shape || undefined);
+    setSizeInfo(styleProfile?.size_info || undefined);
   };
 
   return (
@@ -103,6 +107,8 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
               brandId={brandId}
               customerToken={customerToken || undefined}
               onPhotoSaved={(url) => setCustomerPhotoUrl(url)}
+              bodyShape={bodyShape}
+              sizeInfo={sizeInfo}
             />
           </TabsContent>
         </div>

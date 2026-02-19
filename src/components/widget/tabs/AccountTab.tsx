@@ -8,7 +8,7 @@ import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, S
 interface AccountTabProps {
   brandId?: string;
   onNavigateToQuiz?: () => void;
-  onCustomerLogin?: (photoUrl: string | null, token: string) => void;
+  onCustomerLogin?: (photoUrl: string | null, token: string, styleProfile?: { body_shape?: string; size_info?: Record<string, string> }) => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -83,7 +83,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             setCustomerUser(data.user);
             setIsLoggedIn(true);
             populateStyleFromProfile(data.user.styleProfile);
-            onCustomerLogin?.(data.user.photo_url || null, token!);
+            onCustomerLogin?.(data.user.photo_url || null, token!, { body_shape: data.user.styleProfile?.body_shape, size_info: data.user.styleProfile?.size_info });
           } else {
             localStorage.removeItem(getStorageKey(brandId));
           }
@@ -126,7 +126,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
       setCustomerUser(data.user);
       setIsLoggedIn(true);
       setPassword("");
-      onCustomerLogin?.(data.user.photo_url || null, data.token);
+      onCustomerLogin?.(data.user.photo_url || null, data.token, { body_shape: data.user.styleProfile?.body_shape, size_info: data.user.styleProfile?.size_info });
     } catch {
       setError("Network error. Please try again.");
     } finally {

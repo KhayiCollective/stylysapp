@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Camera, Loader2, X, Sparkles, Eye, Save } from "lucide-react";
+import { Upload, Camera, Loader2, X, Sparkles, Eye, Save, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -19,9 +19,11 @@ interface TryOnTabProps {
   brandId?: string;
   customerToken?: string;
   onPhotoSaved?: (url: string) => void;
+  bodyShape?: string;
+  sizeInfo?: Record<string, string>;
 }
 
-export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken, onPhotoSaved }: TryOnTabProps) {
+export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken, onPhotoSaved, bodyShape, sizeInfo }: TryOnTabProps) {
   const [userImage, setUserImage] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -91,15 +93,19 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
     setError(null);
 
     try {
+      const requestBody: Record<string, unknown> = {
+        userImageBase64: userImage,
+        outfitItems: outfitItems.map(i => ({
+          name: i.name,
+          imageUrl: i.imageUrl,
+          category: i.category,
+        })),
+      };
+      if (bodyShape) requestBody.bodyShape = bodyShape;
+      if (sizeInfo && Object.values(sizeInfo).some(v => v)) requestBody.sizeInfo = sizeInfo;
+
       const { data, error: fnError } = await supabase.functions.invoke("virtual-tryon", {
-        body: {
-          userImageBase64: userImage,
-          outfitItems: outfitItems.map(i => ({
-            name: i.name,
-            imageUrl: i.imageUrl,
-            category: i.category,
-          })),
-        },
+        body: requestBody,
       });
 
       if (fnError) throw fnError;
@@ -209,6 +215,18 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
 
       {error && (
         <p className="text-xs text-destructive">{error}</p>
+      )}
+
+      {/* Body profile indicator */}
+      {bodyShape || (sizeInfo && Object.values(sizeInfo).some(v => v)) ? (
+        <div className="flex items-center gap-1.5 text-xs text-primary">
+          <User className="h-3 w-3" />
+          <span>Personalized to your body profile</span>
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Add your body shape and sizing in <strong>Account</strong> for better results
+        </p>
       )}
 
       <Button
