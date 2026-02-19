@@ -7,7 +7,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.virtual-tryon]
-verify_jwt = true
+verify_jwt = false
 
 [functions.styling-chat]
 verify_jwt = false
