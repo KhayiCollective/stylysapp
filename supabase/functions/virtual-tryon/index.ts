@@ -170,28 +170,32 @@ serve(async (req) => {
       }
     }
 
-    const MODEL = "google/gemini-3-pro-image-preview";
+    const models = ["google/gemini-3-pro-image-preview", "google/gemini-2.5-pro"];
+    let response: Response | null = null;
+    let lastStatus = 500;
 
-    // First attempt
-    let response = await callAI(LOVABLE_API_KEY, contentParts, MODEL);
-
-    if (!response.ok) {
+    for (const model of models) {
+      console.log(`Trying model: ${model}`);
+      response = await callAI(LOVABLE_API_KEY, contentParts, model);
+      if (response.ok) break;
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error(`AI gateway error (${model}):`, response.status, errorText);
+      lastStatus = response.status;
+    }
 
-      if (response.status === 429) {
+    if (!response || !response.ok) {
+      if (lastStatus === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (lastStatus === 402) {
         return new Response(
           JSON.stringify({ error: "AI credits depleted. Please add credits to continue." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
       return new Response(
         JSON.stringify({ error: "Virtual try-on service temporarily unavailable" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -221,19 +225,21 @@ serve(async (req) => {
         }
       }
 
-      const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, MODEL);
-      if (retryResponse.ok) {
-        const retryData = await retryResponse.json();
-        generatedImage = retryData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-        const retryText = retryData.choices?.[0]?.message?.content;
-        console.log("Retry response keys:", JSON.stringify(Object.keys(retryData.choices?.[0]?.message || {})));
-        console.log("Retry text response:", retryText?.substring(0, 500));
-        if (!generatedImage) {
+      for (const retryModel of models) {
+        console.log(`Retry with model: ${retryModel}`);
+        const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, retryModel);
+        if (retryResponse.ok) {
+          const retryData = await retryResponse.json();
+          generatedImage = retryData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+          const retryText = retryData.choices?.[0]?.message?.content;
+          console.log("Retry response keys:", JSON.stringify(Object.keys(retryData.choices?.[0]?.message || {})));
+          console.log("Retry text response:", retryText?.substring(0, 500));
+          if (generatedImage) break;
           textResponse = retryText || textResponse;
+        } else {
+          const retryErr = await retryResponse.text();
+          console.error(`Retry failed (${retryModel}):`, retryResponse.status, retryErr);
         }
-      } else {
-        const retryErr = await retryResponse.text();
-        console.error("Retry failed:", retryResponse.status, retryErr);
       }
     }
 
