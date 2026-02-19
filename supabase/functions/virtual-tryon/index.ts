@@ -11,9 +11,17 @@ interface OutfitItem {
   category: string;
 }
 
+interface SizeInfo {
+  tops?: string;
+  bottoms?: string;
+  shoes?: string;
+}
+
 interface TryOnRequest {
   userImageBase64: string;
   outfitItems: OutfitItem[];
+  bodyShape?: string;
+  sizeInfo?: SizeInfo;
 }
 
 serve(async (req) => {
@@ -32,7 +40,7 @@ serve(async (req) => {
     }
 
     const body: TryOnRequest = await req.json();
-    const { userImageBase64, outfitItems } = body;
+    const { userImageBase64, outfitItems, bodyShape, sizeInfo } = body;
 
     if (!userImageBase64 || !outfitItems?.length) {
       return new Response(
@@ -47,11 +55,41 @@ serve(async (req) => {
       `- Image ${idx + 2}: "${i.name}" (category: ${i.category}) — extract ONLY the ${i.category} garment from this image. The product image may show a model wearing a full outfit, but ONLY use the ${i.category} piece. Ignore all other clothing visible in this image.`
     ).join("\n");
 
+    // Build body profile section if available
+    const bodyShapeDescriptions: Record<string, string> = {
+      "Hourglass": "balanced shoulders and hips with a well-defined, narrow waist",
+      "Pear": "wider hips relative to shoulders, with a defined waist",
+      "Apple": "broader midsection with slimmer legs, weight carried around the torso",
+      "Rectangle": "similar shoulder, waist, and hip measurements with a straight silhouette",
+      "Triangle": "narrower shoulders with wider hips, weight carried in the lower body",
+      "Inverted Triangle": "broader shoulders tapering to narrower hips",
+    };
+
+    let bodyProfileSection = "";
+    if (bodyShape || (sizeInfo && (sizeInfo.tops || sizeInfo.bottoms || sizeInfo.shoes))) {
+      const parts: string[] = [];
+      if (bodyShape) {
+        const desc = bodyShapeDescriptions[bodyShape] || bodyShape.toLowerCase();
+        parts.push(`- Body shape: ${bodyShape} (${desc})`);
+      }
+      const sizeParts: string[] = [];
+      if (sizeInfo?.tops) sizeParts.push(`Tops ${sizeInfo.tops}`);
+      if (sizeInfo?.bottoms) sizeParts.push(`Bottoms ${sizeInfo.bottoms}`);
+      if (sizeInfo?.shoes) sizeParts.push(`Shoes ${sizeInfo.shoes}`);
+      if (sizeParts.length) parts.push(`- Sizing: ${sizeParts.join(", ")}`);
+      parts.push("- Adjust garment fit and draping to match this body type");
+      if (sizeInfo?.tops) parts.push(`- Tops should fit as a size ${sizeInfo.tops} would on this body shape`);
+      if (sizeInfo?.bottoms) parts.push(`- Bottoms should sit and drape as a size ${sizeInfo.bottoms} would on this figure`);
+
+      bodyProfileSection = `\n\nBODY PROFILE:\n${parts.join("\n")}`;
+      console.log("Body profile included:", bodyShape, sizeInfo);
+    }
+
     const prompt = `You are a fashion visualization AI. Generate a single realistic photo showing the person in the uploaded photo wearing a complete outfit assembled from the following product images.
 
 CRITICAL: Each product image may show a model wearing multiple garments, but each image represents ONLY ONE specific product for sale. You must extract only the garment matching the specified category from each image:
 
-${itemInstructions}
+${itemInstructions}${bodyProfileSection}
 
 Requirements:
 1. Dress the person in ALL the extracted garments together as one cohesive outfit
