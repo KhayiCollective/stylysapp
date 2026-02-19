@@ -82,7 +82,7 @@ ${anchorProduct ? `\nANCHOR (must include): ${anchorProduct.name} (${anchorProdu
 ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}`;
 
       const aiMessages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
-      const models = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"];
+      const models = ["google/gemini-2.5-flash", "openai/gpt-5-nano", "google/gemini-2.5-flash-lite"];
       let aiData: any = null;
 
       for (const model of models) {
