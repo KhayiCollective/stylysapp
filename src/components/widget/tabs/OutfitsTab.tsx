@@ -62,7 +62,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
 
       let resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
         body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
       });
       // Auto-retry once on 500
@@ -70,7 +70,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
         await new Promise(r => setTimeout(r, 1500));
         resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
           body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
         });
       }
