@@ -87,19 +87,41 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
     }
   };
 
+  const imageUrlToBase64 = async (url: string): Promise<string> => {
+    if (!url || url.startsWith("data:")) return url;
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) return url;
+      const blob = await resp.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return url;
+    }
+  };
+
   const generateTryOn = async () => {
     if (!userImage || !outfitItems?.length) return;
     setIsProcessing(true);
     setError(null);
 
     try {
+      // Convert external product image URLs to base64 on the client
+      const convertedItems = await Promise.all(
+        outfitItems.map(async (i) => ({
+          name: i.name,
+          imageUrl: i.imageUrl.startsWith("http") ? await imageUrlToBase64(i.imageUrl) : i.imageUrl,
+          category: i.category,
+        }))
+      );
+
       const requestBody: Record<string, unknown> = {
         userImageBase64: userImage,
-        outfitItems: outfitItems.map(i => ({
-          name: i.name,
-          imageUrl: i.imageUrl,
-          category: i.category,
-        })),
+        outfitItems: convertedItems,
       };
       if (bodyShape) requestBody.bodyShape = bodyShape;
       if (sizeInfo && Object.values(sizeInfo).some(v => v)) requestBody.sizeInfo = sizeInfo;
