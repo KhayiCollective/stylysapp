@@ -100,17 +100,21 @@ function buildRetryPrompt(outfitItems: OutfitItem[]): string {
 }
 
 async function callAI(apiKey: string, contentParts: any[], model: string) {
+  const body: any = {
+    model,
+    messages: [{ role: "user", content: contentParts }],
+  };
+  // Only image-preview models support the modalities parameter
+  if (model.includes("image-preview")) {
+    body.modalities = ["image", "text"];
+  }
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: contentParts }],
-      modalities: ["image", "text"],
-    }),
+    body: JSON.stringify(body),
   });
   return response;
 }
@@ -170,7 +174,7 @@ serve(async (req) => {
       }
     }
 
-    const models = ["google/gemini-3-pro-image-preview", "google/gemini-3-flash-preview", "openai/gpt-5"];
+    const models = ["google/gemini-3-pro-image-preview", "google/gemini-2.5-flash-image", "openai/gpt-5"];
     let response: Response | null = null;
     let lastStatus = 500;
 
