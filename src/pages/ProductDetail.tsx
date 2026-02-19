@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ShoppingBag, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { RecommendedOutfits } from "@/components/shop/RecommendedOutfits";
 
 const ProductDetail = () => {
   const { handle } = useParams<{ handle: string }>();
@@ -235,6 +236,14 @@ const ProductDetail = () => {
               </Button>
             </div>
           </div>
+
+          {/* Complete the Look - AI Outfit Recommendations */}
+          <RecommendedOutfits
+            productTitle={product.title}
+            productHandle={product.handle}
+            productImage={images[0]?.node.url || null}
+            productCategory={product.options?.[0]?.values?.[0]}
+          />
         </main>
       </div>
     </ShopLayout>
