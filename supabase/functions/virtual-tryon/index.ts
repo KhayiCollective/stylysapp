@@ -105,7 +105,7 @@ async function callAI(apiKey: string, contentParts: any[], model: string) {
     messages: [{ role: "user", content: contentParts }],
   };
   // Only image-preview models support the modalities parameter
-  if (model.includes("image-preview")) {
+  if (model.includes("image-preview") || model.includes("flash-image")) {
     body.modalities = ["image", "text"];
   }
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
