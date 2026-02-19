@@ -1,0 +1,1 @@
+ALTER TABLE public.support_tickets ADD COLUMN priority text NOT NULL DEFAULT 'standard';

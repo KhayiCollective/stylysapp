@@ -632,6 +632,7 @@ export type Database = {
           email: string
           id: string
           message: string
+          priority: string
           status: string | null
           subject: string
         }
@@ -641,6 +642,7 @@ export type Database = {
           email: string
           id?: string
           message: string
+          priority?: string
           status?: string | null
           subject: string
         }
@@ -650,6 +652,7 @@ export type Database = {
           email?: string
           id?: string
           message?: string
+          priority?: string
           status?: string | null
           subject?: string
         }
