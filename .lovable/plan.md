@@ -1,41 +1,35 @@
 
 
-# Fix: Virtual Try-On AI Gateway 500 Error
+# Fix: Virtual Try-On — Use Image-Capable Fallback Models
 
 ## Problem
 
-The `virtual-tryon` edge function reaches the AI gateway successfully, but `google/gemini-3-pro-image-preview` is returning a 500 internal server error with an empty message. The function has no fallback model, so it fails immediately.
+The current fallback chain fails completely:
+1. `google/gemini-3-pro-image-preview` -- returns 500 (gateway outage)
+2. `google/gemini-2.5-pro` -- returns 404 because it does NOT support image output modalities
+
+The function needs fallback models that actually support `modalities: ["image", "text"]`.
 
 ## Fix
 
 ### File: `supabase/functions/virtual-tryon/index.ts`
 
-Add a fallback model sequence, similar to the pattern already used in `widget-outfits`:
-
-1. Try `google/gemini-3-pro-image-preview` (primary, supports image generation)
-2. Fall back to `google/gemini-2.5-pro` (also supports image output via modalities)
-3. If both fail, return the error
-
-### Technical Details
-
-Update the `serve` handler (around lines 173-199) to loop through models instead of using a single hardcoded model:
+**Change 1 (line 173):** Update the models array to use image-capable models:
 
 ```typescript
-const models = ["google/gemini-3-pro-image-preview", "google/gemini-2.5-pro"];
-let response: Response | null = null;
-
-for (const model of models) {
-  console.log(`Trying model: ${model}`);
-  response = await callAI(LOVABLE_API_KEY, contentParts, model);
-  if (response.ok) break;
-  const errorText = await response.text();
-  console.error(`AI gateway error (${model}):`, response.status, errorText);
-}
+const models = [
+  "google/gemini-3-pro-image-preview",
+  "google/gemini-3-flash-preview",
+  "openai/gpt-5",
+];
 ```
 
-Apply the same fallback pattern to the retry attempt (lines 224-237).
+- `google/gemini-3-flash-preview` is the fast next-gen Google model and should support image generation
+- `openai/gpt-5` is a powerful all-rounder that supports multimodal output including images
 
-### Files to Modify
+This gives three fallback options instead of two, and all three support image output.
 
-- `supabase/functions/virtual-tryon/index.ts` -- add model fallback loop for both initial and retry attempts
+### No other files need changes
+
+The client-side code (`TryOnTab.tsx`, `VirtualTryOn.tsx`) is already correct. Only the edge function model list needs updating.
 
