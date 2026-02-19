@@ -8,12 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, ImagePlus, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Plus, Pencil, Trash2, ImagePlus, Loader2, AlertTriangle, ArrowUpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { BulkActions } from "@/components/catalog/BulkActions";
 import { ImportProductsDialog } from "@/components/catalog/ImportProductsDialog";
+import { useSubscription } from "@/hooks/useSubscription";
+import { getTierLimits } from "@/lib/tiers";
+import { Link } from "react-router-dom";
 
 interface Product {
   id: string;
@@ -34,6 +38,7 @@ const fits = ["fitted", "relaxed", "oversized", "regular"];
 const Catalog = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { tierName } = useSubscription();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -41,6 +46,11 @@ const Catalog = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [brandId, setBrandId] = useState<string | null>(null);
   const [shopifyConnected, setShopifyConnected] = useState(false);
+
+  const { maxProducts } = getTierLimits(tierName);
+  const productCount = products.length;
+  const atLimit = maxProducts > 0 && productCount >= maxProducts;
+  const usagePercent = maxProducts > 0 ? Math.min((productCount / maxProducts) * 100, 100) : 0;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -65,7 +75,6 @@ const Catalog = () => {
         if (profile?.brand_id) {
           setBrandId(profile.brand_id);
           
-          // Check Shopify connection
           const { data: brand } = await supabase
             .from("brands")
             .select("shopify_store_domain")
@@ -103,6 +112,16 @@ const Catalog = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!brandId) return;
+
+    // Check limit when adding new product
+    if (!editingProduct && atLimit) {
+      toast({
+        title: "Product limit reached",
+        description: `Your ${tierName} plan allows up to ${maxProducts} products. Please upgrade to add more.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     const productData = {
       brand_id: brandId,
@@ -204,13 +223,39 @@ const Catalog = () => {
       title="Catalog Manager" 
       description="Upload and manage your product catalog"
     >
+      {/* Product Limit Indicator */}
+      {maxProducts > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground">
+              {productCount} / {maxProducts} products used
+            </span>
+            {atLimit && (
+              <Link to="/settings">
+                <Button variant="link" size="sm" className="text-destructive gap-1 p-0 h-auto">
+                  <ArrowUpCircle className="h-3.5 w-3.5" />
+                  Upgrade Plan
+                </Button>
+              </Link>
+            )}
+          </div>
+          <Progress value={usagePercent} className="h-2" />
+          {atLimit && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              Product limit reached. Upgrade your plan to add more products.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Header Actions */}
       <div className="flex justify-between items-center mb-6">
         <p className="text-muted-foreground">
           {products.length} products in catalog
         </p>
         <div className="flex gap-2">
-          {brandId && (
+          {brandId && !atLimit && (
             <ImportProductsDialog
               brandId={brandId}
               shopifyConnected={shopifyConnected}
@@ -219,7 +264,7 @@ const Catalog = () => {
           )}
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="editorial" onClick={() => {
+              <Button variant="editorial" disabled={atLimit} onClick={() => {
                 setEditingProduct(null);
                 setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
               }}>
@@ -418,19 +463,21 @@ const Catalog = () => {
         ))}
 
         {/* Add Product Card */}
-        <Card 
-          className="card-editorial border-dashed cursor-pointer hover:border-foreground/30 transition-colors"
-          onClick={() => {
-            setEditingProduct(null);
-            setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
-            setIsAddDialogOpen(true);
-          }}
-        >
-          <div className="aspect-[4/5] flex flex-col items-center justify-center text-muted-foreground">
-            <ImagePlus className="w-10 h-10 mb-3" />
-            <p className="text-sm font-medium">Add Product</p>
-          </div>
-        </Card>
+        {!atLimit && (
+          <Card 
+            className="card-editorial border-dashed cursor-pointer hover:border-foreground/30 transition-colors"
+            onClick={() => {
+              setEditingProduct(null);
+              setFormData({ name: "", image_url: "", category: "", color: "", fit: "", price: "" });
+              setIsAddDialogOpen(true);
+            }}
+          >
+            <div className="aspect-[4/5] flex flex-col items-center justify-center text-muted-foreground">
+              <ImagePlus className="w-10 h-10 mb-3" />
+              <p className="text-sm font-medium">Add Product</p>
+            </div>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

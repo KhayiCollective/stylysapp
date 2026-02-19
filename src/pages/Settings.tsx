@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,11 +14,11 @@ import { ShopifyTestMode } from '@/components/ShopifyTestMode';
 import { ShopifySyncStatus } from '@/components/ShopifySyncStatus';
 import { WebhookStatusIndicator } from '@/components/catalog/WebhookStatusIndicator';
 import { SyncHistoryLog } from '@/components/catalog/SyncHistoryLog';
-import { User, Building2, Loader2, Save, LogOut, BookOpen, CreditCard, Crown, Sparkles } from 'lucide-react';
+import { User, Building2, Loader2, Save, LogOut, BookOpen, CreditCard, Crown, Sparkles, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSubscription } from '@/hooks/useSubscription';
-import { TIERS } from '@/lib/tiers';
+import { TIERS, getTierLimits, hasFeature } from '@/lib/tiers';
 import { Badge } from '@/components/ui/badge';
 
 export default function Settings() {
@@ -44,12 +43,12 @@ export default function Settings() {
     logoUrl: '',
   });
 
+  const tierLimits = getTierLimits(tierName);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
-
       try {
-        // Fetch profile
         const { data: profileData } = await supabase
           .from('profiles')
           .select('full_name, email, avatar_url, brand_id')
@@ -62,15 +61,12 @@ export default function Settings() {
             email: profileData.email || '',
             avatarUrl: profileData.avatar_url || '',
           });
-
-          // Fetch brand
           if (profileData.brand_id) {
             const { data: brandData } = await supabase
               .from('brands')
               .select('id, name, slug, logo_url')
               .eq('id', profileData.brand_id)
               .single();
-
             if (brandData) {
               setBrand({
                 id: brandData.id,
@@ -87,35 +83,18 @@ export default function Settings() {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [user]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
-
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: profile.fullName,
-          avatar_url: profile.avatarUrl,
-        })
-        .eq('id', user.id);
-
+      const { error } = await supabase.from('profiles').update({ full_name: profile.fullName, avatar_url: profile.avatarUrl }).eq('id', user.id);
       if (error) throw error;
-
-      toast({
-        title: 'Profile updated',
-        description: 'Your profile has been saved successfully.',
-      });
+      toast({ title: 'Profile updated', description: 'Your profile has been saved successfully.' });
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update profile. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to update profile. Please try again.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -124,29 +103,12 @@ export default function Settings() {
   const handleSaveBrand = async () => {
     if (!brand.id) return;
     setSaving(true);
-
     try {
-      const { error } = await supabase
-        .from('brands')
-        .update({
-          name: brand.name,
-          slug: brand.slug,
-          logo_url: brand.logoUrl,
-        })
-        .eq('id', brand.id);
-
+      const { error } = await supabase.from('brands').update({ name: brand.name, slug: brand.slug, logo_url: brand.logoUrl }).eq('id', brand.id);
       if (error) throw error;
-
-      toast({
-        title: 'Brand updated',
-        description: 'Your brand settings have been saved successfully.',
-      });
+      toast({ title: 'Brand updated', description: 'Your brand settings have been saved successfully.' });
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update brand. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to update brand. Please try again.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -173,54 +135,28 @@ export default function Settings() {
         {/* Profile Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Profile
-            </CardTitle>
-            <CardDescription>
-              Update your personal information
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" />Profile</CardTitle>
+            <CardDescription>Update your personal information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={profile.fullName}
-                  onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-                  placeholder="Your name"
-                />
+                <Input id="fullName" value={profile.fullName} onChange={(e) => setProfile({ ...profile, fullName: e.target.value })} placeholder="Your name" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  value={profile.email}
-                  disabled
-                  className="bg-muted"
-                />
+                <Input id="email" value={profile.email} disabled className="bg-muted" />
                 <p className="text-xs text-muted-foreground">Email cannot be changed</p>
               </div>
             </div>
-            
             <div className="space-y-2">
               <Label htmlFor="avatarUrl">Avatar URL</Label>
-              <Input
-                id="avatarUrl"
-                value={profile.avatarUrl}
-                onChange={(e) => setProfile({ ...profile, avatarUrl: e.target.value })}
-                placeholder="https://example.com/avatar.jpg"
-              />
+              <Input id="avatarUrl" value={profile.avatarUrl} onChange={(e) => setProfile({ ...profile, avatarUrl: e.target.value })} placeholder="https://example.com/avatar.jpg" />
             </div>
-
             <div className="flex justify-end">
               <Button onClick={handleSaveProfile} disabled={saving}>
-                {saving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                 Save Profile
               </Button>
             </div>
@@ -230,54 +166,28 @@ export default function Settings() {
         {/* Brand Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Brand Details
-            </CardTitle>
-            <CardDescription>
-              Configure your brand information
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Brand Details</CardTitle>
+            <CardDescription>Configure your brand information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="brandName">Brand Name</Label>
-                <Input
-                  id="brandName"
-                  value={brand.name}
-                  onChange={(e) => setBrand({ ...brand, name: e.target.value })}
-                  placeholder="Your brand name"
-                />
+                <Input id="brandName" value={brand.name} onChange={(e) => setBrand({ ...brand, name: e.target.value })} placeholder="Your brand name" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="brandSlug">Brand Slug</Label>
-                <Input
-                  id="brandSlug"
-                  value={brand.slug}
-                  onChange={(e) => setBrand({ ...brand, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
-                  placeholder="your-brand"
-                />
+                <Input id="brandSlug" value={brand.slug} onChange={(e) => setBrand({ ...brand, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} placeholder="your-brand" />
                 <p className="text-xs text-muted-foreground">Used in URLs and widget embedding</p>
               </div>
             </div>
-            
             <div className="space-y-2">
               <Label htmlFor="logoUrl">Logo URL</Label>
-              <Input
-                id="logoUrl"
-                value={brand.logoUrl}
-                onChange={(e) => setBrand({ ...brand, logoUrl: e.target.value })}
-                placeholder="https://example.com/logo.png"
-              />
+              <Input id="logoUrl" value={brand.logoUrl} onChange={(e) => setBrand({ ...brand, logoUrl: e.target.value })} placeholder="https://example.com/logo.png" />
             </div>
-
             <div className="flex justify-end">
               <Button onClick={handleSaveBrand} disabled={saving}>
-                {saving ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                 Save Brand
               </Button>
             </div>
@@ -287,13 +197,8 @@ export default function Settings() {
         {/* Billing Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Billing & Subscription
-            </CardTitle>
-            <CardDescription>
-              Manage your subscription plan
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" />Billing & Subscription</CardTitle>
+            <CardDescription>Manage your subscription plan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {subLoading ? (
@@ -309,15 +214,49 @@ export default function Settings() {
                   {isTrialing && <Badge variant="secondary">Trial</Badge>}
                 </div>
                 {isTrialing && trialEnd && (
-                  <p className="text-sm text-muted-foreground">
-                    Trial ends {new Date(trialEnd).toLocaleDateString()}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Trial ends {new Date(trialEnd).toLocaleDateString()}</p>
                 )}
                 {!isTrialing && subscriptionEnd && (
-                  <p className="text-sm text-muted-foreground">
-                    Renews {new Date(subscriptionEnd).toLocaleDateString()}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Renews {new Date(subscriptionEnd).toLocaleDateString()}</p>
                 )}
+
+                {/* Tier Features Summary */}
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <h4 className="text-sm font-semibold">Your Plan Includes:</h4>
+                  <ul className="space-y-1.5">
+                    <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      Up to {tierLimits.maxProducts} products
+                    </li>
+                    <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      AI outfit recommendations
+                    </li>
+                    <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      Virtual try-on
+                    </li>
+                    {hasFeature(tierName, "styling_chatbot") && (
+                      <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        AI styling chatbot
+                      </li>
+                    )}
+                    {hasFeature(tierName, "priority_support") && (
+                      <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        Priority support with live chat
+                      </li>
+                    )}
+                    {hasFeature(tierName, "customer_tracking") && (
+                      <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        Customer preference tracking
+                      </li>
+                    )}
+                  </ul>
+                </div>
+
                 <Button variant="outline" onClick={async () => {
                   const { data: { session } } = await supabase.auth.getSession();
                   if (!session) return;
@@ -365,41 +304,22 @@ export default function Settings() {
 
         {/* Shopify Connection */}
         <ShopifyConnection />
-
-        {/* Storefront Widget Status */}
         <WidgetStatus />
-
-        {/* Product Sync Status */}
         <ShopifySyncStatus />
 
-        {/* Developer-only sections */}
         {isDevUser && (
           <>
-            {/* Webhook Status */}
             <WebhookStatusIndicator />
-
-            {/* Sync History */}
             <SyncHistoryLog />
-
-            {/* Setup Guide Link */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  Shopify Setup Guide
-                </CardTitle>
-                <CardDescription>
-                  Complete step-by-step guide for setting up Shopify OAuth
-                </CardDescription>
+                <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" />Shopify Setup Guide</CardTitle>
+                <CardDescription>Complete step-by-step guide for setting up Shopify OAuth</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" asChild>
-                  <Link to="/shopify-setup">View Setup Guide</Link>
-                </Button>
+                <Button variant="outline" asChild><Link to="/shopify-setup">View Setup Guide</Link></Button>
               </CardContent>
             </Card>
-
-            {/* Developer Test Mode */}
             <ShopifyTestMode />
           </>
         )}
@@ -408,9 +328,7 @@ export default function Settings() {
         <Card className="border-destructive/50">
           <CardHeader>
             <CardTitle className="text-destructive">Account</CardTitle>
-            <CardDescription>
-              Sign out of your account
-            </CardDescription>
+            <CardDescription>Sign out of your account</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="destructive" onClick={handleSignOut}>
