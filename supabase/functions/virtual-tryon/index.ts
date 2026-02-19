@@ -170,7 +170,7 @@ serve(async (req) => {
       }
     }
 
-    const models = ["google/gemini-3-pro-image-preview", "google/gemini-2.5-pro"];
+    const models = ["google/gemini-3-pro-image-preview", "google/gemini-3-flash-preview", "openai/gpt-5"];
     let response: Response | null = null;
     let lastStatus = 500;
 
