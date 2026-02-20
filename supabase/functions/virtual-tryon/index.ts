@@ -26,14 +26,12 @@ interface TryOnRequest {
 
 // Convert an external image URL to a base64 data URI
 async function imageUrlToBase64(url: string): Promise<string> {
-  // Already a data URI — pass through
   if (url.startsWith("data:")) return url;
-
   try {
     const resp = await fetch(url);
     if (!resp.ok) {
       console.error(`Failed to fetch image: ${url} — ${resp.status}`);
-      return url; // fall back to raw URL
+      return url;
     }
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const buf = await resp.arrayBuffer();
@@ -41,7 +39,7 @@ async function imageUrlToBase64(url: string): Promise<string> {
     return `data:${contentType};base64,${b64}`;
   } catch (e) {
     console.error(`Error converting image to base64: ${url}`, e);
-    return url; // fall back to raw URL
+    return url;
   }
 }
 
@@ -59,7 +57,6 @@ function buildPrompt(outfitItems: OutfitItem[], bodyShape?: string, sizeInfo?: S
     `- Image ${idx + 2}: "${i.name}" (category: ${i.category}) — extract ONLY the ${i.category} garment from this image. The product image may show a model wearing a full outfit, but ONLY use the ${i.category} piece. Ignore all other clothing visible in this image.`
   ).join("\n");
 
-  // Body profile section
   let bodyProfileSection = "";
   if (bodyShape || (sizeInfo && (sizeInfo.tops || sizeInfo.bottoms || sizeInfo.shoes))) {
     const parts: string[] = [];
@@ -104,7 +101,6 @@ async function callAI(apiKey: string, contentParts: any[], model: string) {
     model,
     messages: [{ role: "user", content: contentParts }],
   };
-  // Only image-preview models support the modalities parameter
   if (model.includes("image-preview") || model.includes("flash-image")) {
     body.modalities = ["image", "text"];
   }
@@ -149,7 +145,7 @@ serve(async (req) => {
       console.log("Body profile included:", bodyShape, sizeInfo);
     }
 
-    // Convert all external product image URLs to base64
+    // Convert external product image URLs to base64 (skip if already data URI)
     const convertedItems = await Promise.all(
       outfitItems.map(async (item) => {
         if (item.imageUrl && item.imageUrl.startsWith("http")) {
@@ -163,7 +159,6 @@ serve(async (req) => {
 
     const prompt = buildPrompt(convertedItems, bodyShape, sizeInfo);
 
-    // Build content array: text prompt + user photo + all outfit item images
     const contentParts: any[] = [
       { type: "text", text: prompt },
       { type: "image_url", image_url: { url: userImageBase64 } },
@@ -174,7 +169,8 @@ serve(async (req) => {
       }
     }
 
-    const models = ["google/gemini-3-pro-image-preview", "google/gemini-2.5-flash-image", "openai/gpt-5"];
+    // Faster model first, then fallback
+    const models = ["google/gemini-2.5-flash-image", "google/gemini-3-pro-image-preview"];
     let response: Response | null = null;
     let lastStatus = 500;
 
@@ -214,7 +210,7 @@ serve(async (req) => {
 
     console.log("AI text response:", textResponse?.substring(0, 500));
 
-    // Retry once if no image was generated
+    // Single retry with simplified prompt using the faster model only
     if (!generatedImage) {
       console.log("No image on first attempt, retrying with simplified prompt...");
 
@@ -229,21 +225,18 @@ serve(async (req) => {
         }
       }
 
-      for (const retryModel of models) {
-        console.log(`Retry with model: ${retryModel}`);
-        const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, retryModel);
-        if (retryResponse.ok) {
-          const retryData = await retryResponse.json();
-          generatedImage = retryData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-          const retryText = retryData.choices?.[0]?.message?.content;
-          console.log("Retry response keys:", JSON.stringify(Object.keys(retryData.choices?.[0]?.message || {})));
-          console.log("Retry text response:", retryText?.substring(0, 500));
-          if (generatedImage) break;
-          textResponse = retryText || textResponse;
-        } else {
-          const retryErr = await retryResponse.text();
-          console.error(`Retry failed (${retryModel}):`, retryResponse.status, retryErr);
-        }
+      const retryModel = "google/gemini-2.5-flash-image";
+      console.log(`Retry with model: ${retryModel}`);
+      const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, retryModel);
+      if (retryResponse.ok) {
+        const retryData = await retryResponse.json();
+        generatedImage = retryData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+        const retryText = retryData.choices?.[0]?.message?.content;
+        console.log("Retry response keys:", JSON.stringify(Object.keys(retryData.choices?.[0]?.message || {})));
+        if (!generatedImage) textResponse = retryText || textResponse;
+      } else {
+        const retryErr = await retryResponse.text();
+        console.error(`Retry failed (${retryModel}):`, retryResponse.status, retryErr);
       }
     }
 
