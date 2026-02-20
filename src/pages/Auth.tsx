@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
+import { ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
+import stylysIcon from '@/assets/stylys-icon.png';
 
 type AuthView = 'login' | 'signup' | 'forgot';
 
@@ -69,8 +70,8 @@ export default function Auth() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/80" />
         <div className="relative z-10 flex flex-col justify-center px-16 text-primary-foreground">
           <div className="flex items-center gap-3 mb-8">
-            <div className="p-3 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
-              <Sparkles className="h-8 w-8" />
+            <div className="p-2 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
+              <img src={stylysIcon} alt="Stylys" className="h-10 w-10 rounded-lg" />
             </div>
             <span className="text-2xl font-display font-semibold">AI Stylist</span>
           </div>
@@ -109,7 +110,7 @@ export default function Auth() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-            <Sparkles className="h-6 w-6 text-primary" />
+            <img src={stylysIcon} alt="Stylys" className="h-6 w-6 rounded" />
             <span className="text-xl font-display font-semibold">STYLYS</span>
           </div>
 
