@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingBag, Sparkles, RefreshCw, Loader2, LogIn, Camera } from "lucide-react";
+import { useCartStore } from "@/stores/cartStore";
+import { ShopifyProduct } from "@/lib/shopify";
+import { toast } from "sonner";
 
 interface OutfitItem {
   id: string;
@@ -126,6 +129,55 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
     onSelectOutfitForTryOn?.(items);
   };
 
+  const addItem = useCartStore((state) => state.addItem);
+
+  const handleAddAllToCart = (outfit: Outfit) => {
+    outfit.items.forEach((item) => {
+      const mockProduct: ShopifyProduct = {
+        node: {
+          id: item.id,
+          title: item.name,
+          description: "",
+          handle: item.id,
+          priceRange: {
+            minVariantPrice: { amount: String(item.price), currencyCode: "USD" },
+          },
+          images: {
+            edges: (item.imageUrl || item.image_url)
+              ? [{ node: { url: (item.imageUrl || item.image_url)!, altText: item.name } }]
+              : [],
+          },
+          variants: {
+            edges: [{
+              node: {
+                id: item.id,
+                title: "Default",
+                price: { amount: String(item.price), currencyCode: "USD" },
+                availableForSale: true,
+                selectedOptions: [],
+              },
+            }],
+          },
+          options: [],
+        },
+      };
+
+      addItem({
+        product: mockProduct,
+        variantId: item.id,
+        variantTitle: "Default",
+        price: { amount: String(item.price), currencyCode: "USD" },
+        quantity: 1,
+        selectedOptions: [],
+      });
+    });
+
+    toast.success(`Added "${outfit.name}" to cart`, {
+      description: `${outfit.items.length} items added`,
+      position: "top-center",
+    });
+  };
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -201,7 +253,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
                   <Camera className="h-3 w-3" />
                   Try On
                 </Button>
-                <Button size="sm" className="text-xs h-8 gap-1">
+                <Button size="sm" className="text-xs h-8 gap-1" onClick={() => handleAddAllToCart(outfit)}>
                   <ShoppingBag className="h-3 w-3" />
                   Add All
                 </Button>
