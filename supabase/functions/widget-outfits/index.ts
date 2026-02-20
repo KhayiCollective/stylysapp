@@ -51,7 +51,7 @@ serve(async (req) => {
       // Fetch products for this brand
       const { data: products, error: prodErr } = await supabase
         .from("products")
-        .select("id, name, price, image_url, category, color, fit")
+        .select("id, name, price, image_url, category, color, fit, shopify_variant_id")
         .eq("brand_id", brand_id)
         .eq("inventory_status", "in_stock")
         .limit(30);
@@ -117,7 +117,17 @@ ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}`
       }
 
       const outfits = parsed.outfits.map((o: any, i: number) => {
-        const items = o.productIds.map((id: string) => products.find(p => p.id === id)).filter(Boolean);
+        const items = o.productIds.map((id: string) => products.find(p => p.id === id)).filter(Boolean)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            image_url: p.image_url,
+            category: p.category,
+            color: p.color,
+            fit: p.fit,
+            shopify_variant_id: p.shopify_variant_id || null,
+          }));
         return {
           id: crypto.randomUUID(),
           name: o.name || `Look ${i + 1}`,
