@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAccountBootstrap } from '@/hooks/useAccountBootstrap';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { TIERS } from '@/lib/tiers';
 import { Sparkles, ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
 
 type AuthView = 'login' | 'signup' | 'forgot';
@@ -22,7 +20,7 @@ export default function Auth() {
   const { signIn, signUp, resetPassword } = useAuth();
   const { bootstrap } = useAccountBootstrap();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,28 +54,6 @@ export default function Auth() {
         } else {
           const bootstrapResult = await bootstrap();
           if (!bootstrapResult.ok) console.warn('[Auth] Bootstrap warning:', bootstrapResult.error);
-
-          // Check for plan query param to redirect to Stripe checkout
-          const plan = searchParams.get('plan');
-          const tier = plan === 'starter' ? TIERS.starter : plan === 'pro' ? TIERS.professional : null;
-
-          if (tier) {
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session) {
-                const { data, error: checkoutError } = await supabase.functions.invoke('create-checkout', {
-                  headers: { Authorization: `Bearer ${session.access_token}` },
-                  body: { priceId: tier.priceId },
-                });
-                if (!checkoutError && data?.url) {
-                  window.location.href = data.url;
-                  return;
-                }
-              }
-            } catch (err) {
-              console.error('[Auth] Checkout redirect failed:', err);
-            }
-          }
 
           toast({ title: "Account created!", description: "Let's connect your Shopify store..." });
           navigate('/connect-shopify');

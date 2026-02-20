@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -20,9 +19,6 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -39,59 +35,114 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { email: user.email });
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    // Get user's brand to find their Shopify store
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("brand_id")
+      .eq("id", user.id)
+      .single();
 
-    if (customers.data.length === 0) {
-      logStep("No Stripe customer found");
+    if (!profile?.brand_id) {
+      logStep("No brand found");
       return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
-    const customerId = customers.data[0].id;
-    logStep("Found customer", { customerId });
+    const { data: brand } = await supabaseClient
+      .from("brands")
+      .select("shopify_store_domain, shopify_access_token")
+      .eq("id", profile.brand_id)
+      .single();
 
-    // Check for active or trialing subscriptions
-    const subscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "active",
-      limit: 1,
-    });
-
-    const trialingSubs = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "trialing",
-      limit: 1,
-    });
-
-    const allSubs = [...subscriptions.data, ...trialingSubs.data];
-    const subscription = allSubs[0] || null;
-
-    if (!subscription) {
-      logStep("No active/trialing subscription");
+    if (!brand?.shopify_store_domain || !brand?.shopify_access_token) {
+      logStep("Shopify not connected");
       return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
-    const productId = subscription.items.data[0].price.product as string;
-    const subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-    const isTrialing = subscription.status === "trialing";
-    const trialEnd = subscription.trial_end
-      ? new Date(subscription.trial_end * 1000).toISOString()
-      : null;
+    logStep("Checking Shopify subscription", { domain: brand.shopify_store_domain });
 
-    logStep("Subscription found", { productId, isTrialing, subscriptionEnd });
+    // Query currentAppInstallation for active subscriptions
+    const query = `
+      query {
+        currentAppInstallation {
+          activeSubscriptions {
+            id
+            name
+            status
+            currentPeriodEnd
+            trialDays
+            test
+            lineItems {
+              plan {
+                pricingDetails {
+                  ... on AppRecurringPricing {
+                    price {
+                      amount
+                      currencyCode
+                    }
+                    interval
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const shopifyResp = await fetch(
+      `https://${brand.shopify_store_domain}/admin/api/2025-01/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": brand.shopify_access_token,
+        },
+        body: JSON.stringify({ query }),
+      }
+    );
+
+    const shopifyData = await shopifyResp.json();
+    logStep("Shopify response received");
+
+    const subscriptions = shopifyData.data?.currentAppInstallation?.activeSubscriptions || [];
+    
+    if (subscriptions.length === 0) {
+      logStep("No active subscriptions");
+      return new Response(JSON.stringify({ subscribed: false }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    const sub = subscriptions[0];
+    const planName = sub.name || "";
+    
+    // Determine tier from subscription name
+    let tierName: string | null = null;
+    if (planName.toLowerCase().includes("professional") || planName.toLowerCase().includes("pro")) {
+      tierName = "professional";
+    } else if (planName.toLowerCase().includes("starter")) {
+      tierName = "starter";
+    }
+
+    const isTrialing = sub.trialDays > 0 && sub.status === "ACTIVE";
+    const subscriptionEnd = sub.currentPeriodEnd || null;
+
+    logStep("Subscription found", { planName, tierName, status: sub.status, isTrialing });
 
     return new Response(JSON.stringify({
       subscribed: true,
-      product_id: productId,
+      plan_name: planName,
+      tier_name: tierName,
       subscription_end: subscriptionEnd,
       is_trialing: isTrialing,
-      trial_end: trialEnd,
+      trial_days: sub.trialDays,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

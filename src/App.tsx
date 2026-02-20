@@ -32,8 +32,14 @@ import WidgetEmbed from "./pages/docs/WidgetEmbed";
 import APIReference from "./pages/docs/APIReference";
 import FAQ from "./pages/docs/FAQ";
 import WidgetPreview from "./pages/WidgetPreview";
+import { useCartSync } from "@/hooks/useCartSync";
 
 const queryClient = new QueryClient();
+
+function CartSyncProvider({ children }: { children: React.ReactNode }) {
+  useCartSync();
+  return <>{children}</>;
+}
 
 // Redirect authenticated users away from auth page
 function AuthRoute() {
@@ -62,6 +68,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <CartSyncProvider>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<AuthRoute />} />
@@ -98,6 +105,7 @@ const App = () => (
               <Route path="/docs/faq" element={<FAQ />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </CartSyncProvider>
           </BrowserRouter>
         </TooltipProvider>
       </EmbeddedAppProvider>

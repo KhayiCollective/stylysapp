@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { getTierByProductId, TierKey } from '@/lib/tiers';
+import { getTierByName, TierKey } from '@/lib/tiers';
 
 interface SubscriptionState {
   subscribed: boolean;
   loading: boolean;
-  productId: string | null;
   tierName: TierKey | null;
   trialEnd: string | null;
   subscriptionEnd: string | null;
@@ -14,11 +13,10 @@ interface SubscriptionState {
 }
 
 export function useSubscription() {
-  const { user, session } = useAuth();
+  const { session } = useAuth();
   const [state, setState] = useState<SubscriptionState>({
     subscribed: false,
     loading: true,
-    productId: null,
     tierName: null,
     trialEnd: null,
     subscriptionEnd: null,
@@ -41,9 +39,8 @@ export function useSubscription() {
       setState({
         subscribed: data.subscribed ?? false,
         loading: false,
-        productId: data.product_id ?? null,
-        tierName: data.product_id ? getTierByProductId(data.product_id) : null,
-        trialEnd: data.trial_end ?? null,
+        tierName: data.tier_name ? getTierByName(data.tier_name) : null,
+        trialEnd: data.subscription_end ?? null,
         subscriptionEnd: data.subscription_end ?? null,
         isTrialing: data.is_trialing ?? false,
       });
@@ -55,8 +52,6 @@ export function useSubscription() {
 
   useEffect(() => {
     checkSubscription();
-
-    // Refresh every 60 seconds
     const interval = setInterval(checkSubscription, 60_000);
     return () => clearInterval(interval);
   }, [checkSubscription]);
