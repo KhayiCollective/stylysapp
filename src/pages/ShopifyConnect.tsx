@@ -36,7 +36,7 @@ export default function ShopifyConnect() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const redirectUri = `${window.location.origin}/connect-shopify`;
+  const redirectUri = `https://stylysapp.lovable.app/connect-shopify`;
   const [oauthClientId, setOauthClientId] = useState<string | null>(null);
 
   // Pre-flight check for edge function availability
@@ -290,7 +290,7 @@ export default function ShopifyConnect() {
         statePayload.embedded = true;
       }
       const state = btoa(JSON.stringify(statePayload));
-      const redirectUri = `${window.location.origin}/connect-shopify`;
+      const redirectUri = `https://stylysapp.lovable.app/connect-shopify`;
 
       console.log('[ShopifyConnect] Initiating OAuth flow:', { shopDomain, redirectUri, brandId: profile.brand_id });
 
