@@ -114,6 +114,15 @@ serve(async (req) => {
     const shopifyData = await shopifyResp.json();
     logStep("Shopify response", shopifyData);
 
+    // Handle Shopify auth errors (invalid/mock credentials)
+    if (shopifyData.errors) {
+      const errMsg = typeof shopifyData.errors === "string" ? shopifyData.errors : JSON.stringify(shopifyData.errors);
+      if (errMsg.includes("Invalid API key") || errMsg.includes("unrecognized login")) {
+        throw new Error("Your Shopify store credentials are invalid. Please reconnect your Shopify store in Settings before subscribing.");
+      }
+      throw new Error(`Shopify API error: ${errMsg}`);
+    }
+
     if (shopifyData.data?.appSubscriptionCreate?.userErrors?.length > 0) {
       const errors = shopifyData.data.appSubscriptionCreate.userErrors;
       throw new Error(`Shopify billing error: ${errors.map((e: any) => e.message).join(", ")}`);
@@ -121,7 +130,7 @@ serve(async (req) => {
 
     const confirmationUrl = shopifyData.data?.appSubscriptionCreate?.confirmationUrl;
     if (!confirmationUrl) {
-      throw new Error("No confirmation URL returned from Shopify");
+      throw new Error("No confirmation URL returned from Shopify. Please ensure your Shopify app has billing permissions.");
     }
 
     logStep("Confirmation URL created", { url: confirmationUrl });
