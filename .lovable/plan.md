@@ -1,41 +1,39 @@
 
 
-# Fix: Virtual Try-On — Correct `modalities` Parameter for All Image Models
+# Secure Developer-Only Routes and Clean Up Merchant Experience
 
-## Problem
+## What's Already Working
+- Developer sections on the Settings page (Test Mode, Setup Guide link, Webhook Status, Sync History) are correctly hidden from merchants via `isDevUser` role check
+- Merchants have a clean, simple connection flow at `/connect-shopify`
 
-The `callAI` function only adds `modalities: ["image", "text"]` when the model name contains `"image-preview"`. But `google/gemini-2.5-flash-image` also **requires** this parameter to generate images — its name contains `"flash-image"`, not `"image-preview"`, so it never gets the parameter.
+## What Needs Fixing
 
-Result:
-- `gemini-3-pro-image-preview` — gateway 500 (temporary outage, out of our control)
-- `gemini-2.5-flash-image` — likely fails because it's missing the required `modalities` parameter
-- `openai/gpt-5` — responds with text description instead of an image (it cannot generate images)
+### 1. Protect the `/shopify-setup` route by role
+The Shopify Setup Guide page is accessible to any logged-in user who navigates to `/shopify-setup` directly. This page contains developer-only content (Partner accounts, OAuth credentials, API scopes). It should redirect non-developer users away.
 
-## Solution
+**File: `src/pages/ShopifySetupGuide.tsx`**
+- Add `useUserRole()` hook check at the top of the component
+- If the user is not a dev user (`!isDevUser`), redirect them to `/settings` or `/dashboard`
+- Show a loading state while the role is being checked
 
-One small change in `supabase/functions/virtual-tryon/index.ts`:
+### 2. No other changes needed
+- The `ShopifyConnection` component (visible to all users) already provides a clean "Connect Shopify Store" button that sends merchants to `/connect-shopify`
+- The `/connect-shopify` page is merchant-friendly — it asks for the store name and handles OAuth automatically
+- Developer Test Mode, Webhook Status, and Sync History are all properly hidden behind `isDevUser`
 
-### Update the `modalities` condition (line 108)
+## Technical Details
 
-Change from:
-```typescript
-if (model.includes("image-preview")) {
+```text
+ShopifySetupGuide.tsx changes:
++  import { useUserRole } from '@/hooks/useUserRole';
++  import { Navigate } from 'react-router-dom';
++
++  const { isDevUser, loading: roleLoading } = useUserRole();
++
++  if (roleLoading) return loading spinner
++  if (!isDevUser) return <Navigate to="/settings" replace />
 ```
-
-To:
-```typescript
-if (model.includes("image-preview") || model.includes("flash-image")) {
-```
-
-This ensures `google/gemini-2.5-flash-image` receives the `modalities: ["image", "text"]` parameter it needs to generate images, while still keeping it off for `openai/gpt-5`.
-
-### Why this should work
-
-- When `gemini-3-pro-image-preview` is down (500), the fallback `gemini-2.5-flash-image` will now get the correct parameters to actually generate an image
-- `openai/gpt-5` remains as a last resort — it returns text but won't crash
-- No other files need changes
 
 ### Files to modify
-
-- `supabase/functions/virtual-tryon/index.ts` — line 108, update the condition
+- `src/pages/ShopifySetupGuide.tsx` — add role-based access guard
 
