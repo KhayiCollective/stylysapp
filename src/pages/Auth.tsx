@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
-import stylysIcon from '@/assets/stylys-icon.png';
+import stylysLogo from '@/assets/S_no_border.png';
 
 type AuthView = 'login' | 'signup' | 'forgot';
 
@@ -71,7 +71,7 @@ export default function Auth() {
         <div className="relative z-10 flex flex-col justify-center px-16 text-primary-foreground">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
-              <img src={stylysIcon} alt="Stylys" className="h-10 w-10 rounded-lg" />
+              <img src={stylysLogo} alt="Stylys" className="h-10 w-10 rounded-lg" />
             </div>
             <span className="text-2xl font-display font-semibold">AI Stylist</span>
           </div>
@@ -110,7 +110,7 @@ export default function Auth() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-            <img src={stylysIcon} alt="Stylys" className="h-6 w-6 rounded" />
+            <img src={stylysLogo} alt="Stylys" className="h-6 w-6 rounded" />
             <span className="text-xl font-display font-semibold">STYLYS</span>
           </div>
 
