@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +74,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
 export default function ShopifySetupGuide() {
   const { toast } = useToast();
+  const { isDevUser, loading: roleLoading } = useUserRole();
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResults, setTestResults] = useState<{
     envVars?: boolean;
@@ -82,6 +85,21 @@ export default function ShopifySetupGuide() {
   // Get the current origin for redirect URI
   const redirectUri = `${window.location.origin}/connect-shopify`;
   const appUrl = window.location.origin;
+
+  // Role-based access guard — must be after all hooks
+  if (roleLoading) {
+    return (
+      <DashboardLayout title="Shopify Setup Guide" description="Loading...">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!isDevUser) {
+    return <Navigate to="/settings" replace />;
+  }
 
   const testOAuthSetup = async () => {
     setTestingConnection(true);
