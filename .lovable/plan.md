@@ -1,39 +1,36 @@
 
 
-## Plan: Add Cart Button to Try-On Tab + Speed Up Virtual Try-On
+## Plan: Reset Shopify Connection for Real Dev Store
 
-### What's changing
+### Problem
+The database has a stale connection to `test-store.myshopify.com` (a placeholder). This causes the `/connect-shopify` page to skip the OAuth flow and redirect straight to the dashboard. The stored access tokens are from the placeholder and won't work with the real dev store.
 
-**1. "Add All to Cart" on the Try-On tab**
+### Solution
+Clear the old Shopify connection fields on the brand record so the OAuth flow can run fresh.
 
-The Try-On tab currently shows the outfit items and a "Try It On" button, but no way to purchase. We'll add an "Add All to Cart" button below the generate button, reusing the same cart logic already working in the Outfits tab.
+### Steps
 
-This requires passing `shopify_variant_id` through to the TryOnTab (currently only `name`, `imageUrl`, and `category` are passed from OutfitsTab).
+1. **Run a database migration** to clear the Shopify connection fields on the user's brand:
+   - Set `shopify_store_domain`, `shopify_access_token`, `shopify_storefront_token`, and `shopify_connected_at` to `NULL` on brand `cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7`
 
-**2. Faster virtual try-on generation**
+2. **Update the `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` secrets** with the real values the user provided earlier (if not already done)
 
-The current flow is slow because:
-- Product images are converted from URL to base64 **twice** (once on the client in TryOnTab, then again on the server in the edge function)
-- The AI model fallback chain tries up to 3 models, and if the first attempt returns no image, it retries with all 3 models again (up to 6 AI calls total)
-- We'll switch the primary model to `google/gemini-2.5-flash-image` (faster) and reduce retries
-
----
+3. **After reset**, the user navigates to `/connect-shopify`, enters their real dev store domain (e.g., `my-store.myshopify.com`), and completes the Shopify OAuth install flow which will save real access tokens
 
 ### Technical Details
 
-**Files to modify:**
+**Database update (one-time data fix, not a schema migration):**
+```sql
+UPDATE brands
+SET shopify_store_domain = NULL,
+    shopify_access_token = NULL,
+    shopify_storefront_token = NULL,
+    shopify_connected_at = NULL
+WHERE id = 'cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7';
+```
 
-1. **`src/components/widget/tabs/OutfitsTab.tsx`** -- Update `handleTryOn` to also pass `shopify_variant_id`, `price`, and `id` alongside existing fields.
+**Secrets to update:**
+- `SHOPIFY_CLIENT_ID` -> `e1bde8232afcab4c37b12a9b29c3dde1`
+- `SHOPIFY_CLIENT_SECRET` -> `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`
 
-2. **`src/components/widget/tabs/TryOnTab.tsx`**
-   - Expand `OutfitItemProp` interface to include `shopify_variant_id`, `price`, and `id`
-   - Add an "Add All to Cart" button (using same pattern as OutfitsTab's `handleAddAllToCart`)
-   - Remove the client-side `imageUrlToBase64` conversion (the edge function already handles this, so it's duplicated work)
-
-3. **`src/components/widget/CustomerWidget.tsx`** and **`src/components/widget/InlineCustomerWidget.tsx`** -- Update the `selectedOutfitItems` state type to include the new fields.
-
-4. **`supabase/functions/virtual-tryon/index.ts`**
-   - Reorder model fallback: put `google/gemini-2.5-flash-image` first (faster), then `google/gemini-3-pro-image-preview` second
-   - Limit retry to only 1 model instead of cycling all 3 again
-   - Skip redundant base64 conversion for images already in data URI format
-
+**No code changes needed** -- the existing OAuth flow in `ShopifyConnect.tsx` and `shopify-oauth` edge function will handle everything once the stale data is cleared.
