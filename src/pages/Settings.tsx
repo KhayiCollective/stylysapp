@@ -279,7 +279,11 @@ export default function Settings() {
                       headers: { Authorization: `Bearer ${session.access_token}` },
                       body: { plan: "starter" },
                     });
-                    if (!error && data?.url) window.location.href = data.url;
+                    if (error || data?.error) {
+                      toast({ title: 'Subscription Error', description: data?.error || 'Failed to create checkout. Please try again.', variant: 'destructive' });
+                      return;
+                    }
+                    if (data?.url) window.location.href = data.url;
                   }} variant="outline">
                     <Sparkles className="h-4 w-4 mr-2" />
                     Starter — $14.99/mo
@@ -291,7 +295,11 @@ export default function Settings() {
                       headers: { Authorization: `Bearer ${session.access_token}` },
                       body: { plan: "professional" },
                     });
-                    if (!error && data?.url) window.location.href = data.url;
+                    if (error || data?.error) {
+                      toast({ title: 'Subscription Error', description: data?.error || 'Failed to create checkout. Please try again.', variant: 'destructive' });
+                      return;
+                    }
+                    if (data?.url) window.location.href = data.url;
                   }}>
                     <Crown className="h-4 w-4 mr-2" />
                     Professional — $29.99/mo
