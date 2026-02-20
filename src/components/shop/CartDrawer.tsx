@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,36 +12,22 @@ import {
 import { ShoppingCart, Minus, Plus, Trash2, ExternalLink, Loader2 } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
 import { formatPrice } from "@/lib/shopify";
-import { toast } from "sonner";
 
 export const CartDrawer = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { 
-    items, 
-    isLoading, 
-    updateQuantity, 
-    removeItem, 
-    createCheckout 
-  } = useCartStore();
-  
+  const { items, isLoading, isSyncing, updateQuantity, removeItem, getCheckoutUrl, syncCart } = useCartStore();
+
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + (parseFloat(item.price.amount) * item.quantity), 0);
   const currencyCode = items[0]?.price.currencyCode || 'ZAR';
 
-  const handleCheckout = async () => {
-    try {
-      await createCheckout();
-      const checkoutUrl = useCartStore.getState().checkoutUrl;
-      if (checkoutUrl) {
-        window.open(checkoutUrl, '_blank');
-        setIsOpen(false);
-      }
-    } catch (error) {
-      console.error('Checkout failed:', error);
-      toast.error("Checkout failed", {
-        description: "Please try again",
-        position: "top-center",
-      });
+  useEffect(() => { if (isOpen) syncCart(); }, [isOpen, syncCart]);
+
+  const handleCheckout = () => {
+    const checkoutUrl = getCheckoutUrl();
+    if (checkoutUrl) {
+      window.open(checkoutUrl, '_blank');
+      setIsOpen(false);
     }
   };
 
@@ -57,7 +43,7 @@ export const CartDrawer = () => {
           )}
         </Button>
       </SheetTrigger>
-      
+
       <SheetContent className="w-full sm:max-w-lg flex flex-col h-full">
         <SheetHeader className="flex-shrink-0">
           <SheetTitle>Shopping Cart</SheetTitle>
@@ -65,7 +51,7 @@ export const CartDrawer = () => {
             {totalItems === 0 ? "Your cart is empty" : `${totalItems} item${totalItems !== 1 ? 's' : ''} in your cart`}
           </SheetDescription>
         </SheetHeader>
-        
+
         <div className="flex flex-col flex-1 pt-6 min-h-0">
           {items.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
@@ -89,7 +75,7 @@ export const CartDrawer = () => {
                           />
                         )}
                       </div>
-                      
+
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm truncate">{item.product.node.title}</h4>
                         {item.variantTitle !== "Default Title" && (
@@ -101,33 +87,17 @@ export const CartDrawer = () => {
                           {formatPrice(item.price.amount, item.price.currencyCode)}
                         </p>
                       </div>
-                      
+
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => removeItem(item.variantId)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(item.variantId)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
-                        
                         <div className="flex items-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
-                          >
+                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.variantId, item.quantity - 1)}>
                             <Minus className="h-3 w-3" />
                           </Button>
                           <span className="w-8 text-center text-sm">{item.quantity}</span>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
-                          >
+                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.variantId, item.quantity + 1)}>
                             <Plus className="h-3 w-3" />
                           </Button>
                         </div>
@@ -136,7 +106,7 @@ export const CartDrawer = () => {
                   ))}
                 </div>
               </div>
-              
+
               <div className="flex-shrink-0 space-y-4 pt-4 border-t mt-4">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold">Total</span>
@@ -144,22 +114,19 @@ export const CartDrawer = () => {
                     {formatPrice(totalPrice.toString(), currencyCode)}
                   </span>
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={handleCheckout}
-                  className="w-full" 
+                  className="w-full"
                   size="lg"
-                  disabled={items.length === 0 || isLoading}
+                  disabled={items.length === 0 || isLoading || isSyncing}
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating Checkout...
-                    </>
+                  {isLoading || isSyncing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
                       <ExternalLink className="w-4 h-4 mr-2" />
-                      Checkout
+                      Checkout with Shopify
                     </>
                   )}
                 </Button>

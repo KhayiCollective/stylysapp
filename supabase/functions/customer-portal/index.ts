@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -20,9 +19,6 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -39,21 +35,30 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { email: user.email });
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    if (customers.data.length === 0) throw new Error("No Stripe customer found");
+    // Get user's brand to find their Shopify store domain
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("brand_id")
+      .eq("id", user.id)
+      .single();
 
-    const customerId = customers.data[0].id;
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    if (!profile?.brand_id) throw new Error("No brand found for user");
 
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${origin}/settings`,
-    });
+    const { data: brand } = await supabaseClient
+      .from("brands")
+      .select("shopify_store_domain")
+      .eq("id", profile.brand_id)
+      .single();
 
-    logStep("Portal session created", { url: portalSession.url });
+    if (!brand?.shopify_store_domain) {
+      throw new Error("Shopify store not connected");
+    }
 
-    return new Response(JSON.stringify({ url: portalSession.url }), {
+    // Redirect to Shopify admin billing page
+    const billingUrl = `https://${brand.shopify_store_domain}/admin/settings/billing`;
+    logStep("Redirecting to Shopify billing", { url: billingUrl });
+
+    return new Response(JSON.stringify({ url: billingUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

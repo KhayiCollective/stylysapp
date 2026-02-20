@@ -13,6 +13,7 @@ interface OutfitItem {
   imageUrl?: string;
   price: number;
   category: string;
+  shopify_variant_id?: string;
 }
 
 interface Outfit {
@@ -39,6 +40,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const isLoggedIn = !!getToken(brandId);
@@ -48,7 +50,6 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
     setLoading(true);
     setError("");
     try {
-      // Fetch composition rules for this brand
       let compositionRules = undefined;
       try {
         const rulesResp = await fetch(`${SUPABASE_URL}/rest/v1/rules?category=eq.composition&brand_id=eq.${brandId}&select=config,enabled&limit=1`, {
@@ -68,7 +69,6 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
         headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
         body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
       });
-      // Auto-retry once on 500
       if (!resp.ok && resp.status >= 500) {
         await new Promise(r => setTimeout(r, 1500));
         resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
@@ -86,6 +86,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
           id: i.id, name: i.name, price: Number(i.price),
           imageUrl: i.image_url || i.imageUrl,
           category: i.category,
+          shopify_variant_id: i.shopify_variant_id,
         })),
         totalPrice: o.totalPrice,
         occasion: o.occasion,
@@ -131,51 +132,79 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
 
   const addItem = useCartStore((state) => state.addItem);
 
-  const handleAddAllToCart = (outfit: Outfit) => {
-    outfit.items.forEach((item) => {
-      const mockProduct: ShopifyProduct = {
-        node: {
-          id: item.id,
-          title: item.name,
-          description: "",
-          handle: item.id,
-          priceRange: {
-            minVariantPrice: { amount: String(item.price), currencyCode: "USD" },
-          },
-          images: {
-            edges: (item.imageUrl || item.image_url)
-              ? [{ node: { url: (item.imageUrl || item.image_url)!, altText: item.name } }]
-              : [],
-          },
-          variants: {
-            edges: [{
-              node: {
-                id: item.id,
-                title: "Default",
-                price: { amount: String(item.price), currencyCode: "USD" },
-                availableForSale: true,
-                selectedOptions: [],
-              },
-            }],
-          },
-          options: [],
-        },
-      };
+  const handleAddAllToCart = async (outfit: Outfit) => {
+    // Filter items that have valid Shopify variant IDs
+    const shopifyItems = outfit.items.filter(item => {
+      const vid = item.shopify_variant_id || item.id;
+      return vid.startsWith('gid://shopify/ProductVariant/');
+    });
 
-      addItem({
-        product: mockProduct,
-        variantId: item.id,
-        variantTitle: "Default",
-        price: { amount: String(item.price), currencyCode: "USD" },
-        quantity: 1,
-        selectedOptions: [],
+    if (shopifyItems.length === 0) {
+      toast.error("Cannot add to cart", {
+        description: "These outfit items don't have valid Shopify product IDs.",
+        position: "top-center",
       });
-    });
+      return;
+    }
 
-    toast.success(`Added "${outfit.name}" to cart`, {
-      description: `${outfit.items.length} items added`,
-      position: "top-center",
-    });
+    setAddingToCart(outfit.id);
+    try {
+      for (const item of shopifyItems) {
+        const variantId = item.shopify_variant_id || item.id;
+        const mockProduct: ShopifyProduct = {
+          node: {
+            id: item.id,
+            title: item.name,
+            description: "",
+            handle: item.id,
+            priceRange: {
+              minVariantPrice: { amount: String(item.price), currencyCode: "ZAR" },
+            },
+            images: {
+              edges: (item.imageUrl || item.image_url)
+                ? [{ node: { url: (item.imageUrl || item.image_url)!, altText: item.name } }]
+                : [],
+            },
+            variants: {
+              edges: [{
+                node: {
+                  id: variantId,
+                  title: "Default",
+                  price: { amount: String(item.price), currencyCode: "ZAR" },
+                  availableForSale: true,
+                  selectedOptions: [],
+                },
+              }],
+            },
+            options: [],
+          },
+        };
+
+        await addItem({
+          product: mockProduct,
+          variantId,
+          variantTitle: "Default",
+          price: { amount: String(item.price), currencyCode: "ZAR" },
+          quantity: 1,
+          selectedOptions: [],
+        });
+      }
+
+      const skipped = outfit.items.length - shopifyItems.length;
+      const msg = skipped > 0
+        ? `Added ${shopifyItems.length} items (${skipped} skipped — no Shopify ID)`
+        : `${shopifyItems.length} items added`;
+
+      toast.success(`Added "${outfit.name}" to cart`, {
+        description: msg,
+        position: "top-center",
+      });
+    } catch (error) {
+      console.error('Failed to add outfit to cart:', error);
+      toast.error("Failed to add items to cart", { position: "top-center" });
+    } finally {
+      setAddingToCart(null);
+    }
   };
 
   return (
@@ -253,8 +282,17 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
                   <Camera className="h-3 w-3" />
                   Try On
                 </Button>
-                <Button size="sm" className="text-xs h-8 gap-1" onClick={() => handleAddAllToCart(outfit)}>
-                  <ShoppingBag className="h-3 w-3" />
+                <Button
+                  size="sm"
+                  className="text-xs h-8 gap-1"
+                  onClick={() => handleAddAllToCart(outfit)}
+                  disabled={addingToCart === outfit.id}
+                >
+                  {addingToCart === outfit.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ShoppingBag className="h-3 w-3" />
+                  )}
                   Add All
                 </Button>
               </div>

@@ -270,14 +270,14 @@ export default function Settings() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">You don't have an active subscription.</p>
+                <p className="text-sm text-muted-foreground">You don't have an active subscription. Connect your Shopify store to subscribe.</p>
                 <div className="flex gap-3">
                   <Button onClick={async () => {
                     const { data: { session } } = await supabase.auth.getSession();
                     if (!session) return;
                     const { data, error } = await supabase.functions.invoke('create-checkout', {
                       headers: { Authorization: `Bearer ${session.access_token}` },
-                      body: { priceId: TIERS.starter.priceId },
+                      body: { plan: "starter" },
                     });
                     if (!error && data?.url) window.location.href = data.url;
                   }} variant="outline">
@@ -289,7 +289,7 @@ export default function Settings() {
                     if (!session) return;
                     const { data, error } = await supabase.functions.invoke('create-checkout', {
                       headers: { Authorization: `Bearer ${session.access_token}` },
-                      body: { priceId: TIERS.professional.priceId },
+                      body: { plan: "professional" },
                     });
                     if (!error && data?.url) window.location.href = data.url;
                   }}>

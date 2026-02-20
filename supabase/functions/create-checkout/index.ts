@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -12,6 +11,11 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
+const TIERS: Record<string, { name: string; amount: number; trialDays: number }> = {
+  starter: { name: "Starter", amount: 14.99, trialDays: 3 },
+  professional: { name: "Professional", amount: 29.99, trialDays: 3 },
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -20,12 +24,10 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } }
     );
 
     const authHeader = req.headers.get("Authorization");
@@ -38,40 +40,93 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { email: user.email });
 
-    const { priceId } = await req.json();
-    if (!priceId) throw new Error("priceId is required");
-    logStep("Price ID received", { priceId });
+    const { plan } = await req.json();
+    if (!plan || !TIERS[plan]) throw new Error("Invalid plan. Must be 'starter' or 'professional'");
+    const tier = TIERS[plan];
+    logStep("Plan selected", { plan, tier });
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+    // Get user's brand to find their Shopify store
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("brand_id")
+      .eq("id", user.id)
+      .single();
 
-    // Look up or create Stripe customer
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId: string;
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Existing customer found", { customerId });
-    } else {
-      const customer = await stripe.customers.create({ email: user.email });
-      customerId = customer.id;
-      logStep("New customer created", { customerId });
+    if (!profile?.brand_id) throw new Error("No brand found for user");
+
+    const { data: brand } = await supabaseClient
+      .from("brands")
+      .select("shopify_store_domain, shopify_access_token")
+      .eq("id", profile.brand_id)
+      .single();
+
+    if (!brand?.shopify_store_domain || !brand?.shopify_access_token) {
+      throw new Error("Shopify store not connected. Please connect your Shopify store first.");
     }
+
+    logStep("Brand found", { domain: brand.shopify_store_domain });
 
     const origin = req.headers.get("origin") || "http://localhost:3000";
 
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      mode: "subscription",
-      subscription_data: {
-        trial_period_days: 3,
-      },
-      success_url: `${origin}/dashboard?checkout=success`,
-      cancel_url: `${origin}/dashboard?checkout=cancel`,
-    });
+    // Create app subscription via Shopify Admin API
+    const mutation = `
+      mutation AppSubscriptionCreate($name: String!, $lineItems: [AppSubscriptionLineItemInput!]!, $returnUrl: URL!, $trialDays: Int) {
+        appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems, trialDays: $trialDays) {
+          appSubscription {
+            id
+            name
+            status
+          }
+          confirmationUrl
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
 
-    logStep("Checkout session created", { sessionId: session.id });
+    const variables = {
+      name: `STYLYS ${tier.name}`,
+      returnUrl: `${origin}/settings?billing=success`,
+      trialDays: tier.trialDays,
+      lineItems: [{
+        plan: {
+          appRecurringPricingDetails: {
+            price: { amount: tier.amount, currencyCode: "USD" },
+          },
+        },
+      }],
+    };
 
-    return new Response(JSON.stringify({ url: session.url }), {
+    const shopifyResp = await fetch(
+      `https://${brand.shopify_store_domain}/admin/api/2025-01/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": brand.shopify_access_token,
+        },
+        body: JSON.stringify({ query: mutation, variables }),
+      }
+    );
+
+    const shopifyData = await shopifyResp.json();
+    logStep("Shopify response", shopifyData);
+
+    if (shopifyData.data?.appSubscriptionCreate?.userErrors?.length > 0) {
+      const errors = shopifyData.data.appSubscriptionCreate.userErrors;
+      throw new Error(`Shopify billing error: ${errors.map((e: any) => e.message).join(", ")}`);
+    }
+
+    const confirmationUrl = shopifyData.data?.appSubscriptionCreate?.confirmationUrl;
+    if (!confirmationUrl) {
+      throw new Error("No confirmation URL returned from Shopify");
+    }
+
+    logStep("Confirmation URL created", { url: confirmationUrl });
+
+    return new Response(JSON.stringify({ url: confirmationUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
