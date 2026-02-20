@@ -9,9 +9,12 @@ import { TryOnTab } from "./tabs/TryOnTab";
 import { AccountTab } from "./tabs/AccountTab";
 
 interface OutfitItem {
+  id?: string;
   name: string;
   imageUrl: string;
   category: string;
+  shopify_variant_id?: string;
+  price?: number;
 }
 
 interface InlineCustomerWidgetProps {

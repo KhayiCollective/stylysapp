@@ -123,9 +123,12 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
 
   const handleTryOn = (outfit: Outfit) => {
     const items = outfit.items.map(i => ({
+      id: i.id,
       name: i.name,
       imageUrl: i.imageUrl || i.image_url || "",
       category: i.category,
+      shopify_variant_id: i.shopify_variant_id,
+      price: i.price,
     }));
     onSelectOutfitForTryOn?.(items);
   };

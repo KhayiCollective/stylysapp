@@ -2,15 +2,21 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Camera, Loader2, X, Sparkles, Eye, Save, User } from "lucide-react";
+import { Upload, Camera, Loader2, X, Sparkles, Eye, Save, User, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCartStore } from "@/stores/cartStore";
+import { ShopifyProduct } from "@/lib/shopify";
+import { toast } from "sonner";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface OutfitItemProp {
+  id?: string;
   name: string;
   imageUrl: string;
   category: string;
+  shopify_variant_id?: string;
+  price?: number;
 }
 
 interface TryOnTabProps {
@@ -31,6 +37,9 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   const [showingOriginal, setShowingOriginal] = useState(false);
   const [isSavedPhoto, setIsSavedPhoto] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
+
+  const addItem = useCartStore((state) => state.addItem);
 
   // Auto-load saved photo
   useEffect(() => {
@@ -78,29 +87,11 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
         setShowingOriginal(false);
         setError(null);
         setIsSavedPhoto(false);
-        // Auto-save to account if logged in
         if (customerToken) {
           savePhotoToAccount(base64);
         }
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const imageUrlToBase64 = async (url: string): Promise<string> => {
-    if (!url || url.startsWith("data:")) return url;
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) return url;
-      const blob = await resp.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch {
-      return url;
     }
   };
 
@@ -110,18 +101,14 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
     setError(null);
 
     try {
-      // Convert external product image URLs to base64 on the client
-      const convertedItems = await Promise.all(
-        outfitItems.map(async (i) => ({
-          name: i.name,
-          imageUrl: i.imageUrl.startsWith("http") ? await imageUrlToBase64(i.imageUrl) : i.imageUrl,
-          category: i.category,
-        }))
-      );
-
+      // Send image URLs directly — the edge function handles base64 conversion
       const requestBody: Record<string, unknown> = {
         userImageBase64: userImage,
-        outfitItems: convertedItems,
+        outfitItems: outfitItems.map(i => ({
+          name: i.name,
+          imageUrl: i.imageUrl,
+          category: i.category,
+        })),
       };
       if (bodyShape) requestBody.bodyShape = bodyShape;
       if (sizeInfo && Object.values(sizeInfo).some(v => v)) requestBody.sizeInfo = sizeInfo;
@@ -142,6 +129,82 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
       setError(err?.message || "Failed to process. Please try again.");
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleAddAllToCart = async () => {
+    if (!outfitItems?.length) return;
+
+    const shopifyItems = outfitItems.filter(item => {
+      const vid = item.shopify_variant_id || item.id;
+      return vid && vid.startsWith('gid://shopify/ProductVariant/');
+    });
+
+    if (shopifyItems.length === 0) {
+      toast.error("Cannot add to cart", {
+        description: "These outfit items don't have valid Shopify product IDs.",
+        position: "top-center",
+      });
+      return;
+    }
+
+    setAddingToCart(true);
+    try {
+      for (const item of shopifyItems) {
+        const variantId = item.shopify_variant_id || item.id!;
+        const mockProduct: ShopifyProduct = {
+          node: {
+            id: item.id || variantId,
+            title: item.name,
+            description: "",
+            handle: item.id || variantId,
+            priceRange: {
+              minVariantPrice: { amount: String(item.price || 0), currencyCode: "ZAR" },
+            },
+            images: {
+              edges: item.imageUrl
+                ? [{ node: { url: item.imageUrl, altText: item.name } }]
+                : [],
+            },
+            variants: {
+              edges: [{
+                node: {
+                  id: variantId,
+                  title: "Default",
+                  price: { amount: String(item.price || 0), currencyCode: "ZAR" },
+                  availableForSale: true,
+                  selectedOptions: [],
+                },
+              }],
+            },
+            options: [],
+          },
+        };
+
+        await addItem({
+          product: mockProduct,
+          variantId,
+          variantTitle: "Default",
+          price: { amount: String(item.price || 0), currencyCode: "ZAR" },
+          quantity: 1,
+          selectedOptions: [],
+        });
+      }
+
+      const skipped = outfitItems.length - shopifyItems.length;
+      const msg = skipped > 0
+        ? `Added ${shopifyItems.length} items (${skipped} skipped — no Shopify ID)`
+        : `${shopifyItems.length} items added`;
+
+      toast.success("Added outfit to cart", {
+        description: msg,
+        position: "top-center",
+      });
+    } catch (error) {
+      console.error('Failed to add outfit to cart:', error);
+      toast.error("Failed to add items to cart", { position: "top-center" });
+    } finally {
+      setAddingToCart(false);
     }
   };
 
@@ -194,28 +257,24 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
             alt={hasResult && !showingOriginal ? "Try-on result" : "Your photo"}
             className="w-full aspect-[3/4] object-cover rounded-lg"
           />
-          {/* Saved photo indicator */}
           {isSavedPhoto && !hasResult && (
             <Badge variant="secondary" className="absolute top-2 left-2 text-[10px] gap-1">
               <Save className="h-3 w-3" />
               Your saved photo
             </Badge>
           )}
-          {/* Saving indicator */}
           {savingPhoto && (
             <Badge variant="secondary" className="absolute top-2 left-2 text-[10px] gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
               Saving...
             </Badge>
           )}
-          {/* AI Generated badge */}
           {hasResult && !showingOriginal && (
             <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">
               <Sparkles className="h-3 w-3 mr-1" />
               AI Generated
             </Badge>
           )}
-          {/* Toggle original/result */}
           {hasResult && (
             <button
               onClick={() => setShowingOriginal(!showingOriginal)}
@@ -225,7 +284,6 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
               {showingOriginal ? "View Result" : "View Original"}
             </button>
           )}
-          {/* Clear button */}
           <button
             onClick={() => { setUserImage(null); setResultImage(null); setShowingOriginal(false); setIsSavedPhoto(false); }}
             className="absolute top-2 right-2 h-6 w-6 bg-background/80 rounded-full flex items-center justify-center"
@@ -251,24 +309,42 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
         </p>
       )}
 
-      <Button
-        className="w-full gap-2"
-        size="sm"
-        onClick={generateTryOn}
-        disabled={!userImage || isProcessing}
-      >
-        {isProcessing ? (
-          <>
+      <div className="flex gap-2">
+        <Button
+          className="flex-1 gap-2"
+          size="sm"
+          onClick={generateTryOn}
+          disabled={!userImage || isProcessing}
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <Camera className="h-4 w-4" />
+              {hasResult ? "Try Again" : "Try It On"}
+            </>
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          onClick={handleAddAllToCart}
+          disabled={addingToCart}
+        >
+          {addingToCart ? (
             <Loader2 className="h-4 w-4 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            <Camera className="h-4 w-4" />
-            {hasResult ? "Try Again" : "Try It On"}
-          </>
-        )}
-      </Button>
+          ) : (
+            <>
+              <ShoppingBag className="h-4 w-4" />
+              Add All
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
