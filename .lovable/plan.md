@@ -1,25 +1,35 @@
 
-# Fix Shopify OAuth Redirect URI
 
-## Problem
-The Shopify OAuth flow uses `window.location.origin` to construct the redirect URI dynamically. If the browser is on a domain not exactly matching one of the three whitelisted URLs in the Shopify Partner dashboard, the flow fails with "redirect_uri is not whitelisted."
+# Create Reviewer Test Account and Simplified Testing Instructions
 
-## Solution
-Hardcode the redirect URI to always use the published domain `https://stylysapp.lovable.app/connect-shopify`. This domain is stable and already whitelisted.
+## Overview
+Create a dedicated test account for Shopify reviewers and provide simplified, concise testing instructions matching the format shown in the reference image.
 
-## Changes
+## Step 1: Create the test account
 
-### 1. `src/pages/ShopifyConnect.tsx`
-- **Line 39**: Change the top-level `redirectUri` from `window.location.origin` to the published domain:
-  ```typescript
-  const redirectUri = `https://stylysapp.lovable.app/connect-shopify`;
-  ```
-- **Line 293**: Same change for the `redirectUri` inside `handleConnect`:
-  ```typescript
-  const redirectUri = `https://stylysapp.lovable.app/connect-shopify`;
-  ```
+Create a user account in the authentication system with:
+- **Email:** test@stylysapp.com
+- **Password:** ShopifyTest123!
 
-This ensures Shopify always receives a redirect URI that matches the whitelisted URL, regardless of which preview/dev domain you are browsing from.
+Then run the account bootstrap process to ensure the account has a brand and profile set up, so reviewers land on a functional dashboard immediately after login.
 
-### Technical Detail
-After Shopify redirects back to `stylysapp.lovable.app/connect-shopify`, the existing callback handling code will process the `code`, `shop`, and `state` query parameters and complete the token exchange. No other changes are needed.
+## Step 2: Simplified Testing Instructions
+
+Here are the testing instructions formatted for the Shopify app listing submission:
+
+```text
+To test this app:
+1. Log in to https://stylysapp.lovable.app/auth
+2. Use test credentials: test@stylysapp.com / ShopifyTest123!
+3. Click "Connect Shopify" in the dashboard sidebar
+4. Enter your development store domain (e.g., my-store.myshopify.com)
+5. Approve the permissions and you will be redirected back to the dashboard
+6. Navigate to "Catalog" to verify synced products, then "Outfit Generator" to test AI styling
+```
+
+## Technical Details
+
+- The test account will be created via the authentication system with email auto-confirmed so reviewers can log in immediately without needing to verify email
+- The `handle_new_user` database trigger will automatically create the associated brand, profile, user role, widget config, and default rules
+- No code changes are needed -- this is a data-only operation (creating the user account)
+
