@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAccountBootstrap } from '@/hooks/useAccountBootstrap';
@@ -37,6 +37,7 @@ export default function ShopifyConnect() {
   const { toast } = useToast();
 
   const redirectUri = `https://stylysapp.lovable.app/connect-shopify`;
+  const callbackProcessed = useRef(false);
   const [oauthClientId, setOauthClientId] = useState<string | null>(null);
 
   // Pre-flight check for edge function availability
@@ -112,6 +113,13 @@ export default function ShopifyConnect() {
       const state = searchParams.get('state');
 
       if (code && shopParam && state) {
+        // Guard: prevent double-execution (React StrictMode / re-renders)
+        if (callbackProcessed.current) return;
+        callbackProcessed.current = true;
+        
+        // Immediately clear URL params to prevent re-triggering
+        window.history.replaceState({}, '', '/connect-shopify');
+
         console.log('[ShopifyConnect] OAuth callback detected');
         console.log('[ShopifyConnect] Params:', { code: code.substring(0, 10) + '...', shop: shopParam, hasState: !!state });
         
@@ -131,12 +139,6 @@ export default function ShopifyConnect() {
         try {
           setConnectionStep({ step: 'exchanging-token', message: 'Exchanging authorization code...' });
 
-          // Check edge function is accessible first
-          const isHealthy = await checkEdgeFunctionHealth();
-          if (!isHealthy) {
-            throw new Error('Edge function is not accessible. Please try again or contact support.');
-          }
-
           // Call callback endpoint
           const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=callback&code=${encodeURIComponent(code)}&shop=${encodeURIComponent(shopParam)}&state=${encodeURIComponent(state)}`;
           console.log('[ShopifyConnect] Calling callback URL...');
@@ -155,8 +157,6 @@ export default function ShopifyConnect() {
             });
             setConnected(true);
             
-            // Clear URL params and redirect
-            window.history.replaceState({}, '', '/connect-shopify');
             
             // If this was an embedded flow, redirect back to Shopify Admin
             if (wasEmbeddedFlow) {
