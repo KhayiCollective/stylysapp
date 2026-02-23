@@ -77,11 +77,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <Button 
             onClick={handleAddToCart}
             size="sm"
-            className="flex-1"
+            className="flex-1 gap-1"
             disabled={!firstVariant?.availableForSale}
           >
-            <ShoppingBag className="w-4 h-4 mr-1" />
-            {firstVariant?.availableForSale ? "Add" : "Out"}
+            <ShoppingBag className="w-3.5 h-3.5" />
+            {firstVariant?.availableForSale ? "Add" : "Out of Stock"}
           </Button>
         </div>
       </div>
