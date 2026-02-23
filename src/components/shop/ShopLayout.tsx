@@ -91,6 +91,7 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
         <StylingChatbot products={products} />
 
         <CustomerWidget
+          brandId="f7bfce23-f46a-4125-9fa8-e1bf4c7fd2bf"
           externalOpen={widgetOpen}
           externalTab={widgetTab}
           onOpenChange={setWidgetOpen}
