@@ -72,9 +72,9 @@ export default function EmbeddedApp() {
     );
   }
 
-  // Connection required state - show helpful UI instead of error
+  // Connection required state - auto-initiate OAuth if shop is known
   if (needsConnection) {
-    return <EmbeddedConnectionRequired shopDomain={shop} />;
+    return <EmbeddedConnectionRequired shopDomain={shop} autoInitiate={!!shop} />;
   }
 
   // Verified or test mode - render embedded dashboard
