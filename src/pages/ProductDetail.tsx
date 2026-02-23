@@ -4,10 +4,11 @@ import { fetchProductByHandle, formatPrice, ShopifyProduct } from "@/lib/shopify
 import { useCartStore } from "@/stores/cartStore";
 import { ShopHeader } from "@/components/shop/ShopHeader";
 import { ShopLayout } from "@/components/shop/ShopLayout";
+import { useWidgetControl } from "@/components/shop/ShopLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ShoppingBag, Minus, Plus } from "lucide-react";
+import { ArrowLeft, ShoppingBag, Minus, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { RecommendedOutfits } from "@/components/shop/RecommendedOutfits";
 
@@ -20,6 +21,7 @@ const ProductDetail = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   
   const addItem = useCartStore(state => state.addItem);
+  const { buildOutfitAround } = useWidgetControl();
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -224,16 +226,27 @@ const ProductDetail = () => {
                 </div>
               </div>
               
-              {/* Add to Cart */}
-              <Button 
-                onClick={handleAddToCart}
-                size="lg"
-                className="w-full"
-                disabled={!selectedVariant?.availableForSale}
-              >
-                <ShoppingBag className="h-5 w-5 mr-2" />
-                {selectedVariant?.availableForSale ? "Add to Cart" : "Out of Stock"}
-              </Button>
+              {/* Add to Cart & Build Outfit */}
+              <div className="flex gap-3">
+                <Button 
+                  onClick={handleAddToCart}
+                  size="lg"
+                  className="flex-1"
+                  disabled={!selectedVariant?.availableForSale}
+                >
+                  <ShoppingBag className="h-5 w-5 mr-2" />
+                  {selectedVariant?.availableForSale ? "Add to Cart" : "Out of Stock"}
+                </Button>
+                <Button
+                  onClick={() => product && buildOutfitAround(product.id, product.title)}
+                  variant="secondary"
+                  size="lg"
+                  className="gap-2"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  Build Outfit
+                </Button>
+              </div>
             </div>
           </div>
 
