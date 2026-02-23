@@ -1,43 +1,49 @@
 
-# Build Outfit Around a Product from the Widget
+# Fix: Widget Not Using Selected Product + Same Outfits Every Time
 
-## Overview
-When a customer clicks a product (on the grid or detail page), a "Build Outfit" button will open the STYLYS widget on the Outfits tab, pre-loaded with outfits generated around that specific product as the anchor.
+## Problems Found
 
-## How It Works
+1. **Anchor product not working**: When you click "Style Me" on a product, the product's Shopify ID (e.g. `gid://shopify/Product/9076521566420`) is sent to the backend, but the backend searches by its own internal UUID. They never match, so the anchor is silently ignored.
 
-1. **Extend the ShopLayout context** to expose a `buildOutfitAround(productId, productName)` function alongside the existing `openAccountTab`
-2. **Add a "Build Outfit" button** on `ProductCard` (appears on hover next to "Add to Cart") and on `ProductDetail` (next to the main "Add to Cart" button)
-3. **Pass anchor product info through** `ShopLayout` -> `CustomerWidget` -> `OutfitsTab` via new props
-4. **Update `OutfitsTab`** to accept an optional `anchorProductId` and pass it to the `widget-outfits/generate` endpoint (which already supports it)
+2. **Same outfits every time**: The AI call doesn't include any randomness, so the model returns identical results on every request.
 
-## Technical Details
+## Solution
 
-### File: `src/components/shop/ShopLayout.tsx`
-- Extend `WidgetControl` interface to include `buildOutfitAround: (productId: string, productName: string) => void`
-- Add state for `anchorProductId` and `anchorProductName`
-- When called: set anchor state, switch widget tab to "outfits", open widget
-- Pass `anchorProductId` to `CustomerWidget` as a new prop
-- Clear anchor when widget closes
+### 1. Fix anchor product matching (Edge Function)
+**File: `supabase/functions/widget-outfits/index.ts`**
 
-### File: `src/components/widget/CustomerWidget.tsx`
-- Accept new `anchorProductId?: string` prop
-- Pass it through to `OutfitsTab`
+Update the generate endpoint to match anchor products by `shopify_product_id` (the numeric Shopify ID) when the incoming ID looks like a Shopify GID, in addition to the existing UUID match:
 
-### File: `src/components/widget/tabs/OutfitsTab.tsx`
-- Accept new `anchorProductId?: string` prop
-- Pass `anchor_product_id` in the `widget-outfits/generate` request body (already supported by the edge function)
-- When `anchorProductId` changes, re-fetch outfits automatically
-- Show a banner like "Outfits built around [product name]" with a clear/reset button
+```text
+Before:  const anchorProduct = anchor_product_id ? products.find(p => p.id === anchor_product_id) : null;
 
-### File: `src/components/shop/ProductCard.tsx`
-- Add a "Style Me" sparkle button on hover (alongside "Add to Cart")
-- On click: call `buildOutfitAround(productId, productTitle)` from the `WidgetControl` context
-- The product ID used will be the Shopify node ID mapped back to the products table
+After:   Match by UUID first, then by shopify_product_id extracted from the GID
+```
 
-### File: `src/pages/ProductDetail.tsx`
-- Add a "Build Outfit" button near the existing "Add to Cart" button
-- Uses same `buildOutfitAround` context call
+Also add `shopify_product_id` to the SELECT query so it's available for matching.
 
-### Edge Function: No changes needed
-The `widget-outfits/generate` endpoint already accepts `anchor_product_id` and includes the anchor product in all generated outfits.
+### 2. Add variation to AI responses (Edge Function)
+**File: `supabase/functions/widget-outfits/index.ts`**
+
+- Set `temperature: 1.2` in the AI request body for more creative/varied output
+- Add a random seed phrase to the user prompt (e.g. `"Variation seed: [random UUID]"`) to break caching and force distinct results each time
+
+### 3. Pass Shopify product ID from the storefront (Frontend)
+**File: `src/components/shop/ProductCard.tsx`**
+
+The `node.id` from Shopify Storefront API is a GID like `gid://shopify/Product/9076521566420`. This is fine to pass -- the edge function will extract the numeric part and match against `shopify_product_id` in the products table.
+
+No change needed here; the fix is entirely backend-side.
+
+### 4. Same fix for ProductDetail page
+**File: `src/pages/ProductDetail.tsx`**
+
+Same situation -- the product `id` from Storefront API is already a Shopify GID. No frontend changes needed.
+
+## Summary of Changes
+
+| File | Change |
+|------|--------|
+| `supabase/functions/widget-outfits/index.ts` | Add `shopify_product_id` to SELECT; match anchor by Shopify GID; add `temperature: 1.2` and random seed to AI prompt |
+
+Only one file needs to change. The fix is entirely in the edge function.
