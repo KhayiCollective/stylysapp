@@ -51,7 +51,7 @@ serve(async (req) => {
       // Fetch products for this brand
       const { data: products, error: prodErr } = await supabase
         .from("products")
-        .select("id, name, price, image_url, category, color, fit, shopify_variant_id")
+        .select("id, name, price, image_url, category, color, fit, shopify_variant_id, shopify_product_id")
         .eq("brand_id", brand_id)
         .eq("inventory_status", "in_stock")
         .limit(30);
@@ -63,7 +63,17 @@ serve(async (req) => {
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) return json({ error: "AI service not configured" }, 500);
 
-      const anchorProduct = anchor_product_id ? products.find(p => p.id === anchor_product_id) : null;
+      // Match anchor by UUID first, then by Shopify GID
+      let anchorProduct: any = null;
+      if (anchor_product_id) {
+        anchorProduct = products.find(p => p.id === anchor_product_id);
+        if (!anchorProduct && anchor_product_id.includes("gid://")) {
+          const numericId = anchor_product_id.split("/").pop();
+          if (numericId) {
+            anchorProduct = products.find(p => p.shopify_product_id === numericId);
+          }
+        }
+      }
       const productCatalog = products.map(p => ({
         id: p.id, name: p.name, category: p.category, color: p.color || "unknown"
       }));
@@ -79,7 +89,8 @@ Return exactly 3 outfits. Only valid JSON, no other text.`;
 
       const userPrompt = `Create 3 outfit combinations:\nPRODUCTS:\n${JSON.stringify(productCatalog, null, 2)}
 ${anchorProduct ? `\nANCHOR (must include): ${anchorProduct.name} (${anchorProduct.category})` : ""}
-${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}`;
+${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}
+\nVariation seed: ${crypto.randomUUID()}`;
 
       const aiMessages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
       const models = ["google/gemini-2.5-flash", "openai/gpt-5-nano", "google/gemini-2.5-flash-lite"];
@@ -89,7 +100,7 @@ ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}`
         const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model, messages: aiMessages }),
+          body: JSON.stringify({ model, messages: aiMessages, temperature: 1.2 }),
         });
 
         if (aiResp.ok) {
