@@ -85,11 +85,15 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
     setWidgetOpen(true);
   };
 
+  const handleClearAnchor = () => {
+    setAnchorProductId(undefined);
+    setAnchorProductName(undefined);
+  };
+
   const handleWidgetOpenChange = (open: boolean) => {
     setWidgetOpen(open);
     if (!open) {
-      setAnchorProductId(undefined);
-      setAnchorProductName(undefined);
+      handleClearAnchor();
     }
   };
 
@@ -116,6 +120,7 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
           onTabChange={setWidgetTab}
           anchorProductId={anchorProductId}
           anchorProductName={anchorProductName}
+          onClearAnchor={handleClearAnchor}
         />
       </div>
     </WidgetControlContext.Provider>
