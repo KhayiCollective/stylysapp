@@ -55,6 +55,13 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // When widget opens, default to outfits tab for logged-in users
+  useEffect(() => {
+    if (open && isLoggedIn && activeTab === "account") {
+      setActiveTab("outfits");
+    }
+  }, [open]);
+
   const handleSelectOutfitForTryOn = (items: OutfitItem[]) => {
     setSelectedOutfitItems(items);
     setActiveTab("tryon");

@@ -60,6 +60,7 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>(initialSavedOutfits);
   const [widgetOpen, setWidgetOpen] = useState(false);
   const [widgetTab, setWidgetTab] = useState("outfits");
+  const isLoggedIn = !!localStorage.getItem("stylys_customer_token_cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7");
   const [anchorProductId, setAnchorProductId] = useState<string | undefined>();
   const [anchorProductName, setAnchorProductName] = useState<string | undefined>();
   const { toast } = useToast();
@@ -113,7 +114,7 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
         <StylingChatbot products={products} />
 
         <CustomerWidget
-          brandId="f7bfce23-f46a-4125-9fa8-e1bf4c7fd2bf"
+          brandId="cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7"
           externalOpen={widgetOpen}
           externalTab={widgetTab}
           onOpenChange={handleWidgetOpenChange}
