@@ -1,49 +1,76 @@
 
+# Make STYLYS Live Inside Shopify Admin (Embedded OAuth Flow)
 
-# Fix: Style Me Button, Anchor Product, and Default Tab
+## Problem
+Currently, when a merchant opens STYLYS from the Shopify Admin sidebar, the "Connect Store" button opens a **new browser tab** for the OAuth flow. After connecting, the merchant is redirected to the standalone dashboard instead of returning to the embedded app inside Shopify Admin.
 
-## Three Issues Found
+## Solution
+Redirect the **entire Shopify Admin page** (top-level window) through the OAuth flow, and after successful connection, redirect back into the Shopify Admin embedded app -- so the merchant never leaves Shopify.
 
-### Issue 1: "Build Outfit" button does nothing on Product Detail page
-**Root cause**: In `ProductDetail.tsx`, `useWidgetControl()` is called at line 24 *outside* the `WidgetControlContext.Provider` which lives inside `ShopLayout`. React context only works for components *inside* the provider, but `ProductDetail` is the parent that renders `ShopLayout`. So `buildOutfitAround` is the default no-op function `() => {}`.
+## Changes
 
-**Fix**: Extract the product detail content into a separate inner component (`ProductDetailContent`) rendered as a child of `ShopLayout`, so it's inside the context provider.
+### 1. EmbeddedConnectionRequired - Redirect top-level window instead of opening new tab
+**File:** `src/components/embedded/EmbeddedConnectionRequired.tsx`
 
-```text
-Before:
-  ProductDetail (calls useWidgetControl -- OUTSIDE provider)
-    ShopLayout (provides context)
-      content
+Instead of `window.open(connectUrl, '_blank')`, initiate the OAuth flow by redirecting the top-level window directly to the Shopify OAuth authorize URL via the edge function. This way:
+- The merchant stays in a single browser flow
+- After Shopify grants permission, the callback redirects them back to the embedded app
 
-After:
-  ProductDetail
-    ShopLayout (provides context)
-      ProductDetailContent (calls useWidgetControl -- INSIDE provider)
-```
+The "Connect Store" button will:
+1. Call the `shopify-oauth?action=authorize` edge function with the shop domain
+2. Set `window.top.location.href` to the returned Shopify OAuth URL (escaping the iframe)
+3. Include `embedded=true` in the OAuth state so the callback knows to redirect back to the embedded context
 
-### Issue 2: Widget generates outfits but ignores the selected product
-**Root cause**: The widget hardcodes `brandId="f7bfce23-f46a-4125-9fa8-e1bf4c7fd2bf"` (Haus of Khayi) but all 295 products in the database are under brand `cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7` (STYLYS APP). The edge function can't find ANY products for the wrong brand, so either it returns nothing or falls back incorrectly. Even if it did find products, the anchor matching would fail because there's no product under that brand to match against.
+### 2. ShopifyConnect callback - Redirect back to Shopify Admin
+**File:** `src/pages/ShopifyConnect.tsx`
 
-**Fix**: Update `ShopLayout.tsx` to use the correct brand ID `cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7` for the `CustomerWidget`.
+After a successful OAuth callback with `embedded=true` in the state:
+- Instead of navigating to `/embedded?shop=...` (which won't work outside the iframe), redirect to the Shopify Admin app URL: `https://{shop}/admin/apps/stylys`
+- This reopens STYLYS inside Shopify Admin where it will now pass verification
 
-### Issue 3: Widget opens to Account tab instead of Outfits tab
-**Root cause**: `ShopLayout` always passes `externalTab={widgetTab}` to `CustomerWidget`, which defaults to `"outfits"`. However, the `CustomerWidget`'s `activeTab` uses `externalTab ?? internalTab` -- since `externalTab` is always provided (never `undefined`), it always overrides. This should actually work correctly. But the widget's tab state in `ShopLayout` is initialized once; if at any point `setWidgetTab("account")` was called (via `openAccountTab`), it stays on `"account"` until explicitly changed.
+### 3. EmbeddedApp - Auto-initiate OAuth for unconnected stores
+**File:** `src/pages/EmbeddedApp.tsx`
 
-**Fix**: When the widget opens (either via the side button or programmatically), ensure `widgetTab` defaults to `"outfits"` for logged-in users. Update `CustomerWidget` so that when it opens and the user is logged in, it resets to the outfits tab unless an explicit tab override was requested (like from `buildOutfitAround`).
+When `needsConnection` is detected and a `shop` param is present:
+- Instead of showing the static "Connection Required" screen, automatically redirect to the OAuth flow (top-level) so the merchant doesn't need an extra click
+- Keep the manual UI as a fallback
+
+### 4. shopify-oauth edge function - Accept brand auto-creation for embedded flow
+**File:** `supabase/functions/shopify-oauth/index.ts`
+
+Add a new `action=embedded-authorize` endpoint that:
+- Takes `shop` domain and `host` param
+- Looks up or creates a brand record for the shop
+- Returns the OAuth authorize URL with the correct state (brand_id + embedded flag)
+- This eliminates the need for the merchant to sign in to STYLYS separately before connecting
 
 ---
 
-## Files to Change
+## Technical Details
 
-### 1. `src/pages/ProductDetail.tsx`
-- Move all product detail logic into a new `ProductDetailContent` inner component
-- `ProductDetail` just renders `<ShopLayout><ProductDetailContent /></ShopLayout>`
-- `ProductDetailContent` calls `useWidgetControl()` inside the provider
+### OAuth flow (current vs. new)
 
-### 2. `src/components/shop/ShopLayout.tsx`
-- Change hardcoded brand ID from `f7bfce23-f46a-4125-9fa8-e1bf4c7fd2bf` to `cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7`
-- When widget opens via the side button (not via `buildOutfitAround` or `openAccountTab`), default `widgetTab` to `"outfits"` if user is logged in
+**Current flow:**
+```text
+Shopify Admin -> /embedded -> "Connection Required" screen
+  -> Opens new tab to /connect-shopify
+  -> Merchant signs in, enters store URL, clicks Connect
+  -> New tab redirects to Shopify OAuth -> callback to /connect-shopify
+  -> Redirects to /dashboard (standalone)
+```
 
-### 3. `src/components/widget/CustomerWidget.tsx`
-- Add a `useEffect` that resets `activeTab` to `"outfits"` when the widget opens and the user is logged in (unless a specific tab was set externally, like from `buildOutfitAround`)
+**New flow:**
+```text
+Shopify Admin -> /embedded -> Detects unconnected store
+  -> Redirects top-level window to Shopify OAuth (via edge function)
+  -> Shopify OAuth callback -> /connect-shopify processes tokens
+  -> Redirects to https://{shop}/admin/apps/stylys
+  -> STYLYS loads embedded, store is now verified
+```
 
+### Key implementation details
+- Use `window.top.location.href` to break out of the Shopify Admin iframe for OAuth
+- The Shopify Partner app's redirect URI (`https://stylysapp.lovable.app/connect-shopify`) stays the same
+- The OAuth state payload gets an `embedded: true` flag and the `shop` domain so the callback knows where to redirect
+- The `EmbeddedConnectionRequired` component gets a direct OAuth initiation flow (calls the edge function, then redirects) rather than linking to the standalone connect page
+- A new `embedded-authorize` action on the edge function handles brand lookup/creation without requiring Supabase auth, since the merchant may not have a STYLYS account yet
