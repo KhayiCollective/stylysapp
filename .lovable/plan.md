@@ -1,76 +1,39 @@
 
-# Make STYLYS Live Inside Shopify Admin (Embedded OAuth Flow)
+# Fix: Double OAuth Callback Execution
 
 ## Problem
-Currently, when a merchant opens STYLYS from the Shopify Admin sidebar, the "Connect Store" button opens a **new browser tab** for the OAuth flow. After connecting, the merchant is redirected to the standalone dashboard instead of returning to the embedded app inside Shopify Admin.
+The edge function logs show the OAuth callback being called twice in rapid succession:
+- First call succeeds (storefront token created, connection saved, webhooks registered)
+- Second call fails with "The authorization code was not found or was already used"
+
+This happens because the `useEffect` in `ShopifyConnect.tsx` that detects the `code`, `shop`, and `state` URL parameters runs twice (React StrictMode double-invocation or component re-render), sending the authorization code to the backend twice. Shopify authorization codes are single-use, so the second attempt always fails -- and since the second result overwrites the first, the user sees an error even though the connection actually succeeded.
 
 ## Solution
-Redirect the **entire Shopify Admin page** (top-level window) through the OAuth flow, and after successful connection, redirect back into the Shopify Admin embedded app -- so the merchant never leaves Shopify.
 
-## Changes
-
-### 1. EmbeddedConnectionRequired - Redirect top-level window instead of opening new tab
-**File:** `src/components/embedded/EmbeddedConnectionRequired.tsx`
-
-Instead of `window.open(connectUrl, '_blank')`, initiate the OAuth flow by redirecting the top-level window directly to the Shopify OAuth authorize URL via the edge function. This way:
-- The merchant stays in a single browser flow
-- After Shopify grants permission, the callback redirects them back to the embedded app
-
-The "Connect Store" button will:
-1. Call the `shopify-oauth?action=authorize` edge function with the shop domain
-2. Set `window.top.location.href` to the returned Shopify OAuth URL (escaping the iframe)
-3. Include `embedded=true` in the OAuth state so the callback knows to redirect back to the embedded context
-
-### 2. ShopifyConnect callback - Redirect back to Shopify Admin
+### 1. Add a processing guard ref in ShopifyConnect.tsx
 **File:** `src/pages/ShopifyConnect.tsx`
 
-After a successful OAuth callback with `embedded=true` in the state:
-- Instead of navigating to `/embedded?shop=...` (which won't work outside the iframe), redirect to the Shopify Admin app URL: `https://{shop}/admin/apps/stylys`
-- This reopens STYLYS inside Shopify Admin where it will now pass verification
+Add a `useRef` flag (`callbackProcessed`) that is set to `true` the first time the OAuth callback is detected. On subsequent effect runs, the flag prevents re-processing. This is the standard React pattern for preventing double-execution of one-time side effects.
 
-### 3. EmbeddedApp - Auto-initiate OAuth for unconnected stores
-**File:** `src/pages/EmbeddedApp.tsx`
+### 2. Skip the health check before the callback
+**File:** `src/pages/ShopifyConnect.tsx`
 
-When `needsConnection` is detected and a `shop` param is present:
-- Instead of showing the static "Connection Required" screen, automatically redirect to the OAuth flow (top-level) so the merchant doesn't need an extra click
-- Keep the manual UI as a fallback
+The current flow calls `checkEdgeFunctionHealth()` before `shopify-oauth?action=callback`. This adds an extra network round-trip and delays the callback, but more importantly, the health check itself is what triggers another boot of the edge function, contributing to timing issues. Remove the health check from the callback path -- if the callback fails, the error will be shown anyway.
 
-### 4. shopify-oauth edge function - Accept brand auto-creation for embedded flow
-**File:** `supabase/functions/shopify-oauth/index.ts`
+### 3. Immediately clear URL parameters
+**File:** `src/pages/ShopifyConnect.tsx`
 
-Add a new `action=embedded-authorize` endpoint that:
-- Takes `shop` domain and `host` param
-- Looks up or creates a brand record for the shop
-- Returns the OAuth authorize URL with the correct state (brand_id + embedded flag)
-- This eliminates the need for the merchant to sign in to STYLYS separately before connecting
+Move the `window.history.replaceState({}, '', '/connect-shopify')` call to happen immediately when the callback is detected (before making the API call), not after success. This prevents the browser from re-triggering the effect with the same URL parameters if the component re-renders.
 
 ---
 
 ## Technical Details
 
-### OAuth flow (current vs. new)
+Changes are limited to `src/pages/ShopifyConnect.tsx`:
 
-**Current flow:**
-```text
-Shopify Admin -> /embedded -> "Connection Required" screen
-  -> Opens new tab to /connect-shopify
-  -> Merchant signs in, enters store URL, clicks Connect
-  -> New tab redirects to Shopify OAuth -> callback to /connect-shopify
-  -> Redirects to /dashboard (standalone)
-```
+1. Add `import { useRef }` and create `const callbackProcessed = useRef(false)`
+2. At the top of the callback detection block (around line 114), add: `if (callbackProcessed.current) return; callbackProcessed.current = true;`
+3. Move `window.history.replaceState({}, '', '/connect-shopify')` from line 159 to right after setting `callbackProcessed.current = true`
+4. Remove the `checkEdgeFunctionHealth()` call from the callback processing path (lines 134-138)
 
-**New flow:**
-```text
-Shopify Admin -> /embedded -> Detects unconnected store
-  -> Redirects top-level window to Shopify OAuth (via edge function)
-  -> Shopify OAuth callback -> /connect-shopify processes tokens
-  -> Redirects to https://{shop}/admin/apps/stylys
-  -> STYLYS loads embedded, store is now verified
-```
-
-### Key implementation details
-- Use `window.top.location.href` to break out of the Shopify Admin iframe for OAuth
-- The Shopify Partner app's redirect URI (`https://stylysapp.lovable.app/connect-shopify`) stays the same
-- The OAuth state payload gets an `embedded: true` flag and the `shop` domain so the callback knows where to redirect
-- The `EmbeddedConnectionRequired` component gets a direct OAuth initiation flow (calls the edge function, then redirects) rather than linking to the standalone connect page
-- A new `embedded-authorize` action on the edge function handles brand lookup/creation without requiring Supabase auth, since the merchant may not have a STYLYS account yet
+No edge function changes are needed -- the backend is working correctly; the problem is purely that the frontend sends the request twice.
