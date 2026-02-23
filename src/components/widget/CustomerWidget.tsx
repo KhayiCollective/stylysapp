@@ -31,7 +31,8 @@ interface CustomerWidgetProps {
 
 export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChange, onTabChange, anchorProductId, anchorProductName, onClearAnchor }: CustomerWidgetProps) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const [internalTab, setInternalTab] = useState("account");
+  const isLoggedIn = !!localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
+  const [internalTab, setInternalTab] = useState(isLoggedIn ? "outfits" : "account");
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
   const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
   const [customerToken, setCustomerToken] = useState<string | null>(null);
