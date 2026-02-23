@@ -4,12 +4,13 @@ import { SavedOutfitsWidget } from "./SavedOutfitsWidget";
 import { CustomerWidget } from "../widget/CustomerWidget";
 import { useToast } from "@/hooks/use-toast";
 
-// Context to allow ShopHeader to open the widget's Account tab
+// Context to allow ShopHeader and ProductCard to control the widget
 interface WidgetControl {
   openAccountTab: () => void;
+  buildOutfitAround: (productId: string, productName: string) => void;
 }
 
-const WidgetControlContext = createContext<WidgetControl>({ openAccountTab: () => {} });
+const WidgetControlContext = createContext<WidgetControl>({ openAccountTab: () => {}, buildOutfitAround: () => {} });
 export const useWidgetControl = () => useContext(WidgetControlContext);
 
 interface OutfitItem {
@@ -59,6 +60,8 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>(initialSavedOutfits);
   const [widgetOpen, setWidgetOpen] = useState(false);
   const [widgetTab, setWidgetTab] = useState("outfits");
+  const [anchorProductId, setAnchorProductId] = useState<string | undefined>();
+  const [anchorProductName, setAnchorProductName] = useState<string | undefined>();
   const { toast } = useToast();
 
   const handleRemoveOutfit = (outfitId: string) => {
@@ -75,8 +78,23 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
     setWidgetOpen(true);
   };
 
+  const buildOutfitAround = (productId: string, productName: string) => {
+    setAnchorProductId(productId);
+    setAnchorProductName(productName);
+    setWidgetTab("outfits");
+    setWidgetOpen(true);
+  };
+
+  const handleWidgetOpenChange = (open: boolean) => {
+    setWidgetOpen(open);
+    if (!open) {
+      setAnchorProductId(undefined);
+      setAnchorProductName(undefined);
+    }
+  };
+
   return (
-    <WidgetControlContext.Provider value={{ openAccountTab }}>
+    <WidgetControlContext.Provider value={{ openAccountTab, buildOutfitAround }}>
       <div className="relative min-h-screen">
         {children}
         
@@ -94,8 +112,10 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
           brandId="f7bfce23-f46a-4125-9fa8-e1bf4c7fd2bf"
           externalOpen={widgetOpen}
           externalTab={widgetTab}
-          onOpenChange={setWidgetOpen}
+          onOpenChange={handleWidgetOpenChange}
           onTabChange={setWidgetTab}
+          anchorProductId={anchorProductId}
+          anchorProductName={anchorProductName}
         />
       </div>
     </WidgetControlContext.Provider>

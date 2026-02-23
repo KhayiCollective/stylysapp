@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { ShopifyProduct, formatPrice } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
+import { useWidgetControl } from "./ShopLayout";
 import { Button } from "@/components/ui/button";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProductCardProps {
@@ -11,6 +12,7 @@ interface ProductCardProps {
 
 export const ProductCard = ({ product }: ProductCardProps) => {
   const addItem = useCartStore(state => state.addItem);
+  const { buildOutfitAround } = useWidgetControl();
   const { node } = product;
   
   const firstImage = node.images.edges[0]?.node;
@@ -38,6 +40,12 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     });
   };
 
+  const handleBuildOutfit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    buildOutfitAround(node.id, node.title);
+  };
+
   return (
     <Link 
       to={`/shop/product/${node.handle}`}
@@ -56,15 +64,24 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
         )}
         
-        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="absolute inset-x-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
+          <Button 
+            onClick={handleBuildOutfit}
+            variant="secondary"
+            size="sm"
+            className="flex-1 gap-1"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Style Me
+          </Button>
           <Button 
             onClick={handleAddToCart}
-            className="w-full"
             size="sm"
+            className="flex-1"
             disabled={!firstVariant?.availableForSale}
           >
-            <ShoppingBag className="w-4 h-4 mr-2" />
-            {firstVariant?.availableForSale ? "Add to Cart" : "Out of Stock"}
+            <ShoppingBag className="w-4 h-4 mr-1" />
+            {firstVariant?.availableForSale ? "Add" : "Out"}
           </Button>
         </div>
       </div>

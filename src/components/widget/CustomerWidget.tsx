@@ -24,9 +24,11 @@ interface CustomerWidgetProps {
   externalTab?: string;
   onOpenChange?: (open: boolean) => void;
   onTabChange?: (tab: string) => void;
+  anchorProductId?: string;
+  anchorProductName?: string;
 }
 
-export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChange, onTabChange }: CustomerWidgetProps) {
+export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChange, onTabChange, anchorProductId, anchorProductName }: CustomerWidgetProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [internalTab, setInternalTab] = useState("account");
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
@@ -138,7 +140,7 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
                 <StyleQuizTab brandId={brandId} onComplete={() => setActiveTab("outfits")} />
               </TabsContent>
               <TabsContent value="outfits" className="m-0 h-full">
-                <OutfitsTab brandId={brandId} onSelectOutfitForTryOn={handleSelectOutfitForTryOn} />
+                <OutfitsTab brandId={brandId} onSelectOutfitForTryOn={handleSelectOutfitForTryOn} anchorProductId={anchorProductId} anchorProductName={anchorProductName} />
               </TabsContent>
               <TabsContent value="wishlist" className="m-0 h-full">
                 <WishlistTab brandId={brandId} />

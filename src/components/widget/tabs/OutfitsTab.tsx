@@ -27,6 +27,8 @@ interface Outfit {
 interface OutfitsTabProps {
   brandId?: string;
   onSelectOutfitForTryOn?: (items: { name: string; imageUrl: string; category: string }[]) => void;
+  anchorProductId?: string;
+  anchorProductName?: string;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -35,7 +37,7 @@ function getToken(brandId?: string) {
   return localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
 }
 
-export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps) {
+export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName }: OutfitsTabProps) {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -67,14 +69,14 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
       let resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
+        body: JSON.stringify({ brand_id: brandId, rules: compositionRules, anchor_product_id: anchorProductId }),
       });
       if (!resp.ok && resp.status >= 500) {
         await new Promise(r => setTimeout(r, 1500));
         resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-          body: JSON.stringify({ brand_id: brandId, rules: compositionRules }),
+          body: JSON.stringify({ brand_id: brandId, rules: compositionRules, anchor_product_id: anchorProductId }),
         });
       }
       const data = await resp.json();
@@ -98,7 +100,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
     }
   };
 
-  useEffect(() => { fetchOutfits(); }, [brandId]);
+  useEffect(() => { fetchOutfits(); }, [brandId, anchorProductId]);
 
   const toggleSave = async (outfit: Outfit) => {
     const token = getToken(brandId);
@@ -212,6 +214,12 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn }: OutfitsTabProps)
 
   return (
     <div className="p-4 space-y-4">
+      {anchorProductName && (
+        <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-lg px-3 py-2">
+          <Sparkles className="h-4 w-4 shrink-0" />
+          <span className="text-xs font-medium flex-1">Outfits built around <strong>{anchorProductName}</strong></span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-base">Your Outfits</h3>
