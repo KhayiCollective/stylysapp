@@ -29,6 +29,7 @@ interface OutfitsTabProps {
   onSelectOutfitForTryOn?: (items: { name: string; imageUrl: string; category: string }[]) => void;
   anchorProductId?: string;
   anchorProductName?: string;
+  onClearAnchor?: () => void;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -37,7 +38,7 @@ function getToken(brandId?: string) {
   return localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
 }
 
-export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName }: OutfitsTabProps) {
+export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName, onClearAnchor }: OutfitsTabProps) {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -218,6 +219,12 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
         <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-lg px-3 py-2">
           <Sparkles className="h-4 w-4 shrink-0" />
           <span className="text-xs font-medium flex-1">Outfits built around <strong>{anchorProductName}</strong></span>
+          <button
+            onClick={onClearAnchor}
+            className="text-[10px] font-medium text-primary/70 hover:text-primary underline shrink-0"
+          >
+            Clear
+          </button>
         </div>
       )}
       <div className="flex items-center justify-between">
