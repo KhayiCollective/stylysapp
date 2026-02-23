@@ -1,49 +1,49 @@
 
-# Fix: Widget Not Using Selected Product + Same Outfits Every Time
 
-## Problems Found
+# Fix: Style Me Button, Anchor Product, and Default Tab
 
-1. **Anchor product not working**: When you click "Style Me" on a product, the product's Shopify ID (e.g. `gid://shopify/Product/9076521566420`) is sent to the backend, but the backend searches by its own internal UUID. They never match, so the anchor is silently ignored.
+## Three Issues Found
 
-2. **Same outfits every time**: The AI call doesn't include any randomness, so the model returns identical results on every request.
+### Issue 1: "Build Outfit" button does nothing on Product Detail page
+**Root cause**: In `ProductDetail.tsx`, `useWidgetControl()` is called at line 24 *outside* the `WidgetControlContext.Provider` which lives inside `ShopLayout`. React context only works for components *inside* the provider, but `ProductDetail` is the parent that renders `ShopLayout`. So `buildOutfitAround` is the default no-op function `() => {}`.
 
-## Solution
-
-### 1. Fix anchor product matching (Edge Function)
-**File: `supabase/functions/widget-outfits/index.ts`**
-
-Update the generate endpoint to match anchor products by `shopify_product_id` (the numeric Shopify ID) when the incoming ID looks like a Shopify GID, in addition to the existing UUID match:
+**Fix**: Extract the product detail content into a separate inner component (`ProductDetailContent`) rendered as a child of `ShopLayout`, so it's inside the context provider.
 
 ```text
-Before:  const anchorProduct = anchor_product_id ? products.find(p => p.id === anchor_product_id) : null;
+Before:
+  ProductDetail (calls useWidgetControl -- OUTSIDE provider)
+    ShopLayout (provides context)
+      content
 
-After:   Match by UUID first, then by shopify_product_id extracted from the GID
+After:
+  ProductDetail
+    ShopLayout (provides context)
+      ProductDetailContent (calls useWidgetControl -- INSIDE provider)
 ```
 
-Also add `shopify_product_id` to the SELECT query so it's available for matching.
+### Issue 2: Widget generates outfits but ignores the selected product
+**Root cause**: The widget hardcodes `brandId="f7bfce23-f46a-4125-9fa8-e1bf4c7fd2bf"` (Haus of Khayi) but all 295 products in the database are under brand `cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7` (STYLYS APP). The edge function can't find ANY products for the wrong brand, so either it returns nothing or falls back incorrectly. Even if it did find products, the anchor matching would fail because there's no product under that brand to match against.
 
-### 2. Add variation to AI responses (Edge Function)
-**File: `supabase/functions/widget-outfits/index.ts`**
+**Fix**: Update `ShopLayout.tsx` to use the correct brand ID `cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7` for the `CustomerWidget`.
 
-- Set `temperature: 1.2` in the AI request body for more creative/varied output
-- Add a random seed phrase to the user prompt (e.g. `"Variation seed: [random UUID]"`) to break caching and force distinct results each time
+### Issue 3: Widget opens to Account tab instead of Outfits tab
+**Root cause**: `ShopLayout` always passes `externalTab={widgetTab}` to `CustomerWidget`, which defaults to `"outfits"`. However, the `CustomerWidget`'s `activeTab` uses `externalTab ?? internalTab` -- since `externalTab` is always provided (never `undefined`), it always overrides. This should actually work correctly. But the widget's tab state in `ShopLayout` is initialized once; if at any point `setWidgetTab("account")` was called (via `openAccountTab`), it stays on `"account"` until explicitly changed.
 
-### 3. Pass Shopify product ID from the storefront (Frontend)
-**File: `src/components/shop/ProductCard.tsx`**
+**Fix**: When the widget opens (either via the side button or programmatically), ensure `widgetTab` defaults to `"outfits"` for logged-in users. Update `CustomerWidget` so that when it opens and the user is logged in, it resets to the outfits tab unless an explicit tab override was requested (like from `buildOutfitAround`).
 
-The `node.id` from Shopify Storefront API is a GID like `gid://shopify/Product/9076521566420`. This is fine to pass -- the edge function will extract the numeric part and match against `shopify_product_id` in the products table.
+---
 
-No change needed here; the fix is entirely backend-side.
+## Files to Change
 
-### 4. Same fix for ProductDetail page
-**File: `src/pages/ProductDetail.tsx`**
+### 1. `src/pages/ProductDetail.tsx`
+- Move all product detail logic into a new `ProductDetailContent` inner component
+- `ProductDetail` just renders `<ShopLayout><ProductDetailContent /></ShopLayout>`
+- `ProductDetailContent` calls `useWidgetControl()` inside the provider
 
-Same situation -- the product `id` from Storefront API is already a Shopify GID. No frontend changes needed.
+### 2. `src/components/shop/ShopLayout.tsx`
+- Change hardcoded brand ID from `f7bfce23-f46a-4125-9fa8-e1bf4c7fd2bf` to `cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7`
+- When widget opens via the side button (not via `buildOutfitAround` or `openAccountTab`), default `widgetTab` to `"outfits"` if user is logged in
 
-## Summary of Changes
+### 3. `src/components/widget/CustomerWidget.tsx`
+- Add a `useEffect` that resets `activeTab` to `"outfits"` when the widget opens and the user is logged in (unless a specific tab was set externally, like from `buildOutfitAround`)
 
-| File | Change |
-|------|--------|
-| `supabase/functions/widget-outfits/index.ts` | Add `shopify_product_id` to SELECT; match anchor by Shopify GID; add `temperature: 1.2` and random seed to AI prompt |
-
-Only one file needs to change. The fix is entirely in the edge function.
