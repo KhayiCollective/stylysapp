@@ -141,7 +141,7 @@ export function StylingChatbot({ products = [] }: StylingChatbotProps) {
               <Sparkles className="h-5 w-5 text-accent" />
             </div>
             <div className="flex-1">
-              <SheetTitle className="text-primary-foreground text-left">Style Assistant</SheetTitle>
+              <SheetTitle className="text-primary-foreground text-left">Stylys</SheetTitle>
               <p className="text-xs text-primary-foreground/70">Ask me about outfits, colors, and trends</p>
             </div>
           </div>
