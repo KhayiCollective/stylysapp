@@ -70,6 +70,81 @@ Deno.serve(async (req) => {
       });
     }
 
+    // New embedded-authorize: auto-creates brand, returns OAuth URL with embedded flag
+    if (action === "embedded-authorize") {
+      const shop = url.searchParams.get("shop");
+
+      if (!shop) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.MISSING_PARAMS }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+      if (!shopRegex.test(shop)) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.INVALID_SHOP }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!SHOPIFY_CLIENT_ID) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.CONFIG_ERROR }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      // Look up existing brand by shop domain
+      const shopName = shop.replace('.myshopify.com', '');
+      const { data: existingBrand } = await supabase
+        .from("brands")
+        .select("id")
+        .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopName}%`)
+        .maybeSingle();
+
+      let brandId: string;
+
+      if (existingBrand) {
+        brandId = existingBrand.id;
+        console.log("[SHOPIFY-OAUTH] Found existing brand for embedded flow:", brandId);
+      } else {
+        // Auto-create a brand for this shop
+        const slug = `shop-${shopName}`;
+        const { data: newBrand, error: createError } = await supabase
+          .from("brands")
+          .insert({ name: shopName, slug, shopify_store_domain: shop })
+          .select("id")
+          .single();
+
+        if (createError || !newBrand) {
+          console.error("[SHOPIFY-OAUTH] Failed to create brand for embedded flow");
+          return new Response(
+            JSON.stringify({ error: CLIENT_ERRORS.SAVE_FAILED }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        brandId = newBrand.id;
+        console.log("[SHOPIFY-OAUTH] Created new brand for embedded flow:", brandId);
+      }
+
+      const statePayload = btoa(JSON.stringify({ brand_id: brandId, embedded: true, shop }));
+      const redirectUri = `https://stylysapp.lovable.app/connect-shopify`;
+
+      const authUrl = `https://${shop}/admin/oauth/authorize?` +
+        `client_id=${SHOPIFY_CLIENT_ID}&` +
+        `scope=${encodeURIComponent(SCOPES)}&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `state=${encodeURIComponent(statePayload)}`;
+
+      return new Response(JSON.stringify({ authUrl }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "authorize") {
       const shop = url.searchParams.get("shop");
       const redirectUri = url.searchParams.get("redirect_uri");
