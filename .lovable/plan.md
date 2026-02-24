@@ -1,66 +1,74 @@
 
 
-## Analysis
+## Problem
 
-After reviewing all the widget tab components and the backend functions, here are the five issues found:
+The current Shopify sync creates **one database row per variant** (every color + size combination). For example, "Ames Packable Straw Cowboy Hat" has 8 rows (2 colors × 4 sizes). This clutters the catalog and confuses the widget's outfit generation, which treats each size as a separate product.
 
-### 1. Customer session expires after 1 hour
-The JWT in `widget-customer-auth/index.ts` line 28 sets `exp: getNumericDate(60 * 60)` — only 1 hour. Customers get logged out quickly.
+The goal: **one product card per color**, with all size variants stored inside that card.
 
-### 2. Photo upload only exists in Try-On tab
-The customer photo upload is buried in the Try-On tab. It should also be accessible from the Account tab so customers can save their photo to their profile independently of try-on.
+## Current Data Example
 
-### 3. Customer photo not used during outfit generation
-The `widget-outfits/generate` endpoint doesn't receive or use the customer's style profile (preferences, sizing, body shape) when generating outfits. It only uses the product catalog.
+| name | shopify_product_id | shopify_variant_id |
+|------|------|------|
+| Ames Hat - Natural / XS 55 | 9341417455860 | 47688342175988 |
+| Ames Hat - Natural / S/M 57 | 9341417455860 | 47688342208756 |
+| Ames Hat - Natural / M/L 59 | 9341417455860 | 47688342241524 |
+| Ames Hat - Chocolate / XS 55 | 9341417455860 | 47688342307060 |
+| Ames Hat - Chocolate / S/M 57 | 9341417455860 | 47688342339828 |
 
-### 4. Style Quiz is identical to Account style preferences
-`StyleQuizTab.tsx` asks the exact same questions (style, colors, body shape, occasions) as the Account > Style Preferences sub-view. The quiz should ask **different**, session-specific questions (occasion for today, color mood, formality level, budget) while the Account tab keeps the persistent profile preferences.
-
-### 5. Quiz results not saved or used
-The quiz's `handleSubmit` only logs to console — it doesn't save answers to the backend or pass them to outfit generation.
-
----
+**After fix:** 2 rows instead of 8 — one for "Natural", one for "Chocolate" — each with a `variants_json` column holding all sizes.
 
 ## Plan
 
-### A. Extend JWT expiry to 30 days
-**File:** `supabase/functions/widget-customer-auth/index.ts`
-- Change `exp: getNumericDate(60 * 60)` → `exp: getNumericDate(30 * 24 * 60 * 60)` (30 days)
-- This keeps customers logged in across sessions
+### A. Add `variants_json` column to products table
+**Migration:** Add a nullable `jsonb` column `variants_json` to store size variants per product-color row.
 
-### B. Add photo upload to Account tab
-**File:** `src/components/widget/tabs/AccountTab.tsx`
-- Add a photo upload section in the logged-in home view (next to the user avatar area)
-- When uploaded, call the existing `widget-customer-auth/photo` endpoint
-- Display the saved photo as the user's avatar instead of the generic icon
+```sql
+ALTER TABLE products ADD COLUMN variants_json jsonb DEFAULT '[]'::jsonb;
+```
 
-### C. Redesign Style Quiz with different questions
-**File:** `src/components/widget/tabs/StyleQuizTab.tsx`
-- Remove the duplicate style/colors/body-shape/occasions questions
-- Replace with session-specific outfit discovery questions:
-  - **Step 1:** "What's the occasion?" (e.g., Work Meeting, Brunch, Date Night, Everyday, Special Event, Travel)
-  - **Step 2:** "What color mood are you feeling?" (Neutral & Earthy, Bold & Bright, Monochrome, Pastels, Dark & Moody)
-  - **Step 3:** "How dressed up?" (Casual, Smart Casual, Dressy, Formal) + comfort level slider
-  - **Step 4:** "Budget for this outfit?" (Under $100, $100-$250, $250-$500, No limit)
-- On submit, save quiz answers to the backend via `widget-customer-auth/profile` (as `quiz_answers` or similar) AND pass them directly to the Outfits tab
+The structure will be:
+```json
+[
+  { "variant_id": "47688342175988", "size": "XS 55", "price": "138.00", "available": true },
+  { "variant_id": "47688342208756", "size": "S/M 57", "price": "138.00", "available": true }
+]
+```
 
-### D. Pass customer profile + quiz answers into outfit generation
-**Files:** `src/components/widget/tabs/OutfitsTab.tsx`, `supabase/functions/widget-outfits/index.ts`
-- OutfitsTab: read customer token, fetch profile (or receive quiz answers from parent), send `style_preferences`, `body_shape`, `size_info`, `occasions`, and quiz session answers in the generate request
-- `widget-outfits/generate`: accept optional `customer_profile` and `quiz_session` in request body, inject them into the AI prompt so outfits are personalized to the customer's sizing, style, and current occasion/mood
+### B. Update Shopify sync to group by product + color
+**File:** `supabase/functions/shopify-product-sync/index.ts`
 
-### E. Wire photo + quiz flow through parent widget
-**Files:** `InlineCustomerWidget.tsx`, `CustomerWidget.tsx`
-- Pass quiz answers state from quiz tab → outfits tab so generation uses them
-- Pass the customer photo URL to the outfits tab header (cosmetic, shows who the outfits are for)
-- When quiz completes, auto-navigate to outfits tab with the quiz session data
+Currently the sync iterates `for (const variant of product.variants)` and inserts one row each. Change to:
+
+1. Fetch full product data from Shopify Admin API including `options` (to identify which option is Color vs Size)
+2. Group variants by their color option value (or by product if no color option exists)
+3. For each color group, insert/upsert **one** product row with:
+   - `name`: "Product Title - Color" (or just "Product Title" if single-color)
+   - `color`: extracted from variant option
+   - `shopify_variant_id`: first variant ID (for backward compat)
+   - `variants_json`: array of all size variants with their IDs, sizes, and prices
+   - `image_url`: color-specific image if available from Shopify, otherwise first image
+
+The Shopify Admin API already returns `options` on each product (e.g., `[{name: "Color", values: ["Natural","Chocolate"]}, {name: "Size", values: ["XS","S/M"]}]`) and each variant has `option1`, `option2`, `option3` — so we can identify the color vs size axis.
+
+### C. Update WooCommerce sync similarly
+**File:** `supabase/functions/woocommerce-product-sync/index.ts`
+
+Apply the same grouping logic for WooCommerce products that have color/size attributes.
+
+### D. Update catalog display to show variants
+**File:** `src/pages/Catalog.tsx`
+
+- Update the `Product` interface to include `variants_json`
+- Show a size count badge on each card (e.g., "4 sizes")
+- The card still shows one image, one price, one color — just as requested
+
+### E. Clean up existing duplicate rows
+After the sync logic is updated, re-running sync will consolidate existing per-variant rows into per-color rows. Old per-variant rows with matching `shopify_product_id` that are no longer needed will be cleaned up by the sync process (mark for deletion any rows whose `shopify_variant_id` doesn't match the new "primary" variant for that color group).
 
 ### Files Modified
-- `supabase/functions/widget-customer-auth/index.ts` — longer JWT expiry
-- `supabase/functions/widget-outfits/index.ts` — accept customer profile + quiz data in prompt
-- `src/components/widget/tabs/AccountTab.tsx` — add photo upload section
-- `src/components/widget/tabs/StyleQuizTab.tsx` — completely different questions
-- `src/components/widget/tabs/OutfitsTab.tsx` — pass profile data to generate call
-- `src/components/widget/InlineCustomerWidget.tsx` — wire quiz answers state
-- `src/components/widget/CustomerWidget.tsx` — wire quiz answers state
+- **Migration**: Add `variants_json` column to `products` table
+- `supabase/functions/shopify-product-sync/index.ts` — group variants by color, store sizes in `variants_json`
+- `supabase/functions/woocommerce-product-sync/index.ts` — same grouping logic
+- `src/pages/Catalog.tsx` — show variant count on product cards
 
