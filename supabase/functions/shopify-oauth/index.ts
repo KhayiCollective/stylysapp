@@ -311,6 +311,13 @@ Deno.serve(async (req) => {
       // Save tokens to database
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+      // Clear domain from any other brand to prevent unique constraint violation
+      await supabase
+        .from("brands")
+        .update({ shopify_store_domain: null })
+        .eq("shopify_store_domain", shop)
+        .neq("id", brandId);
+
       const updateData = {
         shopify_store_domain: shop,
         shopify_access_token: accessToken,
@@ -325,7 +332,7 @@ Deno.serve(async (req) => {
         .select();
 
       if (updateError) {
-        console.error("[SHOPIFY-OAUTH] Database update failed");
+        console.error("[SHOPIFY-OAUTH] Database update failed:", updateError.message, updateError.code);
         return new Response(
           JSON.stringify({ error: CLIENT_ERRORS.SAVE_FAILED }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
