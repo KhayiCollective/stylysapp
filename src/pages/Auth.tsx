@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, ArrowRight, Mail, Lock, User, Store } from 'lucide-react';
+import { Sparkles, ArrowRight, Mail, Lock, User, Store, CheckCircle, Crown } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { TIERS, TierKey } from '@/lib/tiers';
 
-type AuthView = 'login' | 'signup' | 'forgot';
+type AuthView = 'login' | 'signup' | 'forgot' | 'select-plan';
 
 export default function Auth() {
   const [view, setView] = useState<AuthView>('login');
@@ -55,14 +57,82 @@ export default function Auth() {
           const bootstrapResult = await bootstrap();
           if (!bootstrapResult.ok) console.warn('[Auth] Bootstrap warning:', bootstrapResult.error);
 
-          toast({ title: "Account created!", description: "Let's connect your Shopify store..." });
-          navigate('/connect-shopify');
+          toast({ title: "Account created!", description: "Choose your plan to get started." });
+          setView('select-plan');
         }
       }
     } finally {
       setLoading(false);
     }
   };
+  const handleSelectPlan = (plan: TierKey) => {
+    sessionStorage.setItem('selectedPlan', plan);
+    navigate(`/connect-shopify?plan=${plan}`);
+  };
+
+  // Plan selection screen
+  if (view === 'select-plan') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+              <CheckCircle className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="text-3xl font-display font-bold text-foreground">Choose Your Plan</h2>
+            <p className="mt-2 text-muted-foreground">
+              Start with a 3-day free trial. Cancel anytime.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {(Object.entries(TIERS) as [TierKey, typeof TIERS[TierKey]][]).map(([key, tier]) => (
+              <Card
+                key={key}
+                className={`relative cursor-pointer transition-all hover:border-primary/50 hover:shadow-lg ${
+                  key === 'professional' ? 'border-primary/30 ring-1 ring-primary/20' : ''
+                }`}
+                onClick={() => handleSelectPlan(key)}
+              >
+                {key === 'professional' && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
+                      <Crown className="w-3 h-3" /> Recommended
+                    </span>
+                  </div>
+                )}
+                <CardContent className="pt-6">
+                  <h3 className="text-xl font-display font-semibold">{tier.name}</h3>
+                  <div className="mt-2 mb-4">
+                    <span className="text-3xl font-display font-bold">{tier.price}</span>
+                    <span className="text-muted-foreground">/month</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">Up to {tier.maxProducts} products</p>
+                  <ul className="space-y-2 mb-6">
+                    {tier.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="w-4 h-4 text-primary shrink-0" />
+                        <span className="capitalize">{feature.replace(/_/g, ' ')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button className="w-full" variant={key === 'professional' ? 'default' : 'outline'}>
+                    Start Free Trial
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-6">
+            Your card will be charged after the 3-day trial ends. You can cancel anytime from your Shopify admin.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return <div className="min-h-screen bg-background flex">
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden">

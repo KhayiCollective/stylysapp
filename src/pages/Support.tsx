@@ -162,10 +162,10 @@ export default function Support() {
       {/* Header */}
       <header className="border-b border-border">
         <div className="container mx-auto px-4 py-4">
-          <Link to="/">
+         <Link to={user ? "/dashboard" : "/"}>
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
-              Back to Home
+              {user ? "Back to Dashboard" : "Back to Home"}
             </Button>
           </Link>
         </div>

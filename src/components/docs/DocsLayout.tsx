@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowLeft, BookOpen, Rocket, Store, Code, HelpCircle, Sparkles, Menu } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,8 @@ interface DocsLayoutProps {
 
 export function DocsLayout({ children, title, description }: DocsLayoutProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const homeLink = user ? "/dashboard" : "/";
 
   const Sidebar = () => (
     <nav className="space-y-1">
@@ -51,10 +54,10 @@ export function DocsLayout({ children, title, description }: DocsLayoutProps) {
       <header className="border-b border-border sticky top-0 bg-background/80 backdrop-blur-sm z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/">
+            <Link to={homeLink}>
               <Button variant="ghost" size="sm" className="gap-2">
                 <ArrowLeft className="w-4 h-4" />
-                Home
+                {user ? "Dashboard" : "Home"}
               </Button>
             </Link>
             <div className="hidden md:flex items-center gap-2">
