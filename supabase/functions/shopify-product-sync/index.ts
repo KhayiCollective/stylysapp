@@ -1,4 +1,3 @@
-// Using Deno.serve pattern
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
@@ -9,17 +8,24 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
+interface ShopifyVariant {
+  id: number;
+  price: string;
+  title: string;
+  option1: string | null;
+  option2: string | null;
+  option3: string | null;
+  inventory_quantity?: number;
+}
+
 interface ShopifyProduct {
   id: number;
   title: string;
   handle: string;
   product_type: string;
-  images: { src: string }[];
-  variants: {
-    id: number;
-    price: string;
-    title: string;
-  }[];
+  images: { src: string; variant_ids?: number[] }[];
+  variants: ShopifyVariant[];
+  options: { name: string; position: number; values: string[] }[];
 }
 
 interface ShopifyWebhook {
@@ -29,13 +35,101 @@ interface ShopifyWebhook {
   created_at: string;
 }
 
+const COLOR_OPTION_NAMES = ["color", "colour", "colors", "colours"];
+const SIZE_OPTION_NAMES = ["size", "sizes", "length", "width"];
+
+function identifyOptionAxes(options: ShopifyProduct["options"]) {
+  let colorOptionPosition: number | null = null;
+  let sizeOptionPosition: number | null = null;
+
+  for (const opt of options) {
+    const lower = opt.name.toLowerCase();
+    if (COLOR_OPTION_NAMES.includes(lower)) colorOptionPosition = opt.position;
+    else if (SIZE_OPTION_NAMES.includes(lower)) sizeOptionPosition = opt.position;
+  }
+
+  return { colorOptionPosition, sizeOptionPosition };
+}
+
+function getOptionValue(variant: ShopifyVariant, position: number): string {
+  if (position === 1) return variant.option1 || "";
+  if (position === 2) return variant.option2 || "";
+  if (position === 3) return variant.option3 || "";
+  return "";
+}
+
+interface ColorGroup {
+  color: string | null;
+  variants: { variant_id: string; size: string; price: string; available: boolean }[];
+  primaryVariantId: string;
+  price: number;
+  imageUrl: string | null;
+}
+
+function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
+  const { colorOptionPosition, sizeOptionPosition } = identifyOptionAxes(product.options);
+
+  // No color option → single group for entire product
+  if (!colorOptionPosition) {
+    const variants = product.variants.map((v) => ({
+      variant_id: String(v.id),
+      size: sizeOptionPosition ? getOptionValue(v, sizeOptionPosition) : v.title,
+      price: v.price,
+      available: true,
+    }));
+    return [{
+      color: null,
+      variants,
+      primaryVariantId: String(product.variants[0]?.id),
+      price: parseFloat(product.variants[0]?.price || "0"),
+      imageUrl: product.images[0]?.src || null,
+    }];
+  }
+
+  // Group by color
+  const groups: Record<string, ColorGroup> = {};
+
+  for (const variant of product.variants) {
+    const colorValue = getOptionValue(variant, colorOptionPosition);
+    const sizeValue = sizeOptionPosition
+      ? getOptionValue(variant, sizeOptionPosition)
+      : variant.title;
+
+    if (!groups[colorValue]) {
+      // Try to find a color-specific image
+      let imageUrl = product.images[0]?.src || null;
+      const variantImage = product.images.find(
+        (img) => img.variant_ids && img.variant_ids.includes(variant.id)
+      );
+      if (variantImage) imageUrl = variantImage.src;
+
+      groups[colorValue] = {
+        color: colorValue || null,
+        variants: [],
+        primaryVariantId: String(variant.id),
+        price: parseFloat(variant.price),
+        imageUrl,
+      };
+    }
+
+    groups[colorValue].variants.push({
+      variant_id: String(variant.id),
+      size: sizeValue,
+      price: variant.price,
+      available: true,
+    });
+  }
+
+  return Object.values(groups);
+}
+
 async function fetchAllProducts(shop: string, accessToken: string): Promise<ShopifyProduct[]> {
   const allProducts: ShopifyProduct[] = [];
   let nextUrl = `https://${shop}/admin/api/2025-01/products.json?limit=250`;
-  
+
   while (nextUrl) {
     console.log(`[PRODUCT-SYNC] Fetching products from: ${nextUrl.substring(0, 80)}...`);
-    
+
     const response = await fetch(nextUrl, {
       headers: {
         "X-Shopify-Access-Token": accessToken,
@@ -49,20 +143,17 @@ async function fetchAllProducts(shop: string, accessToken: string): Promise<Shop
 
     const data = await response.json();
     allProducts.push(...data.products);
-    
-    // Check for pagination via Link header
+
     const linkHeader = response.headers.get("Link");
     nextUrl = "";
     if (linkHeader) {
       const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
-      if (nextMatch) {
-        nextUrl = nextMatch[1];
-      }
+      if (nextMatch) nextUrl = nextMatch[1];
     }
-    
+
     console.log(`[PRODUCT-SYNC] Fetched ${data.products.length} products, total: ${allProducts.length}`);
   }
-  
+
   return allProducts;
 }
 
@@ -83,19 +174,10 @@ async function fetchWebhooks(shop: string, accessToken: string): Promise<Shopify
   return data.webhooks || [];
 }
 
-async function createSyncHistoryEntry(
-  supabase: any,
-  brandId: string,
-  syncType: string,
-  status: string = "in_progress"
-) {
+async function createSyncHistoryEntry(supabase: any, brandId: string, syncType: string) {
   const { data, error } = await supabase
     .from("sync_history")
-    .insert({
-      brand_id: brandId,
-      sync_type: syncType,
-      status,
-    })
+    .insert({ brand_id: brandId, sync_type: syncType, status: "in_progress" })
     .select("id")
     .single();
 
@@ -106,17 +188,7 @@ async function createSyncHistoryEntry(
   return data?.id;
 }
 
-async function updateSyncHistoryEntry(
-  supabase: any,
-  historyId: string,
-  updates: {
-    status?: string;
-    products_created?: number;
-    products_updated?: number;
-    products_deleted?: number;
-    error_message?: string;
-  }
-) {
+async function updateSyncHistoryEntry(supabase: any, historyId: string, updates: Record<string, any>) {
   const { error } = await supabase
     .from("sync_history")
     .update({
@@ -125,9 +197,7 @@ async function updateSyncHistoryEntry(
     })
     .eq("id", historyId);
 
-  if (error) {
-    console.error("Error updating sync history:", error);
-  }
+  if (error) console.error("Error updating sync history:", error);
 }
 
 Deno.serve(async (req) => {
@@ -137,7 +207,6 @@ Deno.serve(async (req) => {
 
   try {
     const { brand_id, action } = await req.json();
-    
     console.log(`[PRODUCT-SYNC] Starting sync for brand: ${brand_id}, action: ${action}`);
 
     if (!brand_id) {
@@ -149,7 +218,6 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get brand's Shopify credentials
     const { data: brand, error: brandError } = await supabase
       .from("brands")
       .select("shopify_store_domain, shopify_access_token")
@@ -175,7 +243,7 @@ Deno.serve(async (req) => {
       const webhooks = await fetchWebhooks(brand.shopify_store_domain, brand.shopify_access_token);
       return new Response(
         JSON.stringify({
-          webhooks: webhooks.map(w => ({
+          webhooks: webhooks.map((w) => ({
             topic: w.topic,
             address: w.address,
             created_at: w.created_at,
@@ -186,7 +254,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === "status") {
-      // Return sync status
       const { count: productCount } = await supabase
         .from("products")
         .select("*", { count: "exact", head: true })
@@ -218,11 +285,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Full sync - create history entry
+    // Full sync
     const historyId = await createSyncHistoryEntry(supabase, brand_id, "manual");
 
-    console.log(`[PRODUCT-SYNC] Fetching products from Shopify: ${brand.shopify_store_domain}`);
-    
     let products: ShopifyProduct[];
     try {
       products = await fetchAllProducts(brand.shopify_store_domain, brand.shopify_access_token);
@@ -235,81 +300,100 @@ Deno.serve(async (req) => {
       }
       throw fetchError;
     }
-    
+
     console.log(`[PRODUCT-SYNC] Got ${products.length} products from Shopify`);
 
     let created = 0;
     let updated = 0;
-    let errors: string[] = [];
+    let deleted = 0;
+    const errors: string[] = [];
+
+    // Track all variant IDs we upsert so we can clean up stale rows
+    const upsertedVariantIds: string[] = [];
 
     for (const product of products) {
-      for (const variant of product.variants) {
+      const colorGroups = groupVariantsByColor(product);
+
+      for (const group of colorGroups) {
+        const name = group.color
+          ? `${product.title} - ${group.color}`
+          : product.title;
+
         const productData = {
           brand_id,
-          name: variant.title !== "Default Title" ? `${product.title} - ${variant.title}` : product.title,
-          category: product.product_type || "uncategorized",
-          price: parseFloat(variant.price),
-          image_url: product.images[0]?.src || null,
+          name,
+          category: product.product_type?.toLowerCase() || "uncategorized",
+          price: group.price,
+          image_url: group.imageUrl,
+          color: group.color?.toLowerCase() || null,
           shopify_product_id: String(product.id),
-          shopify_variant_id: String(variant.id),
+          shopify_variant_id: group.primaryVariantId,
           shopify_handle: product.handle,
           inventory_status: "in_stock",
           source: "shopify",
+          variants_json: group.variants,
         };
 
-        // Upsert by shopify_variant_id
+        upsertedVariantIds.push(group.primaryVariantId);
+
+        // Upsert by brand_id + shopify_product_id + primary variant
         const { data: existing } = await supabase
           .from("products")
           .select("id")
           .eq("brand_id", brand_id)
-          .eq("shopify_variant_id", String(variant.id))
+          .eq("shopify_variant_id", group.primaryVariantId)
           .single();
 
         if (existing) {
-          const { error } = await supabase
-            .from("products")
-            .update(productData)
-            .eq("id", existing.id);
-          
-          if (error) {
-            errors.push(`Failed to update ${product.title}: ${error.message}`);
-          } else {
-            updated++;
-          }
+          const { error } = await supabase.from("products").update(productData).eq("id", existing.id);
+          if (error) errors.push(`Update ${name}: ${error.message}`);
+          else updated++;
         } else {
-          const { error } = await supabase
-            .from("products")
-            .insert(productData);
-          
-          if (error) {
-            errors.push(`Failed to create ${product.title}: ${error.message}`);
-          } else {
-            created++;
-          }
+          const { error } = await supabase.from("products").insert(productData);
+          if (error) errors.push(`Create ${name}: ${error.message}`);
+          else created++;
         }
       }
     }
 
-    // Update sync history
+    // Clean up old per-variant rows that are no longer primary variants
+    const allShopifyProductIds = [...new Set(products.map((p) => String(p.id)))];
+    if (allShopifyProductIds.length > 0) {
+      const { data: staleRows } = await supabase
+        .from("products")
+        .select("id, shopify_variant_id")
+        .eq("brand_id", brand_id)
+        .eq("source", "shopify")
+        .in("shopify_product_id", allShopifyProductIds);
+
+      if (staleRows) {
+        const staleIds = staleRows
+          .filter((r: any) => !upsertedVariantIds.includes(r.shopify_variant_id))
+          .map((r: any) => r.id);
+
+        if (staleIds.length > 0) {
+          const { error: delError } = await supabase.from("products").delete().in("id", staleIds);
+          if (delError) errors.push(`Cleanup: ${delError.message}`);
+          else deleted = staleIds.length;
+          console.log(`[PRODUCT-SYNC] Cleaned up ${staleIds.length} stale variant rows`);
+        }
+      }
+    }
+
     if (historyId) {
       await updateSyncHistoryEntry(supabase, historyId, {
         status: "completed",
         products_created: created,
         products_updated: updated,
+        products_deleted: deleted,
         error_message: errors.length > 0 ? errors.slice(0, 5).join("; ") : undefined,
       });
     }
 
-    console.log(`[PRODUCT-SYNC] Sync complete: ${created} created, ${updated} updated, ${errors.length} errors`);
+    console.log(`[PRODUCT-SYNC] Sync complete: ${created} created, ${updated} updated, ${deleted} deleted, ${errors.length} errors`);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        created,
-        updated,
-        total: products.length,
-        errors: errors.slice(0, 10), // Limit errors returned
-      }),
+      JSON.stringify({ success: true, created, updated, deleted, total: products.length, errors: errors.slice(0, 10) }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

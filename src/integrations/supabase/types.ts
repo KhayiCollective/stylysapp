@@ -352,6 +352,7 @@ export type Database = {
           source: string
           tags: string[] | null
           updated_at: string
+          variants_json: Json | null
           woocommerce_product_id: string | null
         }
         Insert: {
@@ -371,6 +372,7 @@ export type Database = {
           source?: string
           tags?: string[] | null
           updated_at?: string
+          variants_json?: Json | null
           woocommerce_product_id?: string | null
         }
         Update: {
@@ -390,6 +392,7 @@ export type Database = {
           source?: string
           tags?: string[] | null
           updated_at?: string
+          variants_json?: Json | null
           woocommerce_product_id?: string | null
         }
         Relationships: [
