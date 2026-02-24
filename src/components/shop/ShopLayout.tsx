@@ -35,6 +35,9 @@ interface Product {
   category: string;
   color?: string;
   fit?: string;
+  handle?: string;
+  image?: string;
+  variantId?: string;
 }
 
 interface ShopLayoutProps {
