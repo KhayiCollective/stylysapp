@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
 import { EmbeddedConnectionRequired } from "@/components/embedded/EmbeddedConnectionRequired";
-import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
 
 export default function EmbeddedApp() {
@@ -18,7 +17,6 @@ export default function EmbeddedApp() {
 
   useEffect(() => {
     const verifyShop = async () => {
-      // Test mode bypasses verification
       if (isTestMode) {
         setVerified(true);
         setVerifying(false);
@@ -32,22 +30,17 @@ export default function EmbeddedApp() {
       }
 
       try {
-        // Verify this shop exists in our system
-        const shopDomain = shop.replace('.myshopify.com', '');
-        const { data, error: dbError } = await supabase
-          .from('brands')
-          .select('id, name')
-          .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomain}%`)
-          .maybeSingle();
+        // Use edge function to verify (bypasses RLS, works without auth)
+        const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+        );
+        const result = await res.json();
 
-        if (dbError) {
-          console.error('Error verifying shop:', dbError);
-          setNeedsConnection(true);
-        } else if (!data) {
-          // Store not connected yet - show connection required UI
-          setNeedsConnection(true);
-        } else {
+        if (result.connected) {
           setVerified(true);
+        } else {
+          setNeedsConnection(true);
         }
       } catch (err) {
         console.error('Verification error:', err);
@@ -60,7 +53,6 @@ export default function EmbeddedApp() {
     verifyShop();
   }, [shop, isTestMode]);
 
-  // Loading state
   if (verifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -72,12 +64,10 @@ export default function EmbeddedApp() {
     );
   }
 
-  // Connection required state - auto-initiate OAuth if shop is known
   if (needsConnection) {
     return <EmbeddedConnectionRequired shopDomain={shop} autoInitiate={!!shop} />;
   }
 
-  // Verified or test mode - render embedded dashboard
   if (verified) {
     return (
       <EmbeddedDashboard testMode={isTestMode} shopDomain={shop}>
