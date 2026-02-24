@@ -8,16 +8,29 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
+interface WooVariation {
+  id: number;
+  price: string;
+  stock_status: string;
+  attributes: { name: string; option: string }[];
+}
+
 interface WooProduct {
   id: number;
   name: string;
   slug: string;
   price: string;
+  type: string;
   categories: { id: number; name: string; slug: string }[];
   tags: { id: number; name: string; slug: string }[];
   images: { id: number; src: string; alt: string }[];
   stock_status: string;
+  attributes: { name: string; options: string[]; variation: boolean }[];
+  variations: number[];
 }
+
+const COLOR_ATTR_NAMES = ["color", "colour", "colors", "colours"];
+const SIZE_ATTR_NAMES = ["size", "sizes"];
 
 async function fetchAllWooProducts(
   storeUrl: string,
@@ -54,6 +67,82 @@ async function fetchAllWooProducts(
   return allProducts;
 }
 
+async function fetchVariations(
+  storeUrl: string,
+  consumerKey: string,
+  consumerSecret: string,
+  productId: number
+): Promise<WooVariation[]> {
+  const url = `${storeUrl.replace(/\/$/, "")}/wp-json/wc/v3/products/${productId}/variations?per_page=100`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: "Basic " + btoa(`${consumerKey}:${consumerSecret}`),
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) return [];
+  return await response.json();
+}
+
+interface ColorGroup {
+  color: string | null;
+  variants: { variant_id: string; size: string; price: string; available: boolean }[];
+  price: number;
+  imageUrl: string | null;
+}
+
+function groupWooVariationsByColor(
+  product: WooProduct,
+  variations: WooVariation[]
+): ColorGroup[] {
+  const colorAttr = product.attributes.find((a) =>
+    COLOR_ATTR_NAMES.includes(a.name.toLowerCase())
+  );
+  const sizeAttr = product.attributes.find((a) =>
+    SIZE_ATTR_NAMES.includes(a.name.toLowerCase())
+  );
+
+  // Simple product or no color attribute → single group
+  if (!colorAttr || variations.length === 0) {
+    return [{
+      color: null,
+      variants: [],
+      price: parseFloat(product.price) || 0,
+      imageUrl: product.images?.[0]?.src || null,
+    }];
+  }
+
+  const groups: Record<string, ColorGroup> = {};
+
+  for (const variation of variations) {
+    const colorValue = variation.attributes.find(
+      (a) => COLOR_ATTR_NAMES.includes(a.name.toLowerCase())
+    )?.option || "Default";
+
+    const sizeValue = variation.attributes.find(
+      (a) => SIZE_ATTR_NAMES.includes(a.name.toLowerCase())
+    )?.option || "";
+
+    if (!groups[colorValue]) {
+      groups[colorValue] = {
+        color: colorValue,
+        variants: [],
+        price: parseFloat(variation.price) || parseFloat(product.price) || 0,
+        imageUrl: product.images?.[0]?.src || null,
+      };
+    }
+
+    groups[colorValue].variants.push({
+      variant_id: String(variation.id),
+      size: sizeValue,
+      price: variation.price,
+      available: variation.stock_status === "instock",
+    });
+  }
+
+  return Object.values(groups);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -71,7 +160,6 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get brand info
     const { data: brand, error: brandError } = await supabase
       .from("brands")
       .select("woocommerce_store_url, woocommerce_consumer_key, woocommerce_consumer_secret")
@@ -85,7 +173,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // If credentials are provided, save them first
     if (store_url && consumer_key && consumer_secret) {
       const { error: updateError } = await supabase
         .from("brands")
@@ -104,7 +191,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Use newly provided credentials
       brand.woocommerce_store_url = store_url;
       brand.woocommerce_consumer_key = consumer_key;
       brand.woocommerce_consumer_secret = consumer_secret;
@@ -134,7 +220,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create sync history
     const { data: historyData } = await supabase
       .from("sync_history")
       .insert({ brand_id, sync_type: "woocommerce", status: "in_progress" })
@@ -166,40 +251,60 @@ Deno.serve(async (req) => {
     let updated = 0;
     const errors: string[] = [];
 
+    const stockMap: Record<string, string> = {
+      instock: "in_stock",
+      outofstock: "out_of_stock",
+      onbackorder: "low_stock",
+    };
+
     for (const product of products) {
-      const stockMap: Record<string, string> = {
-        instock: "in_stock",
-        outofstock: "out_of_stock",
-        onbackorder: "low_stock",
-      };
+      // Fetch variations for variable products
+      let variations: WooVariation[] = [];
+      if (product.type === "variable" && product.variations?.length > 0) {
+        variations = await fetchVariations(wooUrl, wooKey, wooSecret, product.id);
+      }
 
-      const productData = {
-        brand_id,
-        name: product.name,
-        category: product.categories?.[0]?.name?.toLowerCase() || "uncategorized",
-        price: parseFloat(product.price) || 0,
-        image_url: product.images?.[0]?.src || null,
-        inventory_status: stockMap[product.stock_status] || "in_stock",
-        tags: product.tags?.map((t) => t.name) || [],
-        source: "woocommerce",
-        woocommerce_product_id: String(product.id),
-      };
+      const colorGroups = groupWooVariationsByColor(product, variations);
 
-      const { data: existing } = await supabase
-        .from("products")
-        .select("id")
-        .eq("brand_id", brand_id)
-        .eq("woocommerce_product_id", String(product.id))
-        .single();
+      for (const group of colorGroups) {
+        const name = group.color && group.color !== "Default"
+          ? `${product.name} - ${group.color}`
+          : product.name;
 
-      if (existing) {
-        const { error } = await supabase.from("products").update(productData).eq("id", existing.id);
-        if (error) errors.push(`Update ${product.name}: ${error.message}`);
-        else updated++;
-      } else {
-        const { error } = await supabase.from("products").insert(productData);
-        if (error) errors.push(`Create ${product.name}: ${error.message}`);
-        else created++;
+        const productData = {
+          brand_id,
+          name,
+          category: product.categories?.[0]?.name?.toLowerCase() || "uncategorized",
+          price: group.price,
+          image_url: group.imageUrl,
+          color: group.color?.toLowerCase() || null,
+          inventory_status: stockMap[product.stock_status] || "in_stock",
+          tags: product.tags?.map((t) => t.name) || [],
+          source: "woocommerce",
+          woocommerce_product_id: group.color
+            ? `${product.id}_${group.color}`
+            : String(product.id),
+          variants_json: group.variants,
+        };
+
+        const lookupId = productData.woocommerce_product_id;
+
+        const { data: existing } = await supabase
+          .from("products")
+          .select("id")
+          .eq("brand_id", brand_id)
+          .eq("woocommerce_product_id", lookupId)
+          .single();
+
+        if (existing) {
+          const { error } = await supabase.from("products").update(productData).eq("id", existing.id);
+          if (error) errors.push(`Update ${name}: ${error.message}`);
+          else updated++;
+        } else {
+          const { error } = await supabase.from("products").insert(productData);
+          if (error) errors.push(`Create ${name}: ${error.message}`);
+          else created++;
+        }
       }
     }
 

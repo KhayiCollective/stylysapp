@@ -19,6 +19,13 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { getTierLimits } from "@/lib/tiers";
 import { Link } from "react-router-dom";
 
+interface VariantInfo {
+  variant_id: string;
+  size: string;
+  price: string;
+  available: boolean;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -29,6 +36,7 @@ interface Product {
   price: number;
   inventory_status: string;
   tags?: string[];
+  variants_json?: VariantInfo[];
 }
 
 const categories = ["tops", "bottoms", "outerwear", "footwear", "accessories", "dresses", "uncategorized"];
@@ -106,7 +114,10 @@ const Catalog = () => {
       return;
     }
 
-    setProducts(data || []);
+    setProducts((data || []).map((p: any) => ({
+      ...p,
+      variants_json: Array.isArray(p.variants_json) ? p.variants_json as VariantInfo[] : [],
+    })));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -439,6 +450,12 @@ const Catalog = () => {
                     <>
                       <span>•</span>
                       <span className="capitalize">{product.fit}</span>
+                    </>
+                  )}
+                  {product.variants_json && product.variants_json.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <span>{product.variants_json.length} sizes</span>
                     </>
                   )}
                 </div>
