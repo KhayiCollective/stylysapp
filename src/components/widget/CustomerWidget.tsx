@@ -3,7 +3,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Camera, User, ShoppingBag, X, Sparkles } from "lucide-react";
 import stylysIcon from "@/assets/S_no_border.png";
-import { StyleQuizTab } from "./tabs/StyleQuizTab";
+import { StyleQuizTab, QuizAnswers } from "./tabs/StyleQuizTab";
 import { OutfitsTab } from "./tabs/OutfitsTab";
 import { WishlistTab } from "./tabs/WishlistTab";
 import { TryOnTab } from "./tabs/TryOnTab";
@@ -36,6 +36,7 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
   const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
   const [customerToken, setCustomerToken] = useState<string | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<QuizAnswers | undefined>();
 
   const open = externalOpen ?? internalOpen;
   const activeTab = externalTab ?? internalTab;
@@ -70,6 +71,11 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
   const handleCustomerLogin = (photoUrl: string | null, token: string) => {
     setCustomerPhotoUrl(photoUrl);
     setCustomerToken(token);
+  };
+
+  const handleQuizComplete = (answers: QuizAnswers) => {
+    setQuizAnswers(answers);
+    setActiveTab("outfits");
   };
 
   return (
@@ -146,10 +152,10 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
                 <AccountTab brandId={brandId} onNavigateToQuiz={() => setActiveTab("quiz")} onCustomerLogin={handleCustomerLogin} />
               </TabsContent>
               <TabsContent value="quiz" className="m-0 h-full">
-                <StyleQuizTab brandId={brandId} onComplete={() => setActiveTab("outfits")} />
+                <StyleQuizTab brandId={brandId} onComplete={handleQuizComplete} />
               </TabsContent>
               <TabsContent value="outfits" className="m-0 h-full">
-                <OutfitsTab brandId={brandId} onSelectOutfitForTryOn={handleSelectOutfitForTryOn} anchorProductId={anchorProductId} anchorProductName={anchorProductName} onClearAnchor={onClearAnchor} />
+                <OutfitsTab brandId={brandId} onSelectOutfitForTryOn={handleSelectOutfitForTryOn} anchorProductId={anchorProductId} anchorProductName={anchorProductName} onClearAnchor={onClearAnchor} quizAnswers={quizAnswers} />
               </TabsContent>
               <TabsContent value="wishlist" className="m-0 h-full">
                 <WishlistTab brandId={brandId} />

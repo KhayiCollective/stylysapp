@@ -14,13 +14,13 @@ async function getJwtKey() {
   return await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
-async function verifyCustomerJwt(req: Request): Promise<{ sub: string; brand_id: string; email: string } | null> {
+async function verifyCustomerJwt(req: Request): Promise<{ sub: string; brand_id: string; email: string; customer_id?: string } | null> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
   try {
     const key = await getJwtKey();
     const payload = await verify(authHeader.replace("Bearer ", ""), key);
-    return { sub: payload.sub as string, brand_id: payload.brand_id as string, email: payload.email as string };
+    return { sub: payload.sub as string, brand_id: payload.brand_id as string, email: payload.email as string, customer_id: payload.customer_id as string | undefined };
   } catch {
     return null;
   }
@@ -45,7 +45,7 @@ serve(async (req) => {
 
     // --- GENERATE (public, just needs brand_id) ---
     if (path === "generate" && req.method === "POST") {
-      const { brand_id, anchor_product_id, occasion, style } = await req.json();
+      const { brand_id, anchor_product_id, occasion, style, customer_profile, quiz_session } = await req.json();
       if (!brand_id) return json({ error: "brand_id is required" }, 400);
 
       // Fetch products for this brand
@@ -75,8 +75,32 @@ serve(async (req) => {
         }
       }
       const productCatalog = products.map(p => ({
-        id: p.id, name: p.name, category: p.category, color: p.color || "unknown"
+        id: p.id, name: p.name, category: p.category, color: p.color || "unknown", price: p.price
       }));
+
+      // Build personalization context
+      let personalization = "";
+      if (customer_profile) {
+        const parts: string[] = [];
+        if (customer_profile.body_shape) parts.push(`Body shape: ${customer_profile.body_shape}`);
+        if (customer_profile.size_info) {
+          const sizes = Object.entries(customer_profile.size_info).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(", ");
+          if (sizes) parts.push(`Sizes: ${sizes}`);
+        }
+        if (customer_profile.style_preferences?.length) parts.push(`Style preferences: ${customer_profile.style_preferences.join(", ")}`);
+        if (customer_profile.preferred_colors?.length) parts.push(`Preferred colors: ${customer_profile.preferred_colors.join(", ")}`);
+        if (customer_profile.avoided_colors?.length) parts.push(`Colors to avoid: ${customer_profile.avoided_colors.join(", ")}`);
+        if (customer_profile.occasions?.length) parts.push(`Usual occasions: ${customer_profile.occasions.join(", ")}`);
+        if (parts.length) personalization += `\nCUSTOMER PROFILE:\n${parts.join("\n")}`;
+      }
+      if (quiz_session) {
+        const qParts: string[] = [];
+        if (quiz_session.occasion) qParts.push(`Today's occasion: ${quiz_session.occasion}`);
+        if (quiz_session.colorMood) qParts.push(`Color mood: ${quiz_session.colorMood}`);
+        if (quiz_session.formality) qParts.push(`Formality: ${quiz_session.formality}`);
+        if (quiz_session.budget) qParts.push(`Budget: ${quiz_session.budget}`);
+        if (qParts.length) personalization += `\nSESSION PREFERENCES:\n${qParts.join("\n")}`;
+      }
 
       const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Create cohesive outfit combinations from a product catalog.
 RULES:
@@ -84,12 +108,14 @@ RULES:
 2. Consider color harmony
 3. Balance categories - top, bottom, optional accessories/layers
 4. If an anchor product is specified, include it in all outfits
+5. If customer profile or session preferences are provided, heavily personalize the outfits to match their style, body shape, preferred colors, occasion, formality level, and budget
+6. Avoid colors the customer has marked to avoid
 OUTPUT: Return JSON: { "outfits": [{ "name": "string", "productIds": ["id1","id2"], "reason": "string", "occasion": "string" }] }
 Return exactly 3 outfits. Only valid JSON, no other text.`;
 
       const userPrompt = `Create 3 outfit combinations:\nPRODUCTS:\n${JSON.stringify(productCatalog, null, 2)}
 ${anchorProduct ? `\nANCHOR (must include): ${anchorProduct.name} (${anchorProduct.category})` : ""}
-${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}
+${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}${personalization}
 \nVariation seed: ${crypto.randomUUID()}`;
 
       const aiMessages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
@@ -110,7 +136,6 @@ ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}
 
         const errBody = await aiResp.text();
         console.error(`AI error (${model}):`, aiResp.status, errBody);
-        // Try next model
       }
 
       if (!aiData) {
@@ -130,14 +155,7 @@ ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}
       const outfits = parsed.outfits.map((o: any, i: number) => {
         const items = o.productIds.map((id: string) => products.find(p => p.id === id)).filter(Boolean)
           .map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            image_url: p.image_url,
-            category: p.category,
-            color: p.color,
-            fit: p.fit,
-            shopify_variant_id: p.shopify_variant_id || null,
+            id: p.id, name: p.name, price: p.price, image_url: p.image_url, category: p.category, color: p.color, fit: p.fit, shopify_variant_id: p.shopify_variant_id || null,
           }));
         return {
           id: crypto.randomUUID(),
