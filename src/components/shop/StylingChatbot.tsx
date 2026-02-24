@@ -77,12 +77,14 @@ export function StylingChatbot({ products = [] }: StylingChatbotProps) {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    // Small delay to let new content render before scrolling
+    const timer = setTimeout(() => {
+      scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   // Enrich product data with handles, images, variantIds for the AI
@@ -201,7 +203,7 @@ export function StylingChatbot({ products = [] }: StylingChatbotProps) {
           </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+        <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
             {messages.map((message, i) => (
               <div
@@ -255,6 +257,7 @@ export function StylingChatbot({ products = [] }: StylingChatbotProps) {
                 </div>
               </div>
             )}
+            <div ref={scrollEndRef} />
           </div>
         </ScrollArea>
 
