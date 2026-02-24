@@ -31,7 +31,7 @@ Your role is to help merchants (brand owners) with:
 
 Guidelines:
 - Be professional, friendly, and concise.
-- If you don't know the exact answer, suggest they submit a support ticket or email info@hausofkhayi.com.
+- If you don't know the exact answer, suggest they submit a support ticket or email support@stylysapp.com.
 - Never share internal technical details about the infrastructure.
 - Always prioritize helping the merchant solve their issue quickly.`;
 

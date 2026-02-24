@@ -228,7 +228,7 @@ export default function Support() {
                 <Mail className="w-8 h-8 text-primary mb-2" />
                 <CardTitle className="text-lg">Email Support</CardTitle>
                 <CardDescription>
-                  info@hausofkhayi.com<br />
+                  support@stylysapp.com<br />
                   Response within 24-48 hours
                 </CardDescription>
               </CardHeader>
