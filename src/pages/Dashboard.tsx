@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, ShoppingCart, Layers, Eye, DollarSign, Users, ArrowUpRight, ArrowDownRight, Heart } from "lucide-react";
@@ -8,9 +10,24 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { ShopifyConnection } from "@/components/ShopifyConnection";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { useToast } from "@/hooks/use-toast";
 
 const Dashboard = () => {
   const { showOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
+
+  // Handle billing=success redirect from Shopify
+  useEffect(() => {
+    if (searchParams.get('billing') === 'success') {
+      toast({
+        title: "Subscription activated! 🎉",
+        description: "Your 3-day free trial has started. Enjoy STYLYS!",
+      });
+      searchParams.delete('billing');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   // Fetch real data from database
   const { data: outfitsData } = useQuery({

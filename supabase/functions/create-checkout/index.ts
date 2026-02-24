@@ -88,7 +88,7 @@ serve(async (req) => {
 
     const variables = {
       name: `STYLYS ${tier.name}`,
-      returnUrl: `${origin}/settings?billing=success`,
+      returnUrl: `${origin}/dashboard?billing=success`,
       trialDays: tier.trialDays,
       lineItems: [{
         plan: {
