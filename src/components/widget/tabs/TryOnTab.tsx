@@ -65,6 +65,10 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
       if (resp.ok && data.photo_url) {
         setIsSavedPhoto(true);
         onPhotoSaved?.(data.photo_url);
+        toast.success("Photo saved to your account", {
+          description: "It'll load automatically next time you visit.",
+          position: "top-center",
+        });
       }
     } catch {
       // silently fail
