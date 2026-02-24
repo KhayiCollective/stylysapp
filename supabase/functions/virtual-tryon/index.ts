@@ -35,7 +35,14 @@ async function imageUrlToBase64(url: string): Promise<string> {
     }
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const buf = await resp.arrayBuffer();
-    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const bytes = new Uint8Array(buf);
+    // Chunked encoding to avoid stack overflow on large images
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    const b64 = btoa(binary);
     return `data:${contentType};base64,${b64}`;
   } catch (e) {
     console.error(`Error converting image to base64: ${url}`, e);
@@ -82,10 +89,10 @@ CRITICAL: Each product image may show a model wearing multiple garments, but eac
 ${itemInstructions}${bodyProfileSection}
 
 Requirements:
-1. Dress the person in ALL the extracted garments together as one cohesive outfit
-2. Maintain the person's face, body shape, and pose from their original photo (Image 1)
-3. Natural lighting, realistic fabric draping, proper proportions
-4. Professional fashion photography quality
+1. CRITICAL: The output image MUST be the EXACT SAME PERSON from Image 1 — preserve their face, skin tone, hair, facial features, and body exactly as shown. Do NOT substitute a different model or generic person.
+2. Dress the person in ALL the extracted garments together as one cohesive outfit
+3. Maintain the person's exact pose and proportions from Image 1
+4. Natural lighting, realistic fabric draping
 5. Keep the original background or use a clean studio background
 
 You MUST generate an image. Output the visualization image now.`;
