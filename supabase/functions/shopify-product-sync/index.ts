@@ -308,8 +308,8 @@ Deno.serve(async (req) => {
     let deleted = 0;
     const errors: string[] = [];
 
-    // Track all variant IDs we upsert so we can clean up stale rows
-    const upsertedVariantIds: string[] = [];
+    // Track all DB row IDs we upsert so we can clean up stale rows
+    const upsertedRowIds: string[] = [];
 
     for (const product of products) {
       const colorGroups = groupVariantsByColor(product);
@@ -334,8 +334,6 @@ Deno.serve(async (req) => {
           variants_json: group.variants,
         };
 
-        upsertedVariantIds.push(group.primaryVariantId);
-
         // Upsert by brand_id + shopify_product_id + primary variant
         const { data: existing } = await supabase
           .from("products")
@@ -347,34 +345,37 @@ Deno.serve(async (req) => {
         if (existing) {
           const { error } = await supabase.from("products").update(productData).eq("id", existing.id);
           if (error) errors.push(`Update ${name}: ${error.message}`);
-          else updated++;
+          else { updated++; upsertedRowIds.push(existing.id); }
         } else {
-          const { error } = await supabase.from("products").insert(productData);
+          const { data: inserted, error } = await supabase.from("products").insert(productData).select("id").single();
           if (error) errors.push(`Create ${name}: ${error.message}`);
-          else created++;
+          else { created++; if (inserted) upsertedRowIds.push(inserted.id); }
         }
       }
     }
 
-    // Clean up old per-variant rows that are no longer primary variants
+    // Clean up ALL other rows for these Shopify products (old per-variant duplicates)
     const allShopifyProductIds = [...new Set(products.map((p) => String(p.id)))];
-    if (allShopifyProductIds.length > 0) {
-      const { data: staleRows } = await supabase
+    if (allShopifyProductIds.length > 0 && upsertedRowIds.length > 0) {
+      const { data: allRows } = await supabase
         .from("products")
-        .select("id, shopify_variant_id")
+        .select("id")
         .eq("brand_id", brand_id)
-        .eq("source", "shopify")
         .in("shopify_product_id", allShopifyProductIds);
 
-      if (staleRows) {
-        const staleIds = staleRows
-          .filter((r: any) => !upsertedVariantIds.includes(r.shopify_variant_id))
+      if (allRows) {
+        const keepSet = new Set(upsertedRowIds);
+        const staleIds = allRows
+          .filter((r: any) => !keepSet.has(r.id))
           .map((r: any) => r.id);
 
         if (staleIds.length > 0) {
-          const { error: delError } = await supabase.from("products").delete().in("id", staleIds);
-          if (delError) errors.push(`Cleanup: ${delError.message}`);
-          else deleted = staleIds.length;
+          for (let i = 0; i < staleIds.length; i += 100) {
+            const batch = staleIds.slice(i, i + 100);
+            const { error: delError } = await supabase.from("products").delete().in("id", batch);
+            if (delError) errors.push(`Cleanup batch: ${delError.message}`);
+          }
+          deleted = staleIds.length;
           console.log(`[PRODUCT-SYNC] Cleaned up ${staleIds.length} stale variant rows`);
         }
       }
