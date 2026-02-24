@@ -99,6 +99,7 @@ const App = () => (
               <Route path="/support" element={<Support />} />
               {/* Documentation */}
               <Route path="/docs" element={<GettingStarted />} />
+              <Route path="/docs/getting-started" element={<GettingStarted />} />
               <Route path="/docs/shopify-setup" element={<ShopifySetup />} />
               <Route path="/docs/widget-embed" element={<WidgetEmbed />} />
               <Route path="/docs/api" element={<APIReference />} />
