@@ -1,38 +1,38 @@
 
 
-## Add Billing Scope to Shopify OAuth Flow
+## Fix: Post-OAuth Redirect 404 in Shopify Admin
 
-### The Problem
-Your `create-checkout` edge function uses Shopify's `appSubscriptionCreate` GraphQL mutation, which requires the `write_merchant_managed_pricing_and_billing` scope. This scope is currently missing from your OAuth scopes string in `shopify-oauth/index.ts`.
-
-### The Fix
-A single-line change in `supabase/functions/shopify-oauth/index.ts`:
-
-**Current SCOPES (line 16):**
+### Problem
+After the OAuth flow completes successfully, `ShopifyConnect.tsx` redirects to:
 ```
-read_products,read_product_listings,unauthenticated_read_product_listings,
-unauthenticated_read_product_tags,write_checkouts,unauthenticated_write_checkouts,
-write_script_tags
+https://{shop}.myshopify.com/admin/apps/stylys
 ```
+But Shopify's internal app handle may not be `stylys` -- it could be `stylys-1`, `stylys-ai`, or another auto-generated slug. This causes the Shopify Admin 404 page you're seeing.
 
-**Updated SCOPES:**
+### Solution
+Replace the hardcoded `stylys` handle with the Shopify **Client ID** (`e1bde8232afcab4c37b12a9b29c3dde1`), which always works as an app identifier in the admin URL:
 ```
-read_products,read_product_listings,unauthenticated_read_product_listings,
-unauthenticated_read_product_tags,write_checkouts,unauthenticated_write_checkouts,
-write_script_tags,write_merchant_managed_pricing_and_billing
+https://{shop}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1
 ```
 
-### Important: Re-installation Required
-After deploying this change, merchants (including your dev store) will need to **re-install** the app for Shopify to prompt them to approve the new billing permission. You can do this by:
+### Files to Change
 
-1. Go to your dev store admin
-2. Uninstall the STYLYS app
-3. Re-install it from the Partner Dashboard
+**1. `src/pages/ShopifyConnect.tsx` (line 165)**
+Change:
+```js
+window.location.href = `https://${shopName}.myshopify.com/admin/apps/stylys`;
+```
+To:
+```js
+window.location.href = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
+```
 
-This will trigger the OAuth flow with the new scope included.
+Also update lines 219-220 (the "already connected" redirect) with the same fix.
 
-### Technical Details
-- File changed: `supabase/functions/shopify-oauth/index.ts` (line 16)
-- The scope is not something you toggle in the Shopify Dev Dashboard -- it's requested programmatically during OAuth
-- No dashboard configuration needed for this scope
+**2. `src/components/embedded/EmbeddedConnectionRequired.tsx`**
+No changes needed -- this component redirects to the OAuth URL, not back to the admin app page.
+
+### After Deploying
+- Click **Publish > Update** to deploy the frontend change
+- Re-open STYLYS from your Shopify Admin sidebar to test the full flow
 
