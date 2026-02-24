@@ -36,6 +36,8 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
   const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
   const [customerToken, setCustomerToken] = useState<string | null>(null);
+  const [customerBodyShape, setCustomerBodyShape] = useState<string | undefined>();
+  const [customerSizeInfo, setCustomerSizeInfo] = useState<Record<string, string> | undefined>();
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswers | undefined>();
 
   const open = externalOpen ?? internalOpen;
@@ -68,9 +70,11 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
     setActiveTab("tryon");
   };
 
-  const handleCustomerLogin = (photoUrl: string | null, token: string) => {
+  const handleCustomerLogin = (photoUrl: string | null, token: string, styleProfile?: { body_shape?: string; size_info?: Record<string, string> }) => {
     setCustomerPhotoUrl(photoUrl);
     setCustomerToken(token);
+    if (styleProfile?.body_shape) setCustomerBodyShape(styleProfile.body_shape);
+    if (styleProfile?.size_info) setCustomerSizeInfo(styleProfile.size_info);
   };
 
   const handleQuizComplete = (answers: QuizAnswers) => {
@@ -167,6 +171,8 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
                   brandId={brandId}
                   customerToken={customerToken || undefined}
                   onPhotoSaved={(url) => setCustomerPhotoUrl(url)}
+                  bodyShape={customerBodyShape}
+                  sizeInfo={customerSizeInfo}
                 />
               </TabsContent>
             </div>
