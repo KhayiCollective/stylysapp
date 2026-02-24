@@ -18,7 +18,7 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
   const [embeddedBrandVerified, setEmbeddedBrandVerified] = useState(false);
   const [checkingEmbedded, setCheckingEmbedded] = useState(true);
 
-  // Handle embedded mode - verify shop exists in our system
+  // Handle embedded mode - verify shop exists in our system (via edge function to bypass RLS)
   useEffect(() => {
     const verifyEmbeddedShop = async () => {
       if (!isEmbedded || !config?.shop) {
@@ -27,13 +27,12 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
       }
 
       try {
-        const { data } = await supabase
-          .from('brands')
-          .select('id')
-          .eq('shopify_store_domain', config.shop)
-          .single();
-
-        setEmbeddedBrandVerified(!!data);
+        const shopDomain = config.shop.includes('.myshopify.com') ? config.shop : `${config.shop}.myshopify.com`;
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+        );
+        const result = await res.json();
+        setEmbeddedBrandVerified(!!result.connected);
       } catch (error) {
         console.error('Error verifying embedded shop:', error);
         setEmbeddedBrandVerified(false);
