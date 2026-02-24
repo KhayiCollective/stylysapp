@@ -70,6 +70,31 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Verify if a shop is already connected (for embedded app, bypasses RLS)
+    if (action === "verify-shop") {
+      const shop = url.searchParams.get("shop");
+      if (!shop) {
+        return new Response(
+          JSON.stringify({ connected: false }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const shopName = shop.replace('.myshopify.com', '');
+      const { data } = await supabase
+        .from("brands")
+        .select("id, name, shopify_connected_at")
+        .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopName}%`)
+        .not("shopify_connected_at", "is", null)
+        .maybeSingle();
+
+      return new Response(
+        JSON.stringify({ connected: !!data, brandId: data?.id || null }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // New embedded-authorize: auto-creates brand, returns OAuth URL with embedded flag
     if (action === "embedded-authorize") {
       const shop = url.searchParams.get("shop");
