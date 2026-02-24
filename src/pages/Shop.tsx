@@ -25,7 +25,15 @@ const Shop = () => {
   }, []);
 
   return (
-    <ShopLayout>
+    <ShopLayout products={products.map(p => ({
+      id: p.node.id,
+      name: p.node.title,
+      price: parseFloat(p.node.priceRange.minVariantPrice.amount),
+      category: "",
+      handle: p.node.handle,
+      image: p.node.images.edges[0]?.node.url || "",
+      variantId: p.node.variants.edges[0]?.node.id || "",
+    }))}>
       <div className="min-h-screen bg-background">
         <ShopHeader />
         
