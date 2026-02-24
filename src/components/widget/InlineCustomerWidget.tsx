@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Camera, User, ShoppingBag, X, Sparkles } from "lucide-react";
 import stylysIcon from "@/assets/stylys-icon.png";
-import { StyleQuizTab } from "./tabs/StyleQuizTab";
+import { StyleQuizTab, QuizAnswers } from "./tabs/StyleQuizTab";
 import { OutfitsTab } from "./tabs/OutfitsTab";
 import { WishlistTab } from "./tabs/WishlistTab";
 import { TryOnTab } from "./tabs/TryOnTab";
@@ -28,6 +28,7 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
   const [customerToken, setCustomerToken] = useState<string | null>(null);
   const [bodyShape, setBodyShape] = useState<string | undefined>();
   const [sizeInfo, setSizeInfo] = useState<Record<string, string> | undefined>();
+  const [quizAnswers, setQuizAnswers] = useState<QuizAnswers | undefined>();
 
   const handleClose = () => {
     try {
@@ -47,6 +48,11 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
     setCustomerToken(token);
     setBodyShape(styleProfile?.body_shape || undefined);
     setSizeInfo(styleProfile?.size_info || undefined);
+  };
+
+  const handleQuizComplete = (answers: QuizAnswers) => {
+    setQuizAnswers(answers);
+    setActiveTab("outfits");
   };
 
   return (
@@ -95,10 +101,10 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
             <AccountTab brandId={brandId} onNavigateToQuiz={() => setActiveTab("quiz")} onCustomerLogin={handleCustomerLogin} />
           </TabsContent>
           <TabsContent value="quiz" className="m-0 h-full">
-            <StyleQuizTab brandId={brandId} onComplete={() => setActiveTab("outfits")} />
+            <StyleQuizTab brandId={brandId} onComplete={handleQuizComplete} />
           </TabsContent>
           <TabsContent value="outfits" className="m-0 h-full">
-            <OutfitsTab brandId={brandId} onSelectOutfitForTryOn={handleSelectOutfitForTryOn} />
+            <OutfitsTab brandId={brandId} onSelectOutfitForTryOn={handleSelectOutfitForTryOn} quizAnswers={quizAnswers} />
           </TabsContent>
           <TabsContent value="wishlist" className="m-0 h-full">
             <WishlistTab brandId={brandId} />

@@ -25,7 +25,7 @@ async function createJwt(payload: Record<string, unknown>) {
   const key = await getJwtKey();
   return await create({ alg: "HS256", typ: "JWT" }, {
     ...payload,
-    exp: getNumericDate(60 * 60),
+    exp: getNumericDate(30 * 24 * 60 * 60),
   }, key);
 }
 

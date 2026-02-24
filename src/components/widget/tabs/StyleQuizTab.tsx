@@ -3,34 +3,51 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, ArrowRight, ArrowLeft, Sparkles, ShoppingBag } from "lucide-react";
 
-interface StyleQuizTabProps {
-  brandId?: string;
-  onComplete?: () => void;
+export interface QuizAnswers {
+  occasion: string;
+  colorMood: string;
+  formality: string;
+  budget: string;
 }
 
-const STYLE_OPTIONS = ["Minimalist", "Bohemian", "Classic", "Streetwear", "Romantic", "Edgy", "Preppy", "Athleisure"];
-const COLOR_OPTIONS = ["Black", "White", "Navy", "Beige", "Red", "Green", "Pink", "Brown", "Blue", "Gray"];
-const BODY_SHAPES = ["Hourglass", "Pear", "Apple", "Rectangle", "Triangle", "Inverted Triangle"];
-const OCCASIONS = ["Work", "Casual", "Date Night", "Weekend", "Formal", "Travel", "Workout"];
+interface StyleQuizTabProps {
+  brandId?: string;
+  onComplete?: (answers: QuizAnswers) => void;
+}
+
+const OCCASION_OPTIONS = [
+  "Work Meeting", "Brunch", "Date Night", "Everyday", "Special Event", "Travel", "Weekend Out", "Workout"
+];
+
+const COLOR_MOOD_OPTIONS = [
+  "Neutral & Earthy", "Bold & Bright", "Monochrome", "Pastels", "Dark & Moody", "Warm Tones"
+];
+
+const FORMALITY_OPTIONS = [
+  { label: "Casual", desc: "Relaxed & comfortable" },
+  { label: "Smart Casual", desc: "Polished but easy" },
+  { label: "Dressy", desc: "Elevated & chic" },
+  { label: "Formal", desc: "Event-ready" },
+];
+
+const BUDGET_OPTIONS = [
+  "Under $100", "$100–$250", "$250–$500", "No limit"
+];
 
 export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
   const [step, setStep] = useState(0);
   const [completed, setCompleted] = useState(false);
-  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
-  const [preferredColors, setPreferredColors] = useState<string[]>([]);
-  const [avoidedColors, setAvoidedColors] = useState<string[]>([]);
-  const [bodyShape, setBodyShape] = useState<string>("");
-  const [occasions, setOccasions] = useState<string[]>([]);
-
-  const toggleItem = (item: string, list: string[], setter: (v: string[]) => void) => {
-    setter(list.includes(item) ? list.filter((i) => i !== item) : [...list, item]);
-  };
+  const [occasion, setOccasion] = useState("");
+  const [colorMood, setColorMood] = useState("");
+  const [formality, setFormality] = useState("");
+  const [budget, setBudget] = useState("");
 
   const totalSteps = 4;
 
   const handleSubmit = () => {
-    console.log("Quiz submitted:", { selectedStyles, preferredColors, avoidedColors, bodyShape, occasions });
+    const answers: QuizAnswers = { occasion, colorMood, formality, budget };
     setCompleted(true);
+    onComplete?.(answers);
   };
 
   if (completed) {
@@ -39,11 +56,11 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
         <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
           <Check className="h-8 w-8 text-primary" />
         </div>
-        <h3 className="font-semibold text-lg">You're all set!</h3>
+        <h3 className="font-semibold text-lg">Great choices!</h3>
         <p className="text-sm text-muted-foreground max-w-[280px]">
-          We've saved your style profile. View your personalized outfit recommendations now.
+          We're generating outfits matched to your mood. View them now.
         </p>
-        <Button size="sm" className="gap-2" onClick={() => onComplete?.()}>
+        <Button size="sm" className="gap-2" onClick={() => onComplete?.({ occasion, colorMood, formality, budget })}>
           <ShoppingBag className="h-4 w-4" />
           View My Outfits
         </Button>
@@ -67,111 +84,100 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
       </div>
 
       <div className="flex-1">
-        {/* Step 0: Style */}
+        {/* Step 0: Occasion */}
         {step === 0 && (
           <div className="space-y-4">
             <div>
-              <h3 className="font-semibold text-base mb-1">What's your style?</h3>
-              <p className="text-sm text-muted-foreground">Pick all that describe you.</p>
+              <h3 className="font-semibold text-base mb-1">What's the occasion?</h3>
+              <p className="text-sm text-muted-foreground">What are you dressing for today?</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {STYLE_OPTIONS.map((style) => (
+              {OCCASION_OPTIONS.map((occ) => (
                 <Badge
-                  key={style}
-                  variant={selectedStyles.includes(style) ? "default" : "outline"}
+                  key={occ}
+                  variant={occasion === occ ? "default" : "outline"}
                   className="cursor-pointer px-3 py-1.5 text-sm transition-colors"
-                  onClick={() => toggleItem(style, selectedStyles, setSelectedStyles)}
+                  onClick={() => setOccasion(occ)}
                 >
-                  {selectedStyles.includes(style) && <Check className="h-3 w-3 mr-1" />}
-                  {style}
+                  {occasion === occ && <Check className="h-3 w-3 mr-1" />}
+                  {occ}
                 </Badge>
               ))}
             </div>
           </div>
         )}
 
-        {/* Step 1: Colors */}
+        {/* Step 1: Color Mood */}
         {step === 1 && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div>
-              <h3 className="font-semibold text-base mb-1">Colors you love</h3>
-              <p className="text-sm text-muted-foreground">Select your preferred colors.</p>
+              <h3 className="font-semibold text-base mb-1">What color mood are you feeling?</h3>
+              <p className="text-sm text-muted-foreground">Pick the palette that matches your vibe.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {COLOR_OPTIONS.map((color) => (
+              {COLOR_MOOD_OPTIONS.map((mood) => (
                 <Badge
-                  key={color}
-                  variant={preferredColors.includes(color) ? "default" : "outline"}
+                  key={mood}
+                  variant={colorMood === mood ? "default" : "outline"}
                   className="cursor-pointer px-3 py-1.5 text-sm transition-colors"
-                  onClick={() => toggleItem(color, preferredColors, setPreferredColors)}
+                  onClick={() => setColorMood(mood)}
                 >
-                  {preferredColors.includes(color) && <Check className="h-3 w-3 mr-1" />}
-                  {color}
+                  {colorMood === mood && <Check className="h-3 w-3 mr-1" />}
+                  {mood}
                 </Badge>
               ))}
-            </div>
-            <div>
-              <h3 className="font-semibold text-base mb-1">Colors to avoid</h3>
-              <div className="flex flex-wrap gap-2">
-                {COLOR_OPTIONS.map((color) => (
-                  <Badge
-                    key={color}
-                    variant={avoidedColors.includes(color) ? "destructive" : "outline"}
-                    className="cursor-pointer px-3 py-1.5 text-sm transition-colors"
-                    onClick={() => toggleItem(color, avoidedColors, setAvoidedColors)}
-                  >
-                    {color}
-                  </Badge>
-                ))}
-              </div>
             </div>
           </div>
         )}
 
-        {/* Step 2: Body Shape */}
+        {/* Step 2: Formality */}
         {step === 2 && (
           <div className="space-y-4">
             <div>
-              <h3 className="font-semibold text-base mb-1">Body shape</h3>
-              <p className="text-sm text-muted-foreground">This helps us recommend the best fits.</p>
+              <h3 className="font-semibold text-base mb-1">How dressed up?</h3>
+              <p className="text-sm text-muted-foreground">Set the vibe for your outfit.</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {BODY_SHAPES.map((shape) => (
+              {FORMALITY_OPTIONS.map((opt) => (
                 <button
-                  key={shape}
-                  onClick={() => setBodyShape(shape)}
-                  className={`p-3 rounded-lg border text-sm text-left transition-colors ${
-                    bodyShape === shape
+                  key={opt.label}
+                  onClick={() => setFormality(opt.label)}
+                  className={`p-3 rounded-lg border text-left transition-colors ${
+                    formality === opt.label
                       ? "border-primary bg-primary/5 font-medium"
                       : "border-border hover:border-primary/40"
                   }`}
                 >
-                  {bodyShape === shape && <Check className="h-3 w-3 inline mr-1" />}
-                  {shape}
+                  {formality === opt.label && <Check className="h-3 w-3 inline mr-1" />}
+                  <span className="text-sm">{opt.label}</span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{opt.desc}</p>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Step 3: Occasions */}
+        {/* Step 3: Budget */}
         {step === 3 && (
           <div className="space-y-4">
             <div>
-              <h3 className="font-semibold text-base mb-1">What do you dress for?</h3>
-              <p className="text-sm text-muted-foreground">Select the occasions you shop for most.</p>
+              <h3 className="font-semibold text-base mb-1">Budget for this outfit?</h3>
+              <p className="text-sm text-muted-foreground">We'll match recommendations to your range.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {OCCASIONS.map((occ) => (
-                <Badge
-                  key={occ}
-                  variant={occasions.includes(occ) ? "default" : "outline"}
-                  className="cursor-pointer px-3 py-1.5 text-sm transition-colors"
-                  onClick={() => toggleItem(occ, occasions, setOccasions)}
+            <div className="grid grid-cols-2 gap-2">
+              {BUDGET_OPTIONS.map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBudget(b)}
+                  className={`p-3 rounded-lg border text-sm text-left transition-colors ${
+                    budget === b
+                      ? "border-primary bg-primary/5 font-medium"
+                      : "border-border hover:border-primary/40"
+                  }`}
                 >
-                  {occasions.includes(occ) && <Check className="h-3 w-3 mr-1" />}
-                  {occ}
-                </Badge>
+                  {budget === b && <Check className="h-3 w-3 inline mr-1" />}
+                  {b}
+                </button>
               ))}
             </div>
           </div>
@@ -193,7 +199,6 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
           <Button
             size="sm"
             onClick={() => setStep(step + 1)}
-            disabled={false}
           >
             Next
             <ArrowRight className="h-4 w-4 ml-1" />

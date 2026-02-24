@@ -5,6 +5,7 @@ import { Heart, ShoppingBag, Sparkles, RefreshCw, Loader2, LogIn, Camera } from 
 import { useCartStore } from "@/stores/cartStore";
 import { ShopifyProduct } from "@/lib/shopify";
 import { toast } from "sonner";
+import type { QuizAnswers } from "./StyleQuizTab";
 
 interface OutfitItem {
   id: string;
@@ -30,6 +31,7 @@ interface OutfitsTabProps {
   anchorProductId?: string;
   anchorProductName?: string;
   onClearAnchor?: () => void;
+  quizAnswers?: QuizAnswers;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -38,7 +40,7 @@ function getToken(brandId?: string) {
   return localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
 }
 
-export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName, onClearAnchor }: OutfitsTabProps) {
+export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName, onClearAnchor, quizAnswers }: OutfitsTabProps) {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -47,6 +49,20 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   const [error, setError] = useState("");
 
   const isLoggedIn = !!getToken(brandId);
+
+  // Build customer_profile from stored token
+  const getCustomerProfile = async () => {
+    const token = getToken(brandId);
+    if (!token) return null;
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await resp.json();
+      if (data.user?.styleProfile) return data.user.styleProfile;
+    } catch { /* ignore */ }
+    return null;
+  };
 
   const fetchOutfits = async () => {
     if (!brandId) return;
@@ -67,17 +83,24 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
         }
       } catch { /* ignore, use defaults */ }
 
+      // Fetch customer profile if logged in
+      const customerProfile = await getCustomerProfile();
+
+      const body: Record<string, unknown> = { brand_id: brandId, rules: compositionRules, anchor_product_id: anchorProductId };
+      if (customerProfile) body.customer_profile = customerProfile;
+      if (quizAnswers) body.quiz_session = quizAnswers;
+
       let resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        body: JSON.stringify({ brand_id: brandId, rules: compositionRules, anchor_product_id: anchorProductId }),
+        body: JSON.stringify(body),
       });
       if (!resp.ok && resp.status >= 500) {
         await new Promise(r => setTimeout(r, 1500));
         resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-          body: JSON.stringify({ brand_id: brandId, rules: compositionRules, anchor_product_id: anchorProductId }),
+          body: JSON.stringify(body),
         });
       }
       const data = await resp.json();
@@ -102,6 +125,11 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   };
 
   useEffect(() => { fetchOutfits(); }, [brandId, anchorProductId]);
+
+  // Re-fetch when quiz answers change (user just completed the quiz)
+  useEffect(() => {
+    if (quizAnswers) fetchOutfits();
+  }, [quizAnswers]);
 
   const toggleSave = async (outfit: Outfit) => {
     const token = getToken(brandId);
@@ -139,7 +167,6 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   const addItem = useCartStore((state) => state.addItem);
 
   const handleAddAllToCart = async (outfit: Outfit) => {
-    // Filter items that have valid Shopify variant IDs
     const shopifyItems = outfit.items.filter(item => {
       const vid = item.shopify_variant_id || item.id;
       return vid.startsWith('gid://shopify/ProductVariant/');
@@ -230,7 +257,9 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-base">Your Outfits</h3>
-          <p className="text-xs text-muted-foreground">AI-curated looks for you</p>
+          <p className="text-xs text-muted-foreground">
+            {quizAnswers ? `Styled for ${quizAnswers.occasion || "you"} · ${quizAnswers.colorMood || ""}` : "AI-curated looks for you"}
+          </p>
         </div>
         <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={fetchOutfits} disabled={loading}>
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
@@ -291,26 +320,12 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
             <div className="p-3 flex items-center justify-between border-t border-border gap-2">
               <span className="font-semibold text-sm">${outfit.totalPrice.toFixed(2)}</span>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 gap-1"
-                  onClick={() => handleTryOn(outfit)}
-                >
+                <Button variant="outline" size="sm" className="text-xs h-8 gap-1" onClick={() => handleTryOn(outfit)}>
                   <Camera className="h-3 w-3" />
                   Try On
                 </Button>
-                <Button
-                  size="sm"
-                  className="text-xs h-8 gap-1"
-                  onClick={() => handleAddAllToCart(outfit)}
-                  disabled={addingToCart === outfit.id}
-                >
-                  {addingToCart === outfit.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <ShoppingBag className="h-3 w-3" />
-                  )}
+                <Button size="sm" className="text-xs h-8 gap-1" onClick={() => handleAddAllToCart(outfit)} disabled={addingToCart === outfit.id}>
+                  {addingToCart === outfit.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShoppingBag className="h-3 w-3" />}
                   Add All
                 </Button>
               </div>

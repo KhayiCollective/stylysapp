@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles } from "lucide-react";
+import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera } from "lucide-react";
 
 interface AccountTabProps {
   brandId?: string;
@@ -62,6 +62,8 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [checkingSession, setCheckingSession] = useState(true);
   const [subView, setSubView] = useState<SubView>("home");
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Style state
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
@@ -142,6 +144,37 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     setName("");
     setPassword("");
     setSubView("home");
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const token = localStorage.getItem(getStorageKey(brandId));
+    if (!token) return;
+
+    setUploadingPhoto(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/photo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ photoBase64: base64 }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.photo_url) {
+          setCustomerUser(prev => prev ? { ...prev, photo_url: data.photo_url } : prev);
+          onCustomerLogin?.(data.photo_url, token, { body_shape: customerUser?.styleProfile?.body_shape, size_info: customerUser?.styleProfile?.size_info as Record<string, string> | undefined });
+        }
+        setUploadingPhoto(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setUploadingPhoto(false);
+    }
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const saveProfile = async (section: "style" | "sizing") => {
@@ -247,14 +280,8 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             <p className="text-sm font-medium mb-2">Your Style</p>
             <div className="flex flex-wrap gap-2">
               {STYLE_OPTIONS.map((style) => (
-                <Badge
-                  key={style}
-                  variant={selectedStyles.includes(style) ? "default" : "outline"}
-                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
-                  onClick={() => toggleItem(style, selectedStyles, setSelectedStyles)}
-                >
-                  {selectedStyles.includes(style) && <Check className="h-3 w-3 mr-1" />}
-                  {style}
+                <Badge key={style} variant={selectedStyles.includes(style) ? "default" : "outline"} className="cursor-pointer px-3 py-1.5 text-xs transition-colors" onClick={() => toggleItem(style, selectedStyles, setSelectedStyles)}>
+                  {selectedStyles.includes(style) && <Check className="h-3 w-3 mr-1" />}{style}
                 </Badge>
               ))}
             </div>
@@ -264,14 +291,8 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             <p className="text-sm font-medium mb-2">Colors You Love</p>
             <div className="flex flex-wrap gap-2">
               {COLOR_OPTIONS.map((color) => (
-                <Badge
-                  key={color}
-                  variant={preferredColors.includes(color) ? "default" : "outline"}
-                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
-                  onClick={() => toggleItem(color, preferredColors, setPreferredColors)}
-                >
-                  {preferredColors.includes(color) && <Check className="h-3 w-3 mr-1" />}
-                  {color}
+                <Badge key={color} variant={preferredColors.includes(color) ? "default" : "outline"} className="cursor-pointer px-3 py-1.5 text-xs transition-colors" onClick={() => toggleItem(color, preferredColors, setPreferredColors)}>
+                  {preferredColors.includes(color) && <Check className="h-3 w-3 mr-1" />}{color}
                 </Badge>
               ))}
             </div>
@@ -281,12 +302,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             <p className="text-sm font-medium mb-2">Colors to Avoid</p>
             <div className="flex flex-wrap gap-2">
               {COLOR_OPTIONS.map((color) => (
-                <Badge
-                  key={color}
-                  variant={avoidedColors.includes(color) ? "destructive" : "outline"}
-                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
-                  onClick={() => toggleItem(color, avoidedColors, setAvoidedColors)}
-                >
+                <Badge key={color} variant={avoidedColors.includes(color) ? "destructive" : "outline"} className="cursor-pointer px-3 py-1.5 text-xs transition-colors" onClick={() => toggleItem(color, avoidedColors, setAvoidedColors)}>
                   {color}
                 </Badge>
               ))}
@@ -297,17 +313,8 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             <p className="text-sm font-medium mb-2">Body Shape</p>
             <div className="grid grid-cols-2 gap-2">
               {BODY_SHAPES.map((shape) => (
-                <button
-                  key={shape}
-                  onClick={() => setBodyShape(shape)}
-                  className={`p-2.5 rounded-lg border text-xs text-left transition-colors ${
-                    bodyShape === shape
-                      ? "border-primary bg-primary/5 font-medium"
-                      : "border-border hover:border-primary/40"
-                  }`}
-                >
-                  {bodyShape === shape && <Check className="h-3 w-3 inline mr-1" />}
-                  {shape}
+                <button key={shape} onClick={() => setBodyShape(shape)} className={`p-2.5 rounded-lg border text-xs text-left transition-colors ${bodyShape === shape ? "border-primary bg-primary/5 font-medium" : "border-border hover:border-primary/40"}`}>
+                  {bodyShape === shape && <Check className="h-3 w-3 inline mr-1" />}{shape}
                 </button>
               ))}
             </div>
@@ -317,14 +324,8 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             <p className="text-sm font-medium mb-2">Occasions</p>
             <div className="flex flex-wrap gap-2">
               {OCCASIONS.map((occ) => (
-                <Badge
-                  key={occ}
-                  variant={occasions.includes(occ) ? "default" : "outline"}
-                  className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
-                  onClick={() => toggleItem(occ, occasions, setOccasions)}
-                >
-                  {occasions.includes(occ) && <Check className="h-3 w-3 mr-1" />}
-                  {occ}
+                <Badge key={occ} variant={occasions.includes(occ) ? "default" : "outline"} className="cursor-pointer px-3 py-1.5 text-xs transition-colors" onClick={() => toggleItem(occ, occasions, setOccasions)}>
+                  {occasions.includes(occ) && <Check className="h-3 w-3 mr-1" />}{occ}
                 </Badge>
               ))}
             </div>
@@ -356,14 +357,8 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
               <p className="text-sm font-medium mb-2 capitalize">{cat}</p>
               <div className="flex flex-wrap gap-2">
                 {SIZE_OPTIONS[cat].map((size) => (
-                  <Badge
-                    key={size}
-                    variant={sizeInfo[cat] === size ? "default" : "outline"}
-                    className="cursor-pointer px-3 py-1.5 text-xs transition-colors"
-                    onClick={() => setSizeInfo(prev => ({ ...prev, [cat]: prev[cat] === size ? "" : size }))}
-                  >
-                    {sizeInfo[cat] === size && <Check className="h-3 w-3 mr-1" />}
-                    {size}
+                  <Badge key={size} variant={sizeInfo[cat] === size ? "default" : "outline"} className="cursor-pointer px-3 py-1.5 text-xs transition-colors" onClick={() => setSizeInfo(prev => ({ ...prev, [cat]: prev[cat] === size ? "" : size }))}>
+                    {sizeInfo[cat] === size && <Check className="h-3 w-3 mr-1" />}{size}
                   </Badge>
                 ))}
               </div>
@@ -385,10 +380,23 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
 
   return (
     <div className="p-4 space-y-5">
+      {/* Avatar with photo upload */}
       <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-        <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-          <User className="h-5 w-5" />
-        </div>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="relative h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center overflow-hidden group shrink-0"
+          disabled={uploadingPhoto}
+        >
+          {customerUser?.photo_url ? (
+            <img src={customerUser.photo_url} alt="Profile" className="h-full w-full object-cover" />
+          ) : (
+            <User className="h-5 w-5" />
+          )}
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : <Camera className="h-4 w-4 text-white" />}
+          </div>
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
         <div className="flex-1">
           <p className="font-medium text-sm">{customerUser?.name || "Customer"}</p>
           <p className="text-xs text-muted-foreground">{customerUser?.email}</p>
