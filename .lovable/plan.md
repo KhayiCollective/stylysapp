@@ -1,51 +1,49 @@
 
 
-## Problem: "Failed to complete connection" — Unique Constraint Violation
+## Problem Analysis
 
-### Root Cause
+Your profile is linked to the wrong brand. Here's the current state:
 
-The `brands` table has a **unique constraint** on `shopify_store_domain` (`unique_shopify_store_domain`).
+```text
+Your profile (info@hausofkhayi.com)
+  └── points to: cbfe18b2 "STYLYS APP"
+       └── domain: test-store.myshopify.com
+       └── token: test_mock_... (FAKE — causes all 401 errors)
 
-When you previously tested via the embedded flow, the `embedded-authorize` action auto-created a brand record (ID `7b3d7a56`) with `shopify_store_domain: khayi-collective.myshopify.com`.
+Actual working brand:
+  └── 90729a9c "khayi-collective"
+       └── domain: khayi-collective.myshopify.com
+       └── token: shpat_4fee... (REAL Shopify token)
+```
 
-Now, when you connect via the standalone flow, the OAuth callback tries to update **your actual brand** (ID `d8e44ff4`, "My Brand") with `shopify_store_domain: khayi-collective.myshopify.com` — but that domain is already claimed by the auto-created brand. This violates the unique constraint, so the database update fails.
+Every backend function (`shopify-proxy`, `shopify-product-sync`, `check-subscription`, `create-checkout`) looks up your brand via your profile. Since your profile points to `cbfe18b2` with mock credentials, they all get 401 from Shopify.
 
-### Fix (Two Parts)
+## Fix (Two Parts)
 
-#### 1. Clean up orphan brand record
+### 1. Re-point your profile to the real brand
 
-Delete the auto-created brand `7b3d7a56` ("khayi-collective") that has no profile pointing to it — it's an orphan from the embedded-authorize flow.
+Update your profile's `brand_id` from `cbfe18b2` (mock) to `90729a9c` (real khayi-collective with valid token).
 
 ```sql
-DELETE FROM brands WHERE id = '7b3d7a56-46a8-4ba2-9c8f-45b0a4609974';
+UPDATE profiles
+SET brand_id = '90729a9c-a8b2-4eda-9d82-ddbb970d5565'
+WHERE id = '1d43362c-e853-4b45-8769-9467bfb4e2a7';
 ```
 
-#### 2. Update the edge function to handle domain conflicts
+### 2. Clean up the mock brand
 
-In `supabase/functions/shopify-oauth/index.ts`, before the `brands` update in the callback handler, add a step that clears `shopify_store_domain` from any other brand that might hold the same domain. This prevents future collisions from embedded-authorize auto-created brands.
+Delete the "STYLYS APP" test brand with fake credentials to prevent future fallback issues.
 
-```typescript
-// Before updating the target brand, clear the domain from any orphan brands
-await supabase
-  .from("brands")
-  .update({ shopify_store_domain: null })
-  .eq("shopify_store_domain", shop)
-  .neq("id", brandId);
-```
-
-Also improve the error log to include the actual database error message so future issues are easier to diagnose:
-
-```typescript
-if (updateError) {
-  console.error("[SHOPIFY-OAUTH] Database update failed:", updateError.message, updateError.code);
-  // ...
-}
+```sql
+DELETE FROM brands WHERE id = 'cbfe18b2-b2f2-444f-a6fc-bbf9439c37a7';
 ```
 
 ### Files Modified
-- **Database migration**: Delete orphan brand record
-- **`supabase/functions/shopify-oauth/index.ts`**: Add domain conflict resolution before brand update, improve error logging
+- **Database only** — no code changes needed. The edge functions already work correctly; they just need real credentials.
 
 ### After Fix
-You should be able to retry connecting `khayi-collective.myshopify.com` and the OAuth callback will succeed.
+- The `/shop` page will load products from `khayi-collective.myshopify.com`
+- Webhook status will show registered webhooks
+- Product sync will work
+- Subscription/billing flow will use the real Shopify Admin API token
 
