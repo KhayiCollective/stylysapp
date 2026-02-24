@@ -162,7 +162,7 @@ export default function ShopifyConnect() {
             if (wasEmbeddedFlow) {
               const shopName = shopParam.replace('.myshopify.com', '');
               setTimeout(() => {
-                window.location.href = `https://${shopName}.myshopify.com/admin/apps/stylys`;
+                window.location.href = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
               }, 1500);
             } else {
               setTimeout(() => navigate('/dashboard'), 1500);
@@ -217,7 +217,7 @@ export default function ShopifyConnect() {
             // If embedded flow and already connected, go back to embedded
             if (isEmbeddedFlow && brand.shopify_store_domain) {
               const shopName = brand.shopify_store_domain.replace('.myshopify.com', '');
-              window.location.href = `https://${shopName}.myshopify.com/admin/apps/stylys`;
+              window.location.href = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
             } else {
               navigate('/dashboard');
             }
