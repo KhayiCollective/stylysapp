@@ -20,7 +20,7 @@ export default function Privacy() {
       {/* Content */}
       <main className="container mx-auto px-4 py-12 max-w-4xl">
         <h1 className="font-display text-4xl font-medium mb-2">Privacy Policy</h1>
-        <p className="text-muted-foreground mb-8">Last updated: January 2, 2026</p>
+        <p className="text-muted-foreground mb-8">Last updated: February 25, 2026</p>
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
           <section>
@@ -154,7 +154,7 @@ export default function Privacy() {
             <div className="mt-4 p-4 bg-muted rounded-lg">
               <p className="text-sm">
                 <strong>STYLYS</strong><br />
-                Email: support@stylysapp.com<br />
+                Email: legal@stylys.app<br />
                 Support: <Link to="/support" className="text-primary hover:underline">Contact Support</Link>
               </p>
             </div>

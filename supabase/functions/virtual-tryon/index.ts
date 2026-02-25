@@ -82,25 +82,33 @@ function buildPrompt(outfitItems: OutfitItem[], bodyShape?: string, sizeInfo?: S
     bodyProfileSection = `\n\nBODY PROFILE:\n${parts.join("\n")}`;
   }
 
-  return `You are a fashion retail product visualization AI. Create a realistic fashion visualization showing the person from Image 1 wearing a complete outfit assembled from the following product images. This is for fashion retail product visualization purposes.
+  return `You are a fashion retail product visualization AI specializing in photorealistic outfit compositing. Your task is to create a visualization showing the person from Image 1 wearing a complete outfit assembled from the following product images.
 
-CRITICAL: Each product image may show a model wearing multiple garments, but each image represents ONLY ONE specific product for sale. You must extract only the garment matching the specified category from each image:
+CRITICAL IDENTITY PRESERVATION RULES — HIGHEST PRIORITY:
+- The output MUST depict the EXACT SAME PERSON from Image 1.
+- You MUST precisely replicate: their face (every facial feature, bone structure, expression), exact skin tone and complexion, hair (color, texture, style, length), body proportions (height, build, limb length, shoulder width, hip width), and their exact pose.
+- Do NOT replace the person with a different model, a generic figure, or an idealized version.
+- The person in the output must be INSTANTLY RECOGNIZABLE as the same individual from Image 1. If shown side-by-side, a viewer should have zero doubt it is the same person.
+- Maintain any distinctive features: tattoos, moles, scars, jewelry they're wearing, glasses, etc.
+
+GARMENT EXTRACTION RULES:
+Each product image may show a model wearing multiple garments, but each image represents ONLY ONE specific product for sale. Extract only the garment matching the specified category:
 
 ${itemInstructions}${bodyProfileSection}
 
-Requirements:
-1. CRITICAL: The output image MUST be the EXACT SAME PERSON from Image 1 — preserve their face, skin tone, hair, facial features, and body exactly as shown. Do NOT substitute a different model or generic person.
-2. Dress the person in ALL the extracted garments together as one cohesive outfit
-3. Maintain the person's exact pose and proportions from Image 1
-4. Natural lighting, realistic fabric draping
-5. Keep the original background or use a clean studio background
+OUTFIT COMPOSITION RULES:
+1. Dress the person in ALL the extracted garments together as one cohesive outfit
+2. Garments should fit naturally on the person's ACTUAL body (not a different body type)
+3. Natural lighting consistent with Image 1, realistic fabric draping appropriate for the person's frame
+4. Keep the original background from Image 1 or use a clean studio background
+5. Preserve the person's exact posture and pose from Image 1
 
 You MUST generate an image. Output the visualization image now.`;
 }
 
 function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   const items = outfitItems.map(i => `"${i.name}" (${i.category})`).join(", ");
-  return `Generate a fashion visualization image. Show the person from Image 1 wearing these clothing items: ${items}. Extract only the specified garment category from each product image. You MUST output an image. This is for fashion retail product visualization.`;
+  return `Generate a fashion visualization image. Show the EXACT SAME PERSON from Image 1 (preserve their face, skin tone, body shape, hair, and all distinguishing features precisely) wearing these clothing items: ${items}. Extract only the specified garment category from each product image. The person must be instantly recognizable as the individual from Image 1. You MUST output an image. This is for fashion retail product visualization.`;
 }
 
 async function callAI(apiKey: string, contentParts: any[], model: string) {

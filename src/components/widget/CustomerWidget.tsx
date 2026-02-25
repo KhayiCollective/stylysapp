@@ -31,11 +31,12 @@ interface CustomerWidgetProps {
 
 export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChange, onTabChange, anchorProductId, anchorProductName, onClearAnchor }: CustomerWidgetProps) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const isLoggedIn = !!localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
+  const storedToken = localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
+  const isLoggedIn = !!storedToken;
   const [internalTab, setInternalTab] = useState(isLoggedIn ? "outfits" : "account");
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
   const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
-  const [customerToken, setCustomerToken] = useState<string | null>(null);
+  const [customerToken, setCustomerToken] = useState<string | null>(storedToken);
   const [customerBodyShape, setCustomerBodyShape] = useState<string | undefined>();
   const [customerSizeInfo, setCustomerSizeInfo] = useState<Record<string, string> | undefined>();
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswers | undefined>();
