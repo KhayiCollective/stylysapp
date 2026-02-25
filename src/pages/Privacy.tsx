@@ -154,7 +154,7 @@ export default function Privacy() {
             <div className="mt-4 p-4 bg-muted rounded-lg">
               <p className="text-sm">
                 <strong>STYLYS</strong><br />
-                Email: legal@stylys.app<br />
+                Email: support@stylysapp.com<br />
                 Support: <Link to="/support" className="text-primary hover:underline">Contact Support</Link>
               </p>
             </div>
