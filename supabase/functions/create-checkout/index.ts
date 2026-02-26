@@ -11,18 +11,13 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-const TIERS: Record<string, { name: string; amount: number; trialDays: number }> = {
-  starter: { name: "Starter", amount: 14.99, trialDays: 3 },
-  professional: { name: "Professional", amount: 29.99, trialDays: 3 },
-};
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    logStep("Function started");
+    logStep("Function started — Managed Pricing redirect mode");
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -40,11 +35,6 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { email: user.email });
 
-    const { plan } = await req.json();
-    if (!plan || !TIERS[plan]) throw new Error("Invalid plan. Must be 'starter' or 'professional'");
-    const tier = TIERS[plan];
-    logStep("Plan selected", { plan, tier });
-
     // Get user's brand to find their Shopify store
     const { data: profile } = await supabaseClient
       .from("profiles")
@@ -56,86 +46,23 @@ serve(async (req) => {
 
     const { data: brand } = await supabaseClient
       .from("brands")
-      .select("shopify_store_domain, shopify_access_token")
+      .select("shopify_store_domain")
       .eq("id", profile.brand_id)
       .single();
 
-    if (!brand?.shopify_store_domain || !brand?.shopify_access_token) {
+    if (!brand?.shopify_store_domain) {
       throw new Error("Shopify store not connected. Please connect your Shopify store first.");
     }
 
     logStep("Brand found", { domain: brand.shopify_store_domain });
 
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    // For Managed Pricing apps, redirect to the Shopify admin billing page
+    // Shopify handles plan selection and billing natively
+    const billingUrl = `https://${brand.shopify_store_domain}/admin/app/billing`;
 
-    // Create app subscription via Shopify Admin API
-    const mutation = `
-      mutation AppSubscriptionCreate($name: String!, $lineItems: [AppSubscriptionLineItemInput!]!, $returnUrl: URL!, $trialDays: Int) {
-        appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems, trialDays: $trialDays) {
-          appSubscription {
-            id
-            name
-            status
-          }
-          confirmationUrl
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-    `;
+    logStep("Returning Shopify managed billing URL", { url: billingUrl });
 
-    const variables = {
-      name: `STYLYS ${tier.name}`,
-      returnUrl: `${origin}/dashboard?billing=success`,
-      trialDays: tier.trialDays,
-      lineItems: [{
-        plan: {
-          appRecurringPricingDetails: {
-            price: { amount: tier.amount, currencyCode: "USD" },
-          },
-        },
-      }],
-    };
-
-    const shopifyResp = await fetch(
-      `https://${brand.shopify_store_domain}/admin/api/2025-01/graphql.json`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Access-Token": brand.shopify_access_token,
-        },
-        body: JSON.stringify({ query: mutation, variables }),
-      }
-    );
-
-    const shopifyData = await shopifyResp.json();
-    logStep("Shopify response", shopifyData);
-
-    // Handle Shopify auth errors (invalid/mock credentials)
-    if (shopifyData.errors) {
-      const errMsg = typeof shopifyData.errors === "string" ? shopifyData.errors : JSON.stringify(shopifyData.errors);
-      if (errMsg.includes("Invalid API key") || errMsg.includes("unrecognized login")) {
-        throw new Error("Your Shopify store credentials are invalid. Please reconnect your Shopify store in Settings before subscribing.");
-      }
-      throw new Error(`Shopify API error: ${errMsg}`);
-    }
-
-    if (shopifyData.data?.appSubscriptionCreate?.userErrors?.length > 0) {
-      const errors = shopifyData.data.appSubscriptionCreate.userErrors;
-      throw new Error(`Shopify billing error: ${errors.map((e: any) => e.message).join(", ")}`);
-    }
-
-    const confirmationUrl = shopifyData.data?.appSubscriptionCreate?.confirmationUrl;
-    if (!confirmationUrl) {
-      throw new Error("No confirmation URL returned from Shopify. Please ensure your Shopify app has billing permissions.");
-    }
-
-    logStep("Confirmation URL created", { url: confirmationUrl });
-
-    return new Response(JSON.stringify({ url: confirmationUrl }), {
+    return new Response(JSON.stringify({ url: billingUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

@@ -164,40 +164,9 @@ export default function ShopifyConnect() {
                 window.location.href = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
               }, 1500);
             } else {
-              // Check if a plan was selected during signup
-              const planParam = new URLSearchParams(window.location.search).get('plan') || 
-                                sessionStorage.getItem('selectedPlan');
-              
-              if (planParam && (planParam === 'starter' || planParam === 'professional')) {
-                setConnectionStep({ step: 'done', message: 'Setting up your subscription...' });
-                try {
-                  const { data: session } = await supabase.auth.getSession();
-                  if (session?.session?.access_token) {
-                    const checkoutResp = await supabase.functions.invoke('create-checkout', {
-                      body: { plan: planParam },
-                      headers: { Authorization: `Bearer ${session.session.access_token}` },
-                    });
-                    
-                    if (checkoutResp.data?.url) {
-                      // Redirect to Shopify billing approval
-                      window.location.href = checkoutResp.data.url;
-                      return;
-                    } else {
-                      console.warn('[ShopifyConnect] Billing setup issue:', checkoutResp.data?.error);
-                      toast({
-                        title: "Subscription setup",
-                        description: checkoutResp.data?.error || "We'll set up billing later. Heading to your dashboard.",
-                      });
-                    }
-                  }
-                } catch (billingError) {
-                  console.error('[ShopifyConnect] Billing error:', billingError);
-                  toast({
-                    title: "Subscription setup deferred",
-                    description: "You can set up your subscription in Settings. Heading to your dashboard.",
-                  });
-                }
-              }
+              // Managed Pricing: Shopify handles billing during install,
+              // so skip auto-checkout and go straight to dashboard.
+              sessionStorage.removeItem('selectedPlan');
               
               setTimeout(() => navigate('/dashboard'), 1500);
             }
