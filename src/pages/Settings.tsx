@@ -14,7 +14,7 @@ import { ShopifyTestMode } from '@/components/ShopifyTestMode';
 import { ShopifySyncStatus } from '@/components/ShopifySyncStatus';
 import { WebhookStatusIndicator } from '@/components/catalog/WebhookStatusIndicator';
 import { SyncHistoryLog } from '@/components/catalog/SyncHistoryLog';
-import { User, Building2, Loader2, Save, LogOut, BookOpen, CreditCard, Crown, Sparkles, Check } from 'lucide-react';
+import { User, Building2, Loader2, Save, LogOut, BookOpen, CreditCard, Crown, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -270,41 +270,22 @@ export default function Settings() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">You don't have an active subscription. Connect your Shopify store to subscribe.</p>
-                <div className="flex gap-3">
-                  <Button onClick={async () => {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (!session) return;
-                    const { data, error } = await supabase.functions.invoke('create-checkout', {
-                      headers: { Authorization: `Bearer ${session.access_token}` },
-                      body: { plan: "starter" },
-                    });
-                    if (error || data?.error) {
-                      toast({ title: 'Subscription Error', description: data?.error || 'Failed to create checkout. Please try again.', variant: 'destructive' });
-                      return;
-                    }
-                    if (data?.url) window.location.href = data.url;
-                  }} variant="outline">
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Starter — $14.99/mo
-                  </Button>
-                  <Button onClick={async () => {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (!session) return;
-                    const { data, error } = await supabase.functions.invoke('create-checkout', {
-                      headers: { Authorization: `Bearer ${session.access_token}` },
-                      body: { plan: "professional" },
-                    });
-                    if (error || data?.error) {
-                      toast({ title: 'Subscription Error', description: data?.error || 'Failed to create checkout. Please try again.', variant: 'destructive' });
-                      return;
-                    }
-                    if (data?.url) window.location.href = data.url;
-                  }}>
-                    <Crown className="h-4 w-4 mr-2" />
-                    Professional — $29.99/mo
-                  </Button>
-                </div>
+                <p className="text-sm text-muted-foreground">You don't have an active subscription. Choose a plan via Shopify to get started.</p>
+                <Button onClick={async () => {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (!session) return;
+                  const { data, error } = await supabase.functions.invoke('create-checkout', {
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                  });
+                  if (error || data?.error) {
+                    toast({ title: 'Subscription Error', description: data?.error || 'Failed to open billing page. Please try again.', variant: 'destructive' });
+                    return;
+                  }
+                  if (data?.url) window.open(data.url, '_blank');
+                }}>
+                  <Crown className="h-4 w-4 mr-2" />
+                  Choose a Plan on Shopify
+                </Button>
               </div>
             )}
           </CardContent>
