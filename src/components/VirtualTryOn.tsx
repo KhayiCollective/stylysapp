@@ -47,7 +47,7 @@ export function VirtualTryOn({ productImage, productName }: VirtualTryOnProps) {
 
     try {
       const { data, error } = await supabase.functions.invoke("virtual-tryon", {
-        body: { userImageBase64: userImage, outfitItems: [{ name: productName || "Product", imageUrl: productImage, category: "clothing" }] },
+        body: { userImageBase64: userImage, productImageUrl: productImage, productCategory: "clothing" },
       });
 
       if (error) throw error;

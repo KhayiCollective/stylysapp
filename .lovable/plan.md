@@ -1,81 +1,74 @@
 
 
-## Analysis
+## Problem
 
-I identified three issues causing the virtual try-on to not reflect the actual customer:
+The current Shopify sync creates **one database row per variant** (every color + size combination). For example, "Ames Packable Straw Cowboy Hat" has 8 rows (2 colors × 4 sizes). This clutters the catalog and confuses the widget's outfit generation, which treats each size as a separate product.
 
-### Issue 1: Product image conversion crashes (critical)
-The `imageUrlToBase64` function in the edge function uses `btoa(String.fromCharCode(...new Uint8Array(buf)))` which causes a **`RangeError: Maximum call stack size exceeded`** for large Shopify product images (visible in the logs). This means product images silently fall back to raw URLs instead of base64, and the AI model receives broken/missing image data. With corrupted input, the model can't properly distinguish the customer photo from product photos.
+The goal: **one product card per color**, with all size variants stored inside that card.
 
-### Issue 2: Prompt needs stronger identity preservation
-The current prompt says "Maintain the person's face, body shape, and pose" but doesn't emphasize enough that the output must be a recognizable likeness of the specific person. The AI sometimes generates a generic model instead.
+## Current Data Example
 
-### Issue 3: Standalone VirtualTryOn component still broken
-`src/components/VirtualTryOn.tsx` (line 50) still sends `{ productImageUrl, productCategory }` instead of `{ outfitItems: [...] }`, so it will always fail validation.
+| name | shopify_product_id | shopify_variant_id |
+|------|------|------|
+| Ames Hat - Natural / XS 55 | 9341417455860 | 47688342175988 |
+| Ames Hat - Natural / S/M 57 | 9341417455860 | 47688342208756 |
+| Ames Hat - Natural / M/L 59 | 9341417455860 | 47688342241524 |
+| Ames Hat - Chocolate / XS 55 | 9341417455860 | 47688342307060 |
+| Ames Hat - Chocolate / S/M 57 | 9341417455860 | 47688342339828 |
+
+**After fix:** 2 rows instead of 8 — one for "Natural", one for "Chocolate" — each with a `variants_json` column holding all sizes.
 
 ## Plan
 
-### A. Fix `imageUrlToBase64` in edge function
-**File:** `supabase/functions/virtual-tryon/index.ts`
+### A. Add `variants_json` column to products table
+**Migration:** Add a nullable `jsonb` column `variants_json` to store size variants per product-color row.
 
-Replace the spread-based `btoa` call with a chunked encoding approach that handles large images:
-
-```typescript
-async function imageUrlToBase64(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url;
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) return url;
-    const contentType = resp.headers.get("content-type") || "image/jpeg";
-    const buf = await resp.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    // Chunked encoding to avoid stack overflow
-    let binary = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    const b64 = btoa(binary);
-    return `data:${contentType};base64,${b64}`;
-  } catch (e) {
-    console.error(`Error converting image: ${url}`, e);
-    return url;
-  }
-}
+```sql
+ALTER TABLE products ADD COLUMN variants_json jsonb DEFAULT '[]'::jsonb;
 ```
 
-### B. Strengthen identity-preservation in prompt
-**File:** `supabase/functions/virtual-tryon/index.ts`
-
-Update `buildPrompt` requirements to emphasize identity:
-
-```
-Requirements:
-1. CRITICAL: The output image MUST be the EXACT SAME PERSON from Image 1 — 
-   preserve their face, skin tone, hair, facial features, and body exactly as shown.
-   Do NOT substitute a different model or generic person.
-2. Dress the person in ALL the extracted garments together as one cohesive outfit
-3. Maintain the person's exact pose and proportions from Image 1
-4. Natural lighting, realistic fabric draping
-5. Keep the original background or use a clean studio background
+The structure will be:
+```json
+[
+  { "variant_id": "47688342175988", "size": "XS 55", "price": "138.00", "available": true },
+  { "variant_id": "47688342208756", "size": "S/M 57", "price": "138.00", "available": true }
+]
 ```
 
-### C. Fix standalone VirtualTryOn payload
-**File:** `src/components/VirtualTryOn.tsx`
+### B. Update Shopify sync to group by product + color
+**File:** `supabase/functions/shopify-product-sync/index.ts`
 
-Change line 50 from:
-```js
-body: { userImageBase64: userImage, productImageUrl: productImage, productCategory: "clothing" }
-```
-To:
-```js
-body: { 
-  userImageBase64: userImage, 
-  outfitItems: [{ name: productName || "Product", imageUrl: productImage, category: "clothing" }] 
-}
-```
+Currently the sync iterates `for (const variant of product.variants)` and inserts one row each. Change to:
+
+1. Fetch full product data from Shopify Admin API including `options` (to identify which option is Color vs Size)
+2. Group variants by their color option value (or by product if no color option exists)
+3. For each color group, insert/upsert **one** product row with:
+   - `name`: "Product Title - Color" (or just "Product Title" if single-color)
+   - `color`: extracted from variant option
+   - `shopify_variant_id`: first variant ID (for backward compat)
+   - `variants_json`: array of all size variants with their IDs, sizes, and prices
+   - `image_url`: color-specific image if available from Shopify, otherwise first image
+
+The Shopify Admin API already returns `options` on each product (e.g., `[{name: "Color", values: ["Natural","Chocolate"]}, {name: "Size", values: ["XS","S/M"]}]`) and each variant has `option1`, `option2`, `option3` — so we can identify the color vs size axis.
+
+### C. Update WooCommerce sync similarly
+**File:** `supabase/functions/woocommerce-product-sync/index.ts`
+
+Apply the same grouping logic for WooCommerce products that have color/size attributes.
+
+### D. Update catalog display to show variants
+**File:** `src/pages/Catalog.tsx`
+
+- Update the `Product` interface to include `variants_json`
+- Show a size count badge on each card (e.g., "4 sizes")
+- The card still shows one image, one price, one color — just as requested
+
+### E. Clean up existing duplicate rows
+After the sync logic is updated, re-running sync will consolidate existing per-variant rows into per-color rows. Old per-variant rows with matching `shopify_product_id` that are no longer needed will be cleaned up by the sync process (mark for deletion any rows whose `shopify_variant_id` doesn't match the new "primary" variant for that color group).
 
 ### Files Modified
-- `supabase/functions/virtual-tryon/index.ts` — fix base64 conversion crash + improve prompt
-- `src/components/VirtualTryOn.tsx` — fix payload format
+- **Migration**: Add `variants_json` column to `products` table
+- `supabase/functions/shopify-product-sync/index.ts` — group variants by color, store sizes in `variants_json`
+- `supabase/functions/woocommerce-product-sync/index.ts` — same grouping logic
+- `src/pages/Catalog.tsx` — show variant count on product cards
 

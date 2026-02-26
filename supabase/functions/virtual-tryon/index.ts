@@ -35,14 +35,7 @@ async function imageUrlToBase64(url: string): Promise<string> {
     }
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     const buf = await resp.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    // Chunked encoding to avoid stack overflow on large images
-    let binary = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    const b64 = btoa(binary);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
     return `data:${contentType};base64,${b64}`;
   } catch (e) {
     console.error(`Error converting image to base64: ${url}`, e);
@@ -82,33 +75,25 @@ function buildPrompt(outfitItems: OutfitItem[], bodyShape?: string, sizeInfo?: S
     bodyProfileSection = `\n\nBODY PROFILE:\n${parts.join("\n")}`;
   }
 
-  return `You are a fashion retail product visualization AI specializing in photorealistic outfit compositing. Your task is to create a visualization showing the person from Image 1 wearing a complete outfit assembled from the following product images.
+  return `You are a fashion retail product visualization AI. Create a realistic fashion visualization showing the person from Image 1 wearing a complete outfit assembled from the following product images. This is for fashion retail product visualization purposes.
 
-CRITICAL IDENTITY PRESERVATION RULES — HIGHEST PRIORITY:
-- The output MUST depict the EXACT SAME PERSON from Image 1.
-- You MUST precisely replicate: their face (every facial feature, bone structure, expression), exact skin tone and complexion, hair (color, texture, style, length), body proportions (height, build, limb length, shoulder width, hip width), and their exact pose.
-- Do NOT replace the person with a different model, a generic figure, or an idealized version.
-- The person in the output must be INSTANTLY RECOGNIZABLE as the same individual from Image 1. If shown side-by-side, a viewer should have zero doubt it is the same person.
-- Maintain any distinctive features: tattoos, moles, scars, jewelry they're wearing, glasses, etc.
-
-GARMENT EXTRACTION RULES:
-Each product image may show a model wearing multiple garments, but each image represents ONLY ONE specific product for sale. Extract only the garment matching the specified category:
+CRITICAL: Each product image may show a model wearing multiple garments, but each image represents ONLY ONE specific product for sale. You must extract only the garment matching the specified category from each image:
 
 ${itemInstructions}${bodyProfileSection}
 
-OUTFIT COMPOSITION RULES:
+Requirements:
 1. Dress the person in ALL the extracted garments together as one cohesive outfit
-2. Garments should fit naturally on the person's ACTUAL body (not a different body type)
-3. Natural lighting consistent with Image 1, realistic fabric draping appropriate for the person's frame
-4. Keep the original background from Image 1 or use a clean studio background
-5. Preserve the person's exact posture and pose from Image 1
+2. Maintain the person's face, body shape, and pose from their original photo (Image 1)
+3. Natural lighting, realistic fabric draping, proper proportions
+4. Professional fashion photography quality
+5. Keep the original background or use a clean studio background
 
 You MUST generate an image. Output the visualization image now.`;
 }
 
 function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   const items = outfitItems.map(i => `"${i.name}" (${i.category})`).join(", ");
-  return `Generate a fashion visualization image. Show the EXACT SAME PERSON from Image 1 (preserve their face, skin tone, body shape, hair, and all distinguishing features precisely) wearing these clothing items: ${items}. Extract only the specified garment category from each product image. The person must be instantly recognizable as the individual from Image 1. You MUST output an image. This is for fashion retail product visualization.`;
+  return `Generate a fashion visualization image. Show the person from Image 1 wearing these clothing items: ${items}. Extract only the specified garment category from each product image. You MUST output an image. This is for fashion retail product visualization.`;
 }
 
 async function callAI(apiKey: string, contentParts: any[], model: string) {
