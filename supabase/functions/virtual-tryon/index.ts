@@ -75,25 +75,37 @@ function buildPrompt(outfitItems: OutfitItem[], bodyShape?: string, sizeInfo?: S
     bodyProfileSection = `\n\nBODY PROFILE:\n${parts.join("\n")}`;
   }
 
-  return `You are a fashion retail product visualization AI. Create a realistic fashion visualization showing the person from Image 1 wearing a complete outfit assembled from the following product images. This is for fashion retail product visualization purposes.
+  return `You are a photorealistic virtual try-on AI for fashion retail. Your task: take the person in Image 1 as an IMMUTABLE body reference and digitally dress them in the outfit items extracted from the subsequent images.
 
-CRITICAL: Each product image may show a model wearing multiple garments, but each image represents ONLY ONE specific product for sale. You must extract only the garment matching the specified category from each image:
+IDENTITY PRESERVATION (NON-NEGOTIABLE):
+- The person's face must be an EXACT replica of Image 1: same facial features, structure, expression, skin texture, blemishes, and complexion. Do NOT beautify, smooth, or alter the face in any way.
+- Preserve the EXACT skin tone, hair color, hairstyle, and body proportions (height, weight, build) from Image 1.
+- Maintain the EXACT pose, body alignment, and posture from Image 1. Do not repose the body.
+- Keep the EXACT background from Image 1 unchanged — same environment, objects, depth of field, and composition.
 
-${itemInstructions}${bodyProfileSection}
+GARMENT EXTRACTION — each product image may show a model in a full outfit, but represents ONLY ONE product:
+${itemInstructions}
 
-Requirements:
-1. Dress the person in ALL the extracted garments together as one cohesive outfit
-2. Maintain the person's face, body shape, and pose from their original photo (Image 1)
-3. Natural lighting, realistic fabric draping, proper proportions
-4. Professional fashion photography quality
-5. Keep the original background or use a clean studio background
+CLOTHING APPLICATION:
+- Layer garments in correct order: undergarments/base layers first, then mid-layers (shirts, pants), then outerwear (jackets, coats), then accessories (hats, bags, jewelry, scarves) on top.
+- Each garment must fit proportionally to the user's actual body dimensions from Image 1 — no stretching or compression.
+- Simulate natural fabric draping, folds, wrinkles, and gravity effects based on the garment's material (knits drape differently than denim).
+- Add realistic shadows where garments overlap or contact the body (collar shadows on neck, sleeve shadows on arms).
+- Match the lighting direction, intensity, color temperature, and ambient light from Image 1 exactly on all garments.
+- Garment edges must blend seamlessly with the body — no visible cutout borders, halos, or unnatural seams.
+${bodyProfileSection}
+
+OUTPUT:
+- Photorealistic image, indistinguishable from a real photograph.
+- Professional fashion photography quality with correct perspective and depth.
+- The viewer should believe the person actually wore this outfit when the photo was taken.
 
 You MUST generate an image. Output the visualization image now.`;
 }
 
 function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   const items = outfitItems.map(i => `"${i.name}" (${i.category})`).join(", ");
-  return `Generate a fashion visualization image. Show the person from Image 1 wearing these clothing items: ${items}. Extract only the specified garment category from each product image. You MUST output an image. This is for fashion retail product visualization.`;
+  return `Generate a photorealistic virtual try-on image. The person in Image 1 is the IMMUTABLE reference — preserve their exact face, skin tone, hair, pose, body shape, and background with zero alterations. Digitally dress them in these items: ${items}. Extract only the specified garment category from each product image. Layer correctly: base layers first, outerwear on top, accessories last. Match lighting, add realistic fabric draping and shadows. You MUST output an image.`;
 }
 
 async function callAI(apiKey: string, contentParts: any[], model: string) {
