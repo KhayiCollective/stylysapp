@@ -55,13 +55,14 @@ serve(async (req) => {
           }
         }
       }
-      // Fallback: find the brand that has Shopify connected
+      // Fallback: find the first brand that has Shopify connected
       if (!foundBrandId) {
-        brandQuery = brandQuery.not("shopify_store_domain", "is", null).not("shopify_storefront_token", "is", null);
+        brandQuery = brandQuery.not("shopify_store_domain", "is", null).not("shopify_storefront_token", "is", null).limit(1);
       }
     }
 
-    const { data: brand, error: brandError } = await brandQuery.single();
+    const { data: brandRows, error: brandError } = await brandQuery;
+    const brand = Array.isArray(brandRows) ? brandRows[0] : brandRows;
 
     if (brandError || !brand) {
       console.error(`[SHOPIFY-PROXY] Brand not found: ${brandError?.message}`);
