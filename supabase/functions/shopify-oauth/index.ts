@@ -23,6 +23,9 @@ const WEBHOOK_TOPICS = [
   "products/delete",
   "inventory_levels/update",
   "app/uninstalled",
+  "customers/data_request",
+  "customers/redact",
+  "shop/redact",
 ];
 
 // Generic error messages for client responses (no internal details)

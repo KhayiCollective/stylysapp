@@ -10,17 +10,25 @@ const SHOPIFY_CLIENT_SECRET = Deno.env.get("SHOPIFY_CLIENT_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// Verify Shopify webhook HMAC signature
+// Timing-safe comparison to prevent timing attacks
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  let result = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    result |= bufA[i] ^ bufB[i];
+  }
+  return result === 0;
+}
+
+// Verify Shopify webhook HMAC signature (strict)
 async function verifyWebhookSignature(
   rawBody: string,
   hmacHeader: string,
   secret: string
 ): Promise<boolean> {
-  if (!hmacHeader || !secret) {
-    console.log("Missing HMAC header or secret");
-    return false;
-  }
-
   const encoder = new TextEncoder();
   const keyData = encoder.encode(secret);
   const messageData = encoder.encode(rawBody);
@@ -36,14 +44,11 @@ async function verifyWebhookSignature(
   const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
   const calculatedHmac = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
 
-  const isValid = calculatedHmac === hmacHeader;
-  console.log("Webhook signature verification:", isValid ? "PASSED" : "FAILED");
-  return isValid;
+  return timingSafeEqual(calculatedHmac, hmacHeader);
 }
 
 // Get brand by shop domain
 async function getBrandByShop(supabase: any, shopDomain: string) {
-  // Try exact match first
   let { data, error } = await supabase
     .from("brands")
     .select("id, name, shopify_store_domain")
@@ -51,7 +56,6 @@ async function getBrandByShop(supabase: any, shopDomain: string) {
     .single();
 
   if (error || !data) {
-    // Try without protocol
     const cleanDomain = shopDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const result = await supabase
       .from("brands")
@@ -73,11 +77,10 @@ async function getBrandByShop(supabase: any, shopDomain: string) {
 function mapShopifyProduct(shopifyProduct: any, brandId: string) {
   const products: any[] = [];
 
-  // Create a product entry for each variant
   for (const variant of shopifyProduct.variants || []) {
     const product = {
       brand_id: brandId,
-      name: shopifyProduct.variants.length > 1 
+      name: shopifyProduct.variants.length > 1
         ? `${shopifyProduct.title} - ${variant.title}`
         : shopifyProduct.title,
       shopify_product_id: String(shopifyProduct.id),
@@ -87,22 +90,13 @@ function mapShopifyProduct(shopifyProduct: any, brandId: string) {
       image_url: shopifyProduct.image?.src || shopifyProduct.images?.[0]?.src || null,
       category: shopifyProduct.product_type || "Uncategorized",
       inventory_status: variant.inventory_quantity > 0 ? "in_stock" : "out_of_stock",
-      color: extractOption(variant, "Color") || extractOption(variant, "Colour"),
-      fit: extractOption(variant, "Size") || extractOption(variant, "Fit"),
+      color: null,
+      fit: null,
     };
     products.push(product);
   }
 
   return products;
-}
-
-// Extract option value from variant
-function extractOption(variant: any, optionName: string): string | null {
-  if (!variant.option1 && !variant.option2 && !variant.option3) return null;
-  
-  // We don't have option names in webhook payload, just values
-  // This is a simplified version - in production you might need to fetch product options
-  return null;
 }
 
 // Create sync history entry
@@ -140,13 +134,12 @@ async function handleProductCreateOrUpdate(
   shopifyProduct: any
 ) {
   console.log(`Processing product: ${shopifyProduct.title} (ID: ${shopifyProduct.id})`);
-  
+
   const products = mapShopifyProduct(shopifyProduct, brandId);
   let created = 0;
   let updated = 0;
-  
+
   for (const product of products) {
-    // Check if exists
     const { data: existing } = await supabase
       .from("products")
       .select("id")
@@ -155,7 +148,6 @@ async function handleProductCreateOrUpdate(
       .maybeSingle();
 
     if (existing) {
-      // Update existing
       const { error } = await supabase
         .from("products")
         .update({
@@ -171,10 +163,8 @@ async function handleProductCreateOrUpdate(
         console.error("Error updating product:", error);
       } else {
         updated++;
-        console.log(`Updated variant: ${product.shopify_variant_id}`);
       }
     } else {
-      // Insert new
       const { error } = await supabase
         .from("products")
         .insert(product);
@@ -183,14 +173,11 @@ async function handleProductCreateOrUpdate(
         console.error("Error inserting product:", error);
       } else {
         created++;
-        console.log(`Created variant: ${product.shopify_variant_id}`);
       }
     }
   }
 
-  // Log to sync history
   await createSyncHistoryEntry(supabase, brandId, "webhook", created, updated, 0);
-
   return { synced: products.length, created, updated };
 }
 
@@ -203,7 +190,6 @@ async function handleProductDelete(
   const shopifyProductId = String(shopifyProduct.id);
   console.log(`Deleting product: ${shopifyProductId}`);
 
-  // First count how many will be deleted
   const { count: deleteCount } = await supabase
     .from("products")
     .select("*", { count: "exact", head: true })
@@ -223,22 +209,163 @@ async function handleProductDelete(
   }
 
   const deleted = deleteCount || 0;
-  console.log(`Deleted ${deleted} variants for product ${shopifyProductId}`);
-  
-  // Log to sync history
   await createSyncHistoryEntry(supabase, brandId, "webhook", 0, 0, deleted);
-
   return { deleted };
 }
 
+// Handle customers/data_request — acknowledge the request
+async function handleCustomerDataRequest(
+  supabase: any,
+  brandId: string,
+  payload: any
+) {
+  const email = payload?.customer?.email;
+  console.log(`Customer data request for: ${email ? "***" : "unknown"}`);
+
+  if (email) {
+    const { data } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("brand_id", brandId)
+      .eq("email", email)
+      .maybeSingle();
+
+    console.log(`Customer record found: ${!!data}`);
+  }
+
+  // Shopify requires a 200 acknowledgment; actual data export is handled offline
+  return { acknowledged: true, topic: "customers/data_request" };
+}
+
+// Handle customers/redact — delete customer data
+async function handleCustomerRedact(
+  supabase: any,
+  brandId: string,
+  payload: any
+) {
+  const email = payload?.customer?.email;
+  console.log(`Customer redact request for brand: ${brandId}`);
+
+  if (!email) {
+    console.warn("No customer email in redact payload");
+    return { redacted: false, reason: "no_email" };
+  }
+
+  // Find matching customer
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("id")
+    .eq("brand_id", brandId)
+    .eq("email", email)
+    .maybeSingle();
+
+  if (!customer) {
+    return { redacted: true, reason: "no_matching_record" };
+  }
+
+  // Delete customer_accounts linked to this customer
+  await supabase
+    .from("customer_accounts")
+    .delete()
+    .eq("brand_id", brandId)
+    .eq("customer_id", customer.id);
+
+  // Delete saved_outfits linked to customer_accounts for this brand/email
+  // (customer_accounts already deleted, but saved_outfits reference customer_account_id)
+
+  // Delete recommendations for this customer
+  await supabase
+    .from("recommendations")
+    .delete()
+    .eq("brand_id", brandId)
+    .eq("customer_id", customer.id);
+
+  // Delete the customer record itself
+  const { error } = await supabase
+    .from("customers")
+    .delete()
+    .eq("id", customer.id);
+
+  if (error) {
+    console.error("Error deleting customer:", error);
+    return { redacted: false, error: error.message };
+  }
+
+  console.log(`Customer redacted: ${customer.id}`);
+  return { redacted: true };
+}
+
+// Handle shop/redact — full data erasure for a shop
+async function handleShopRedact(
+  supabase: any,
+  brandId: string,
+  _payload: any
+) {
+  console.log(`Shop redact for brand: ${brandId} — erasing all data`);
+
+  // Delete in dependency order: outfit_items → outfits, recommendations, products, customers, customer_accounts, saved_outfits, rules, widget_config, sync_history
+
+  // outfit_items (depends on outfits)
+  const { data: outfits } = await supabase
+    .from("outfits")
+    .select("id")
+    .eq("brand_id", brandId);
+
+  if (outfits?.length) {
+    const outfitIds = outfits.map((o: any) => o.id);
+    await supabase
+      .from("outfit_items")
+      .delete()
+      .in("outfit_id", outfitIds);
+  }
+
+  // Delete from all brand-scoped tables
+  const tables = [
+    "recommendations",
+    "outfits",
+    "saved_outfits",
+    "customer_accounts",
+    "customers",
+    "products",
+    "rules",
+    "widget_config",
+    "sync_history",
+    "support_tickets",
+    "onboarding_progress",
+  ];
+
+  for (const table of tables) {
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq("brand_id", brandId);
+
+    if (error) {
+      console.error(`Error deleting from ${table}:`, error);
+    }
+  }
+
+  // Clear brand tokens (don't delete the brand row — keep for audit)
+  await supabase
+    .from("brands")
+    .update({
+      shopify_access_token: null,
+      shopify_storefront_token: null,
+      shopify_connected_at: null,
+      widget_script_tag_id: null,
+    })
+    .eq("id", brandId);
+
+  console.log(`Shop redact complete for brand: ${brandId}`);
+  return { redacted: true };
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get webhook headers
     const topic = req.headers.get("x-shopify-topic");
     const hmac = req.headers.get("x-shopify-hmac-sha256");
     const shopDomain = req.headers.get("x-shopify-shop-domain");
@@ -252,32 +379,34 @@ serve(async (req) => {
       );
     }
 
-    // Get raw body for HMAC verification
-    const rawBody = await req.text();
-    
-    // Verify webhook signature
-    if (SHOPIFY_CLIENT_SECRET && hmac) {
-      const isValid = await verifyWebhookSignature(rawBody, hmac, SHOPIFY_CLIENT_SECRET);
-      if (!isValid) {
-        console.error("Invalid webhook signature");
-        return new Response(
-          JSON.stringify({ error: "Invalid signature" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    // Strict HMAC verification — always required
+    if (!hmac || !SHOPIFY_CLIENT_SECRET) {
+      console.error("Missing HMAC header or SHOPIFY_CLIENT_SECRET");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Parse the body
-    const payload = JSON.parse(rawBody);
+    const rawBody = await req.text();
 
-    // Initialize Supabase client
+    const isValid = await verifyWebhookSignature(rawBody, hmac, SHOPIFY_CLIENT_SECRET);
+    if (!isValid) {
+      console.error("Invalid webhook signature");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Webhook signature verification: PASSED");
+
+    const payload = JSON.parse(rawBody);
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get brand by shop domain
     const brand = await getBrandByShop(supabase, shopDomain);
     if (!brand) {
       console.error("Brand not found for shop:", shopDomain);
-      // Return 200 to acknowledge receipt (Shopify will retry on non-2xx)
       return new Response(
         JSON.stringify({ acknowledged: true, warning: "Brand not found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -288,7 +417,6 @@ serve(async (req) => {
 
     let result = {};
 
-    // Route based on topic
     switch (topic) {
       case "products/create":
       case "products/update":
@@ -299,11 +427,10 @@ serve(async (req) => {
         result = await handleProductDelete(supabase, brand.id, payload);
         break;
 
-      case "inventory_levels/update":
-        // Handle inventory update
+      case "inventory_levels/update": {
         const variantId = `gid://shopify/ProductVariant/${payload.inventory_item_id}`;
         const newStatus = payload.available > 0 ? "in_stock" : "out_of_stock";
-        
+
         const { error: inventoryError } = await supabase
           .from("products")
           .update({ inventory_status: newStatus })
@@ -315,9 +442,9 @@ serve(async (req) => {
         }
         result = { updated_inventory: true };
         break;
+      }
 
       case "app/uninstalled":
-        // Mark brand as disconnected
         await supabase
           .from("brands")
           .update({
@@ -328,6 +455,18 @@ serve(async (req) => {
           .eq("id", brand.id);
         result = { disconnected: true };
         console.log(`App uninstalled for brand: ${brand.name}`);
+        break;
+
+      case "customers/data_request":
+        result = await handleCustomerDataRequest(supabase, brand.id, payload);
+        break;
+
+      case "customers/redact":
+        result = await handleCustomerRedact(supabase, brand.id, payload);
+        break;
+
+      case "shop/redact":
+        result = await handleShopRedact(supabase, brand.id, payload);
         break;
 
       default:
