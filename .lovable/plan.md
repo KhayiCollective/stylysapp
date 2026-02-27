@@ -2,42 +2,35 @@
 
 ## Problem
 
-The `create-checkout` edge function calls `appSubscriptionCreate` via Shopify's Admin API, but the app is flagged as a **Managed Pricing** app by Shopify. This means Shopify rejects the Billing API call entirely.
+Shopify requires three **mandatory compliance webhooks** for App Store listing:
 
-**Impact:** Both "Starter — $14.99/mo" and "Professional — $29.99/mo" buttons on the Settings page, and the auto-checkout trigger during onboarding, all fail silently or show an error.
+1. **`customers/data_request`** — Respond when a customer requests their stored data
+2. **`customers/redact`** — Delete customer data when requested
+3. **`shop/redact`** — Erase all shop data 48 hours after app uninstall
 
-## Working CTAs
-- **check-subscription**: Correctly queries `currentAppInstallation.activeSubscriptions` — this read-only query still works fine.
-- **customer-portal**: Returns the Shopify admin billing URL — works correctly.
-- **Manage Subscription** button: Works (opens Shopify admin billing page).
+Currently, the `shopify-webhooks` function handles product/inventory topics but lacks these three. Additionally, HMAC verification is currently **optional** (skipped when secret or header is missing) — it must be **mandatory** per Shopify requirements: return `401 Unauthorized` if the HMAC is invalid or missing.
 
-## Broken CTAs
-- **Starter $14.99/mo** button on Settings page
-- **Professional $29.99/mo** button on Settings page  
-- **Auto-checkout** trigger after Shopify OAuth connect (in `ShopifyConnect.tsx`)
+## Changes
 
-## Fix: Switch to Managed Pricing Flow
+### 1. `supabase/functions/shopify-webhooks/index.ts`
 
-Since Shopify manages pricing for this app, the checkout flow should redirect merchants to the **Shopify app listing page** where Shopify handles plan selection and billing natively.
+**HMAC enforcement (strict):**
+- Remove the conditional `if (SHOPIFY_CLIENT_SECRET && hmac)` guard
+- Always require a valid `x-shopify-hmac-sha256` header
+- Return `401` if HMAC header is missing or signature fails
+- Use timing-safe comparison instead of `===` to prevent timing attacks
 
-### Changes
+**Add three compliance topic handlers:**
 
-1. **`supabase/functions/create-checkout/index.ts`** — Instead of calling `appSubscriptionCreate`, return the app listing URL where Shopify handles billing:
-   - Return URL format: `https://{store_domain}/admin/charges/{app_handle}/pricing_plans`
-   - Or fallback: redirect to the Shopify app's listing page in the App Store
+- **`customers/data_request`**: Query the `customers` table for the given `customer.email` + shop's brand, return acknowledgment (the actual data export is handled offline)
+- **`customers/redact`**: Delete matching rows from `customers` table (and any related `customer_outfits`, `wishlist_items`) for the brand + customer email
+- **`shop/redact`**: Delete all `products`, `customers`, `outfits`, `rules`, `widget_config`, and clear brand tokens for the given shop domain — full data erasure
 
-2. **`src/pages/Settings.tsx`** — Update the Starter/Professional buttons to either:
-   - Open the Shopify-managed pricing page in a new tab
-   - Or show a message explaining that billing is managed through Shopify
+### 2. `supabase/functions/shopify-oauth/index.ts`
 
-3. **`src/pages/ShopifyConnect.tsx`** — Remove the automatic `create-checkout` call after OAuth, since Shopify handles plan activation during app installation for Managed Pricing apps.
+- Add the three compliance webhook topics to the `WEBHOOK_TOPICS` array so they are auto-registered during OAuth callback
 
-### Technical Detail
+### 3. `src/components/catalog/WebhookStatusIndicator.tsx`
 
-For Managed Pricing apps, the flow is:
-1. Merchant installs app from Shopify App Store → Shopify shows pricing plans
-2. Merchant picks a plan → Shopify activates the subscription
-3. `check-subscription` (reading `activeSubscriptions`) continues to work as-is to verify status
-
-The `create-checkout` function becomes a redirect helper rather than a Billing API caller.
+- Add the three compliance topics to the `expectedWebhooks` list so the UI shows their registration status
 
