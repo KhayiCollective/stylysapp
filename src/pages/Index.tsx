@@ -45,7 +45,10 @@ const Index = () => {
                 Increase Sales With Your Brand's Very Own Personal AI Stylist
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
-                Add intelligent outfit building, virtual try-on, and AI styling to your Shopify or WooCommerce store. Help customers discover complete looks and increase your average order value by 35%.
+                Add intelligent outfit building, virtual try-on, and AI styling to your Shopify or WooCommerce store. Help customers discover complete looks and drive higher-value purchases.
+
+
+
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link to="/auth">
@@ -92,29 +95,26 @@ const Index = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            <FeatureCard
-              icon={<Sparkles className="w-6 h-6" />}
-              title="AI Outfit Builder"
-              description="Our AI creates personalized outfit combinations from your catalog, increasing average order value by 35%. Smart recommendations based on style, color harmony, and customer preferences."
-              badge="Core Feature"
-            />
+            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="AI Outfit Builder" description="Our AI creates personalized outfit combinations from your catalog, increasing average order value by 35%. Smart recommendations based on style, color harmony, and customer preferences."
+            badge="Core Feature" />
+
             <FeatureCard
               icon={<Camera className="w-6 h-6" />}
               title="Virtual Try-On"
               description="Customers can see themselves wearing outfits before buying, reducing returns by up to 40%. Upload a photo and visualize complete looks instantly."
-              badge="Core Feature"
-            />
+              badge="Core Feature" />
+
             <FeatureCard
               icon={<MessageCircle className="w-6 h-6" />}
               title="AI Styling Chatbot"
               description="A personal styling assistant that helps customers find the perfect look. Real-time outfit advice, color matching, and occasion-based recommendations."
-              badge="Professional"
-            />
+              badge="Professional" />
+
             <FeatureCard
               icon={<BarChart3 className="w-6 h-6" />}
               title="Smart Analytics"
-              description="Track outfit performance, customer preferences, and conversion rates. Understand which combinations drive the most sales."
-            />
+              description="Track outfit performance, customer preferences, and conversion rates. Understand which combinations drive the most sales." />
+
           </div>
         </div>
       </section>
@@ -137,15 +137,15 @@ const Index = () => {
               price="$14.99"
               planParam="starter"
               features={[
-                "Up to 500 products",
-                "AI outfit recommendations",
-                "Virtual try-on",
-                "Basic analytics dashboard",
-                "Shopify & WooCommerce integration",
-                "Email support",
-              ]}
-              buttonText="Start Free Trial"
-            />
+              "Up to 500 products",
+              "AI outfit recommendations",
+              "Virtual try-on",
+              "Basic analytics dashboard",
+              "Shopify & WooCommerce integration",
+              "Email support"]
+              }
+              buttonText="Start Free Trial" />
+
             <PricingCard
               title="Professional"
               subtitle="For established brands"
@@ -153,32 +153,32 @@ const Index = () => {
               planParam="pro"
               featured
               features={[
-                "Up to 1,000 products",
-                "Advanced AI outfit generation",
-                "Virtual try-on",
-                "AI styling chatbot",
-                "Full analytics & insights",
-                "Customer preference tracking",
-                "Priority support with live chat",
-                "Shopify & WooCommerce integration",
-              ]}
-              buttonText="Start Free Trial"
-            />
+              "Up to 1,000 products",
+              "Advanced AI outfit generation",
+              "Virtual try-on",
+              "AI styling chatbot",
+              "Full analytics & insights",
+              "Customer preference tracking",
+              "Priority support with live chat",
+              "Shopify & WooCommerce integration"]
+              }
+              buttonText="Start Free Trial" />
+
             <PricingCard
               title="Enterprise"
               subtitle="For large-scale operations"
               price="Custom"
               features={[
-                "Unlimited products",
-                "All Professional features",
-                "Custom AI training",
-                "White-label options",
-                "Dedicated account manager",
-                "Custom integrations",
-                "24/7 premium support",
-              ]}
-              buttonText="Contact Sales"
-            />
+              "Unlimited products",
+              "All Professional features",
+              "Custom AI training",
+              "White-label options",
+              "Dedicated account manager",
+              "Custom integrations",
+              "24/7 premium support"]
+              }
+              buttonText="Contact Sales" />
+
           </div>
         </div>
       </section>
@@ -260,38 +260,38 @@ const Index = () => {
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>);
+
 };
 
 const FeatureCard = ({
   icon,
   title,
   description,
-  badge,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  badge?: string;
-}) => (
-  <div className="bg-background border border-border rounded-xl p-8 hover:shadow-lg transition-shadow relative">
-    {badge && (
-      <span className={`absolute top-4 right-4 text-xs font-semibold px-2.5 py-1 rounded-full ${
-        badge === "Professional"
-          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-          : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
-      }`}>
+  badge
+
+
+
+
+
+}: {icon: React.ReactNode;title: string;description: string;badge?: string;}) =>
+<div className="bg-background border border-border rounded-xl p-8 hover:shadow-lg transition-shadow relative">
+    {badge &&
+  <span className={`absolute top-4 right-4 text-xs font-semibold px-2.5 py-1 rounded-full ${
+  badge === "Professional" ?
+  "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" :
+  "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"}`
+  }>
         {badge}
       </span>
-    )}
+  }
     <div className="w-12 h-12 bg-foreground rounded-xl flex items-center justify-center mb-6 text-background">
       {icon}
     </div>
     <h3 className="font-display text-xl font-bold text-foreground mb-3">{title}</h3>
     <p className="text-muted-foreground leading-relaxed">{description}</p>
-  </div>
-);
+  </div>;
+
 
 const PricingCard = ({
   title,
@@ -300,20 +300,20 @@ const PricingCard = ({
   features,
   buttonText,
   featured = false,
-  planParam,
-}: {
-  title: string;
-  subtitle: string;
-  price: string;
-  features: string[];
-  buttonText: string;
-  featured?: boolean;
-  planParam?: string;
-}) => (
-  <div className={`rounded-2xl p-8 ${featured ? "bg-foreground text-background scale-105 shadow-2xl" : "bg-background border border-border"}`}>
-    {featured && (
-      <span className="inline-block px-3 py-1 bg-background/10 rounded-full text-xs font-semibold mb-4">Most Popular</span>
-    )}
+  planParam
+
+
+
+
+
+
+
+
+}: {title: string;subtitle: string;price: string;features: string[];buttonText: string;featured?: boolean;planParam?: string;}) =>
+<div className={`rounded-2xl p-8 ${featured ? "bg-foreground text-background scale-105 shadow-2xl" : "bg-background border border-border"}`}>
+    {featured &&
+  <span className="inline-block px-3 py-1 bg-background/10 rounded-full text-xs font-semibold mb-4">Most Popular</span>
+  }
     <h3 className={`font-display text-2xl font-bold ${featured ? "text-background" : "text-foreground"}`}>{title}</h3>
     <p className={`text-sm mt-1 ${featured ? "text-background/70" : "text-muted-foreground"}`}>{subtitle}</p>
     <div className="mt-6 mb-8">
@@ -321,37 +321,37 @@ const PricingCard = ({
       {price !== "Custom" && <span className={`text-sm ${featured ? "text-background/70" : "text-muted-foreground"}`}>/month</span>}
     </div>
     <ul className="space-y-4 mb-8">
-      {features.map((feature, index) => (
-        <li key={index} className="flex items-start gap-3">
+      {features.map((feature, index) =>
+    <li key={index} className="flex items-start gap-3">
           <Check className={`w-5 h-5 mt-0.5 ${featured ? "text-emerald-400" : "text-emerald-500"}`} />
           <span className={`text-sm ${featured ? "text-background/90" : "text-muted-foreground"}`}>{feature}</span>
         </li>
-      ))}
+    )}
     </ul>
     <Link to={planParam ? `/auth?plan=${planParam}` : "/support"}>
       <Button className={`w-full rounded-xl h-12 font-semibold ${featured ? "bg-background text-foreground hover:bg-background/90" : "bg-foreground text-background hover:bg-foreground/90"}`}>
         {buttonText}
       </Button>
     </Link>
-  </div>
-);
+  </div>;
+
 
 const StepCard = ({
   number,
   title,
-  description,
-}: {
-  number: string;
-  title: string;
-  description: string;
-}) => (
-  <div className="text-center">
+  description
+
+
+
+
+}: {number: string;title: string;description: string;}) =>
+<div className="text-center">
     <div className="w-16 h-16 bg-foreground rounded-full flex items-center justify-center mx-auto mb-6">
       <span className="text-background font-display font-bold text-lg">{number}</span>
     </div>
     <h3 className="font-display text-xl font-bold text-foreground mb-3">{title}</h3>
     <p className="text-muted-foreground leading-relaxed">{description}</p>
-  </div>
-);
+  </div>;
+
 
 export default Index;
