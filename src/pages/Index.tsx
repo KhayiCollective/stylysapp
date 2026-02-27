@@ -101,7 +101,7 @@ const Index = () => {
             <FeatureCard
               icon={<Camera className="w-6 h-6" />}
               title="Virtual Try-On"
-              description="Customers can see themselves wearing outfits before buying, reducing returns by up to 40%. Upload a photo and visualize complete looks instantly."
+              description="Customers can see themselves wearing outfits before buying, reducing returns while improving purchase confidence. Upload a photo and visualize complete looks instantly."
               badge="Core Feature" />
 
             <FeatureCard
