@@ -28,6 +28,9 @@ export function WebhookStatusIndicator() {
     'products/delete',
     'inventory_levels/update',
     'app/uninstalled',
+    'customers/data_request',
+    'customers/redact',
+    'shop/redact',
   ];
 
   useEffect(() => {
