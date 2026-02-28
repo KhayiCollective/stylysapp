@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { MessageCircle, Send, Sparkles, User } from "lucide-react";
+import { MessageCircle, Send, Sparkles, User, Lock, Loader2 } from "lucide-react";
 import { ChatProductCard } from "./ChatProductCard";
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   role: "user" | "assistant";
@@ -25,6 +26,8 @@ interface Product {
 
 interface StylingChatbotProps {
   products?: Product[];
+  isProfessional?: boolean;
+  subscriptionLoading?: boolean;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/styling-chat`;
@@ -67,7 +70,8 @@ function parseMessageContent(content: string): Array<{ type: "text"; text: strin
   return parts.length ? parts : [{ type: "text", text: content }];
 }
 
-export function StylingChatbot({ products = [] }: StylingChatbotProps) {
+export function StylingChatbot({ products = [], isProfessional = false, subscriptionLoading = false }: StylingChatbotProps) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -203,84 +207,111 @@ export function StylingChatbot({ products = [] }: StylingChatbotProps) {
           </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-4">
-            {messages.map((message, i) => (
-              <div
-                key={i}
-                className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
-              >
-                <div
-                  className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    message.role === "assistant" ? "bg-primary text-primary-foreground" : "bg-muted"
-                  }`}
-                >
-                  {message.role === "assistant" ? (
-                    <Sparkles className="h-4 w-4" />
-                  ) : (
-                    <User className="h-4 w-4" />
-                  )}
-                </div>
-                <div className={`max-w-[85%] space-y-2 ${message.role === "user" ? "items-end" : ""}`}>
-                  {message.role === "assistant" ? (
-                    parseMessageContent(message.content).map((part, j) =>
-                      part.type === "text" ? (
-                        <div
-                          key={j}
-                          className="bg-muted text-foreground rounded-lg px-4 py-2"
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{part.text}</p>
-                        </div>
-                      ) : (
-                        <ChatProductCard key={j} product={part.product} />
-                      )
-                    )
-                  ) : (
-                    <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2">
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {isLoading && messages[messages.length - 1]?.role === "user" && (
-              <div className="flex gap-3">
-                <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="h-4 w-4" />
-                </div>
-                <div className="bg-muted rounded-lg px-4 py-2">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <div className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <div className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={scrollEndRef} />
+        {subscriptionLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        </ScrollArea>
-
-        <div className="p-4 border-t border-border">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              sendMessage();
-            }}
-            className="flex gap-2"
-          >
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about styling..."
-              disabled={isLoading}
-              className="flex-1"
-            />
-            <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
-              <Send className="h-4 w-4" />
+        ) : !isProfessional ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+              <Lock className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">Professional Plan Required</h3>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              AI Chatbot is available on the Professional plan. Upgrade to unlock advanced AI features.
+            </p>
+            <Button
+              onClick={() => {
+                setOpen(false);
+                navigate("/settings");
+              }}
+              className="mt-2"
+            >
+              Upgrade Plan
             </Button>
-          </form>
-        </div>
+          </div>
+        ) : (
+          <>
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                {messages.map((message, i) => (
+                  <div
+                    key={i}
+                    className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
+                  >
+                    <div
+                      className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        message.role === "assistant" ? "bg-primary text-primary-foreground" : "bg-muted"
+                      }`}
+                    >
+                      {message.role === "assistant" ? (
+                        <Sparkles className="h-4 w-4" />
+                      ) : (
+                        <User className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className={`max-w-[85%] space-y-2 ${message.role === "user" ? "items-end" : ""}`}>
+                      {message.role === "assistant" ? (
+                        parseMessageContent(message.content).map((part, j) =>
+                          part.type === "text" ? (
+                            <div
+                              key={j}
+                              className="bg-muted text-foreground rounded-lg px-4 py-2"
+                            >
+                              <p className="text-sm whitespace-pre-wrap">{part.text}</p>
+                            </div>
+                          ) : (
+                            <ChatProductCard key={j} product={part.product} />
+                          )
+                        )
+                      ) : (
+                        <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2">
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {isLoading && messages[messages.length - 1]?.role === "user" && (
+                  <div className="flex gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div className="bg-muted rounded-lg px-4 py-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <div className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <div className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={scrollEndRef} />
+              </div>
+            </ScrollArea>
+
+            <div className="p-4 border-t border-border">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  sendMessage();
+                }}
+                className="flex gap-2"
+              >
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask about styling..."
+                  disabled={isLoading}
+                  className="flex-1"
+                />
+                <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+            </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );
