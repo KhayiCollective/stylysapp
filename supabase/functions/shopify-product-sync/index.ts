@@ -238,6 +238,71 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Handle register-webhooks action
+    if (action === "register-webhooks") {
+      const EXPECTED_TOPICS = [
+        "products/create",
+        "products/update",
+        "products/delete",
+        "inventory_levels/update",
+        "app/uninstalled",
+        "customers/data_request",
+        "customers/redact",
+        "shop/redact",
+      ];
+
+      const existingWebhooks = await fetchWebhooks(brand.shopify_store_domain, brand.shopify_access_token);
+      const existingTopics = existingWebhooks.map((w) => w.topic);
+      const missingTopics = EXPECTED_TOPICS.filter((t) => !existingTopics.includes(t));
+
+      if (missingTopics.length === 0) {
+        return new Response(
+          JSON.stringify({ registered: [], message: "All webhooks already registered" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const webhookBaseUrl = `${SUPABASE_URL}/functions/v1/shopify-webhooks`;
+      const registered: string[] = [];
+      const failed: string[] = [];
+
+      for (const topic of missingTopics) {
+        try {
+          const res = await fetch(
+            `https://${brand.shopify_store_domain}/admin/api/2025-01/webhooks.json`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": brand.shopify_access_token,
+              },
+              body: JSON.stringify({
+                webhook: { topic, address: webhookBaseUrl, format: "json" },
+              }),
+            }
+          );
+
+          if (res.ok || res.status === 422) {
+            registered.push(topic);
+          } else {
+            const body = await res.text();
+            console.error(`[PRODUCT-SYNC] Failed to register ${topic}: ${res.status} ${body}`);
+            failed.push(topic);
+          }
+        } catch (err) {
+          console.error(`[PRODUCT-SYNC] Error registering ${topic}:`, err);
+          failed.push(topic);
+        }
+      }
+
+      console.log(`[PRODUCT-SYNC] Registered ${registered.length}/${missingTopics.length} webhooks`);
+
+      return new Response(
+        JSON.stringify({ registered, failed, total: EXPECTED_TOPICS.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Handle webhook status action
     if (action === "webhooks") {
       const webhooks = await fetchWebhooks(brand.shopify_store_domain, brand.shopify_access_token);
