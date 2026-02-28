@@ -3,6 +3,8 @@ import { StylingChatbot } from "./StylingChatbot";
 import { SavedOutfitsWidget } from "./SavedOutfitsWidget";
 import { CustomerWidget } from "../widget/CustomerWidget";
 import { useToast } from "@/hooks/use-toast";
+import { useSubscription } from "@/hooks/useSubscription";
+import { hasFeature } from "@/lib/tiers";
 
 // Context to allow ShopHeader and ProductCard to control the widget
 interface WidgetControl {
@@ -60,6 +62,7 @@ const initialSavedOutfits: SavedOutfit[] = [
 ];
 
 export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
+  const { tierName, loading: subscriptionLoading } = useSubscription();
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>(initialSavedOutfits);
   const [widgetOpen, setWidgetOpen] = useState(false);
   const [widgetTab, setWidgetTab] = useState("outfits");
@@ -115,7 +118,11 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
         />
         
         {/* AI Styling Chatbot - Bottom Right */}
-        <StylingChatbot products={products} />
+        <StylingChatbot
+          products={products}
+          isProfessional={hasFeature(tierName, 'styling_chatbot')}
+          subscriptionLoading={subscriptionLoading}
+        />
 
         <CustomerWidget
           brandId={BRAND_ID}

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,63 @@ serve(async (req) => {
   }
 
   try {
+    // ── Subscription gate ──────────────────────────────────────────
+    const authHeader = req.headers.get("Authorization");
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } }
+    );
+
+    if (authHeader && authHeader !== `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`) {
+      const token = authHeader.replace("Bearer ", "");
+      const { data: userData } = await supabaseClient.auth.getUser(token);
+      if (userData?.user) {
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select("brand_id")
+          .eq("id", userData.user.id)
+          .single();
+
+        if (profile?.brand_id) {
+          const { data: brand } = await supabaseClient
+            .from("brands")
+            .select("shopify_store_domain, shopify_access_token")
+            .eq("id", profile.brand_id)
+            .single();
+
+          if (brand?.shopify_store_domain && brand?.shopify_access_token) {
+            const query = `query { currentAppInstallation { activeSubscriptions { name status } } }`;
+            const shopifyResp = await fetch(
+              `https://${brand.shopify_store_domain}/admin/api/2025-01/graphql.json`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Shopify-Access-Token": brand.shopify_access_token,
+                },
+                body: JSON.stringify({ query }),
+              }
+            );
+            const shopifyData = await shopifyResp.json();
+            const subs = shopifyData.data?.currentAppInstallation?.activeSubscriptions || [];
+            const hasPro = subs.some((s: any) =>
+              s.status === "ACTIVE" &&
+              (s.name?.toLowerCase().includes("professional") || s.name?.toLowerCase().includes("pro"))
+            );
+
+            if (!hasPro) {
+              return new Response(
+                JSON.stringify({ error: "AI Chatbot requires a Professional plan." }),
+                { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // ── Chat logic ─────────────────────────────────────────────────
     const { messages, products } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
