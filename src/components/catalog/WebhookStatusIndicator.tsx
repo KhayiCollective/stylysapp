@@ -18,6 +18,7 @@ export function WebhookStatusIndicator() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [webhooks, setWebhooks] = useState<WebhookInfo[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [brandId, setBrandId] = useState<string | null>(null);
@@ -80,6 +81,47 @@ export function WebhookStatusIndicator() {
       console.error('Error fetching webhooks:', error);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const registerMissingWebhooks = async () => {
+    if (!brandId) return;
+    setRegistering(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('shopify-product-sync', {
+        body: { brand_id: brandId, action: 'register-webhooks' },
+      });
+
+      if (error) throw error;
+
+      const registered = data?.registered || [];
+      const failed = data?.failed || [];
+
+      if (failed.length > 0) {
+        toast({
+          title: 'Some webhooks failed',
+          description: `Registered ${registered.length}, failed ${failed.length}: ${failed.join(', ')}`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Webhooks registered',
+          description: `Successfully registered ${registered.length} missing webhook(s).`,
+        });
+      }
+
+      // Refresh status
+      await fetchWebhooks();
+    } catch (error) {
+      console.error('Error registering webhooks:', error);
+      toast({
+        title: 'Registration failed',
+        description: 'Could not register webhooks. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -168,9 +210,25 @@ export function WebhookStatusIndicator() {
         </Button>
 
         {!allRegistered && (
-          <p className="text-xs text-muted-foreground text-center">
-            Missing webhooks? Reconnect your Shopify store to register them automatically.
-          </p>
+          <div className="space-y-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={registerMissingWebhooks}
+              disabled={registering}
+              className="w-full"
+            >
+              {registering ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Webhook className="h-4 w-4 mr-2" />
+              )}
+              Register Missing Webhooks
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              Uses your existing access token — no reconnect needed.
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>
