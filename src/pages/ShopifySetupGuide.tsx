@@ -19,7 +19,8 @@ import {
   TestTube,
   ArrowRight,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Terminal
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -85,6 +86,40 @@ export default function ShopifySetupGuide() {
   // Get the current origin for redirect URI
   const redirectUri = `${window.location.origin}/connect-shopify`;
   const appUrl = window.location.origin;
+
+  const tomlContent = `client_id = "YOUR_CLIENT_ID_HERE"
+name = "AI Stylist Platform"
+application_url = "${window.location.origin}"
+embedded = false
+
+[access_scopes]
+scopes = "read_products,read_product_listings,unauthenticated_read_product_listings,unauthenticated_read_product_tags"
+
+[auth]
+redirect_urls = [
+  "${window.location.origin}/connect-shopify"
+]
+
+[webhooks]
+api_version = "2024-10"
+
+  [[webhooks.subscriptions]]
+  topics = [
+    "products/create",
+    "products/update",
+    "products/delete",
+    "inventory_levels/update",
+    "app/uninstalled"
+  ]
+  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = [
+    "customers/data_request",
+    "customers/redact",
+    "shop/redact"
+  ]
+  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"`;
 
   // Role-based access guard — must be after all hooks
   if (roleLoading) {
@@ -351,6 +386,60 @@ export default function ShopifySetupGuide() {
               <p className="text-sm text-muted-foreground">
                 These are already configured in your backend. If you need to update them, contact support.
               </p>
+            </div>
+          </SetupStep>
+
+          <SetupStep
+            number={7}
+            title="Register Compliance Webhooks"
+            description="Shopify requires 3 mandatory privacy compliance webhooks declared via CLI — this is a one-time step"
+          >
+            <div className="space-y-4">
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Why?</strong> Shopify removed the compliance webhook UI. You must now declare them in a <code className="bg-muted px-1 rounded">shopify.app.toml</code> file and deploy via Shopify CLI.
+                </p>
+              </div>
+
+              <ol className="list-decimal list-inside space-y-2 text-sm">
+                <li>Install the Shopify CLI globally:</li>
+              </ol>
+
+              <div className="flex items-center gap-2 p-2 bg-muted rounded">
+                <Terminal className="h-4 w-4 text-primary flex-shrink-0" />
+                <code className="text-sm flex-1 truncate">npm install -g @shopify/cli @shopify/app</code>
+                <CopyButton text="npm install -g @shopify/cli @shopify/app" label="CLI install command" />
+              </div>
+
+              <ol className="list-decimal list-inside space-y-2 text-sm" start={2}>
+                <li>Create a new folder and save this as <code className="bg-muted px-1 rounded">shopify.app.toml</code> (replace <code className="bg-muted px-1 rounded">YOUR_CLIENT_ID_HERE</code> with your Client ID from Step 5):</li>
+              </ol>
+
+              <div className="rounded-lg overflow-hidden border bg-muted/50">
+                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/80">
+                  <span className="text-sm font-medium">shopify.app.toml</span>
+                  <CopyButton text={tomlContent} label="TOML config" />
+                </div>
+                <pre className="p-4 overflow-x-auto text-xs leading-relaxed">
+                  <code>{tomlContent}</code>
+                </pre>
+              </div>
+
+              <ol className="list-decimal list-inside space-y-2 text-sm" start={3}>
+                <li>From that folder, run:</li>
+              </ol>
+
+              <div className="flex items-center gap-2 p-2 bg-muted rounded">
+                <Terminal className="h-4 w-4 text-primary flex-shrink-0" />
+                <code className="text-sm flex-1 truncate">shopify app deploy</code>
+                <CopyButton text="shopify app deploy" label="Deploy command" />
+              </div>
+
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <strong>One-time step:</strong> You only need to do this once. The backend function already handles all 3 compliance webhooks with HMAC signature verification.
+                </p>
+              </div>
             </div>
           </SetupStep>
         </div>
