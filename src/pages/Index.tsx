@@ -42,7 +42,7 @@ const Index = () => {
                 <span className="text-sm font-medium">AI-Powered Outfit Builder for E-Commerce</span>
               </div>
               <h1 className="text-5xl md:text-6xl font-display font-bold leading-[1.1] text-foreground lg:text-5xl">
-                Increase Sales With Your Brand's Very Own Personal AI Stylist
+                Elevate Your Brand with Your Own Personal AI Stylist
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
                 Add intelligent outfit building, virtual try-on, and AI styling to your Shopify or WooCommerce store. Help customers discover complete looks and drive higher-value purchases.
@@ -95,7 +95,7 @@ const Index = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="AI Outfit Builder" description="Our AI creates personalized outfit combinations from your catalog, helping customers discover complete looks and drive higher-value purchases. Smart recommendations based on style, color harmony, and customer preferences."
+            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="AI Outfit Builder" description="Our AI creates personalized outfit combinations from your catalog, increasing average order value by 35%. Smart recommendations based on style, color harmony, and customer preferences."
             badge="Core Feature" />
 
             <FeatureCard
