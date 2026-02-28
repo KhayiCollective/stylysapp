@@ -20,7 +20,7 @@ export default function Terms() {
       {/* Content */}
       <main className="container mx-auto px-4 py-12 max-w-4xl">
         <h1 className="font-display text-4xl font-medium mb-2">Terms of Service</h1>
-        <p className="text-muted-foreground mb-8">Last updated: January 2, 2026</p>
+        <p className="text-muted-foreground mb-8">Last updated: February 28, 2026</p>
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
           <section>
@@ -65,7 +65,23 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">5. Acceptable Use</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">5. Data Processing and Privacy</h2>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              For store customer data, STYLYS acts as a <strong>data processor</strong> on behalf of merchants (data controllers). Our data practices are governed by our{" "}
+              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>, which forms part of these Terms. By using the Service, you acknowledge and agree that:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
+              <li>We collect customer data only through our widget interface, not from Shopify customer records</li>
+              <li>Customer data is used exclusively for customer service, app functionality, analytics, and personalization</li>
+              <li>We do not use customer data for marketing or advertising purposes</li>
+              <li>We never sell, rent, or trade personal information to third parties</li>
+              <li>All data is encrypted in transit (TLS 1.2+) and at rest (AES-256)</li>
+              <li>Multi-tenant data isolation is enforced through row-level security policies</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="font-display text-2xl font-medium mb-4">6. Acceptable Use</h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
               You agree not to:
             </p>
@@ -80,14 +96,14 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">6. Intellectual Property</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">7. Intellectual Property</h2>
             <p className="text-muted-foreground leading-relaxed">
               The Service, including its original content, features, and functionality, is owned by STYLYS and is protected by international copyright, trademark, and other intellectual property laws. You retain ownership of your product data and content.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">7. Subscription and Billing</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">8. Subscription and Billing</h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
               STYLYS offers subscription-based pricing:
             </p>
@@ -100,56 +116,73 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">8. Service Availability</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">9. Service Availability</h2>
             <p className="text-muted-foreground leading-relaxed">
               We strive to maintain high availability but do not guarantee uninterrupted access. The Service may be temporarily unavailable for maintenance, updates, or due to circumstances beyond our control.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">9. Limitation of Liability</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">10. Shopify Compliance</h2>
+            <p className="text-muted-foreground leading-relaxed mb-4">
+              We comply with Shopify's mandatory requirements for apps, including:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
+              <li>Processing <code className="text-sm bg-muted px-1 rounded">customers/data_request</code> webhooks and responding within 30 days</li>
+              <li>Processing <code className="text-sm bg-muted px-1 rounded">customers/redact</code> webhooks to permanently delete individual customer data</li>
+              <li>Processing <code className="text-sm bg-muted px-1 rounded">shop/redact</code> webhooks to purge all merchant and customer data upon app uninstallation</li>
+              <li>Verifying all compliance webhooks using HMAC signatures</li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed mt-2">
+              Upon app uninstallation, all merchant data—including synced products, customer accounts, outfit data, and widget configurations—is permanently deleted.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-display text-2xl font-medium mb-4">11. Limitation of Liability</h2>
             <p className="text-muted-foreground leading-relaxed">
               TO THE MAXIMUM EXTENT PERMITTED BY LAW, STYLYS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, OR GOODWILL, RESULTING FROM YOUR USE OF THE SERVICE.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">10. Disclaimer of Warranties</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">12. Disclaimer of Warranties</h2>
             <p className="text-muted-foreground leading-relaxed">
               THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED. WE DO NOT WARRANT THAT THE SERVICE WILL BE ERROR-FREE OR UNINTERRUPTED.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">11. Indemnification</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">13. Indemnification</h2>
             <p className="text-muted-foreground leading-relaxed">
               You agree to indemnify and hold harmless STYLYS and its affiliates from any claims, damages, losses, or expenses arising from your use of the Service or violation of these Terms.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">12. Termination</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">14. Termination</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We may terminate or suspend your account immediately, without prior notice, for any breach of these Terms. Upon termination, your right to use the Service will cease immediately. You may also terminate your account at any time through your account settings.
+              We may terminate or suspend your account immediately, without prior notice, for any breach of these Terms. Upon termination, your right to use the Service will cease immediately. You may also terminate your account at any time through your account settings. Upon termination, your data will be handled in accordance with our{" "}
+              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link> and Shopify compliance requirements.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">13. Changes to Terms</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">15. Changes to Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
               We reserve the right to modify these Terms at any time. Material changes will be communicated via email or through the Service. Continued use after changes constitutes acceptance of the new Terms.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">14. Governing Law</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">16. Governing Law</h2>
             <p className="text-muted-foreground leading-relaxed">
               These Terms shall be governed by and construed in accordance with applicable laws, without regard to conflict of law principles.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-medium mb-4">15. Contact Information</h2>
+            <h2 className="font-display text-2xl font-medium mb-4">17. Contact Information</h2>
             <p className="text-muted-foreground leading-relaxed">
               For questions about these Terms, please contact us:
             </p>
