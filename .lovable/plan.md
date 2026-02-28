@@ -1,30 +1,28 @@
 
 
-## Plan: Add Compliance Webhooks Step to Shopify Setup Guide
-
-### Problem
-Shopify requires compliance webhooks (`customers/data_request`, `customers/redact`, `shop/redact`) to be declared in a `shopify.app.toml` file and deployed via Shopify CLI. The setup guide currently has 6 steps and doesn't cover this mandatory requirement. The edge function already handles these topics — only the TOML declaration is missing.
+## Plan: Restrict AI Chatbot to Professional Subscription
 
 ### Changes
 
-**1. New file: `shopify.app.toml`** (project root)
-A ready-to-use template with:
-- `client_id` placeholder (`YOUR_CLIENT_ID_HERE`)
-- `application_url` pointing to the published app URL
-- Access scopes matching Step 4
-- Redirect URL matching Step 3
-- All webhook subscriptions (product events, inventory, app/uninstalled)
-- Compliance topics declaration pointing to `https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks`
+**1. Frontend: `src/components/shop/StylingChatbot.tsx`**
+- Accept new props: `isProfessional: boolean` and `subscriptionLoading: boolean`
+- When `isProfessional` is false, render the chatbot FAB as usual but when opened, show a locked state instead of the chat interface
+- Locked state: lock icon, message "AI Chatbot is available on the Professional plan. Upgrade to unlock advanced AI features.", and an "Upgrade Plan" button linking to `/settings` (billing section)
+- When `subscriptionLoading` is true, show a loading spinner in the sheet
 
-**2. Modified: `src/pages/ShopifySetupGuide.tsx`**
-Add **Step 7: "Register Compliance Webhooks"** between Step 6 and the Test section:
-- Brief explanation: Shopify requires 3 mandatory compliance webhooks declared via `shopify.app.toml`
-- Substep 1: Install Shopify CLI — copyable command: `npm install -g @shopify/cli @shopify/app`
-- Substep 2: Create a folder with `shopify.app.toml` — display the full TOML content in a copyable code block, with a note to replace `YOUR_CLIENT_ID_HERE`
-- Substep 3: Run `shopify app deploy` — copyable command
-- Note: this is a one-time step; the backend function already handles these webhooks with HMAC verification
-- Add `Terminal` icon import from lucide-react
+**2. Frontend: `src/components/shop/ShopLayout.tsx`**
+- Import `useSubscription` and `hasFeature`
+- Pass `isProfessional={hasFeature(tierName, 'styling_chatbot')}` and `subscriptionLoading` to `StylingChatbot`
 
-### No backend changes needed
-The `shopify-webhooks` edge function already implements all 3 compliance handlers with strict HMAC verification.
+**3. Backend: `supabase/functions/styling-chat/index.ts`**
+- Add subscription validation at the top of the handler
+- Extract the auth token from the `Authorization` header
+- Look up the user's brand, then query Shopify for active subscriptions (same pattern as `check-subscription`)
+- If no active Professional subscription, return 403 with `{ error: "AI Chatbot requires a Professional plan." }`
+- This ensures even direct API calls are blocked for non-Professional users
+
+### Technical notes
+- The tier system already defines `styling_chatbot` as a Professional-only feature in `src/lib/tiers.ts`
+- The `check-subscription` edge function already implements the Shopify subscription query pattern that `styling-chat` will reuse
+- The upgrade CTA links to `/settings` which contains the billing/plan section
 
