@@ -16,7 +16,7 @@ redirect_urls = [
 ]
 
 [webhooks]
-api_version = "2024-10"
+api_version = "2025-10"
 
   [[webhooks.subscriptions]]
   topics = [
@@ -29,9 +29,13 @@ api_version = "2024-10"
   uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
 
   [[webhooks.subscriptions]]
-  compliance_topics = [
-    "customers/data_request",
-    "customers/redact",
-    "shop/redact"
-  ]
+  topics = ["customers/data_request"]
+  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["customers/redact"]
+  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["shop/redact"]
   uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
