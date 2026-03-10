@@ -2,7 +2,7 @@
 # Replace YOUR_CLIENT_ID_HERE with your actual Shopify app Client ID
 # Then run: shopify app deploy
 
-client_id = "YOUR_CLIENT_ID_HERE"
+client_id = "e1bde8232afcab4c37b12a9b29c3dde1"
 name = "AI Stylist Platform"
 application_url = "https://stylysapp.lovable.app"
 embedded = true
