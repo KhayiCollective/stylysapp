@@ -23,12 +23,15 @@ export function WebhookStatusIndicator() {
   const [isConnected, setIsConnected] = useState(false);
   const [brandId, setBrandId] = useState<string | null>(null);
 
-  const expectedWebhooks = [
+  const apiManagedWebhooks = [
     'products/create',
     'products/update',
     'products/delete',
     'inventory_levels/update',
     'app/uninstalled',
+  ];
+
+  const configManagedWebhooks = [
     'customers/data_request',
     'customers/redact',
     'shop/redact',
@@ -152,7 +155,7 @@ export function WebhookStatusIndicator() {
   }
 
   const registeredTopics = webhooks.map(w => w.topic);
-  const allRegistered = expectedWebhooks.every(t => registeredTopics.includes(t));
+  const allApiRegistered = apiManagedWebhooks.every(t => registeredTopics.includes(t));
 
   return (
     <Card>
@@ -167,14 +170,15 @@ export function WebhookStatusIndicator() {
               Real-time sync webhooks for automatic product updates
             </CardDescription>
           </div>
-          <Badge variant={allRegistered ? 'default' : 'destructive'}>
-            {allRegistered ? 'Active' : 'Incomplete'}
+          <Badge variant={allApiRegistered ? 'default' : 'destructive'}>
+            {allApiRegistered ? 'Active' : 'Incomplete'}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-2">
-          {expectedWebhooks.map(topic => {
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">API-managed</p>
+          {apiManagedWebhooks.map(topic => {
             const isActive = registeredTopics.includes(topic);
             return (
               <div key={topic} className="flex items-center justify-between p-2 rounded bg-muted/50">
@@ -192,6 +196,20 @@ export function WebhookStatusIndicator() {
               </div>
             );
           })}
+
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-3">Compliance (app-config managed)</p>
+          {configManagedWebhooks.map(topic => (
+            <div key={topic} className="flex items-center justify-between p-2 rounded bg-muted/50">
+              <div className="flex items-center gap-2">
+                <Webhook className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-mono">{topic}</span>
+              </div>
+              <Badge variant="outline" className="text-xs">Config</Badge>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            Compliance webhooks are declared in <code className="text-xs">shopify.app.toml</code> and registered via <code className="text-xs">shopify app deploy</code>.
+          </p>
         </div>
 
         <Button
@@ -209,7 +227,7 @@ export function WebhookStatusIndicator() {
           Refresh Status
         </Button>
 
-        {!allRegistered && (
+        {!allApiRegistered && (
           <div className="space-y-2">
             <Button
               variant="default"
