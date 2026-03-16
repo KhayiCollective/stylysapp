@@ -246,9 +246,6 @@ Deno.serve(async (req) => {
         "products/delete",
         "inventory_levels/update",
         "app/uninstalled",
-        "customers/data_request",
-        "customers/redact",
-        "shop/redact",
       ];
 
       const existingWebhooks = await fetchWebhooks(brand.shopify_store_domain, brand.shopify_access_token);

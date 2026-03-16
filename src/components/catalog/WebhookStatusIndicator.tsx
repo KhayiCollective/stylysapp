@@ -227,7 +227,7 @@ export function WebhookStatusIndicator() {
           Refresh Status
         </Button>
 
-        {!allRegistered && (
+        {!allApiRegistered && (
           <div className="space-y-2">
             <Button
               variant="default"
