@@ -177,7 +177,8 @@ export function WebhookStatusIndicator() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-2">
-          {expectedWebhooks.map(topic => {
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">API-managed</p>
+          {apiManagedWebhooks.map(topic => {
             const isActive = registeredTopics.includes(topic);
             return (
               <div key={topic} className="flex items-center justify-between p-2 rounded bg-muted/50">
@@ -195,6 +196,20 @@ export function WebhookStatusIndicator() {
               </div>
             );
           })}
+
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-3">Compliance (app-config managed)</p>
+          {configManagedWebhooks.map(topic => (
+            <div key={topic} className="flex items-center justify-between p-2 rounded bg-muted/50">
+              <div className="flex items-center gap-2">
+                <Webhook className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-mono">{topic}</span>
+              </div>
+              <Badge variant="outline" className="text-xs">Config</Badge>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            Compliance webhooks are declared in <code className="text-xs">shopify.app.toml</code> and registered via <code className="text-xs">shopify app deploy</code>.
+          </p>
         </div>
 
         <Button
