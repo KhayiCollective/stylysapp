@@ -258,7 +258,7 @@ serve(async (req) => {
         }
       }
 
-      const retryModel = "google/gemini-2.5-flash-image";
+      const retryModel = "google/gemini-3.1-flash-image-preview";
       console.log(`Retry with model: ${retryModel}`);
       const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, retryModel);
       if (retryResponse.ok) {
