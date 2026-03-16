@@ -155,7 +155,7 @@ export function WebhookStatusIndicator() {
   }
 
   const registeredTopics = webhooks.map(w => w.topic);
-  const allRegistered = expectedWebhooks.every(t => registeredTopics.includes(t));
+  const allApiRegistered = apiManagedWebhooks.every(t => registeredTopics.includes(t));
 
   return (
     <Card>
