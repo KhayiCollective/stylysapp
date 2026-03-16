@@ -75,30 +75,51 @@ function buildPrompt(outfitItems: OutfitItem[], bodyShape?: string, sizeInfo?: S
     bodyProfileSection = `\n\nBODY PROFILE:\n${parts.join("\n")}`;
   }
 
-  return `You are a photorealistic virtual try-on AI for fashion retail. Your task: take the person in Image 1 as an IMMUTABLE body reference and digitally dress them in the outfit items extracted from the subsequent images.
+  return `You are a photorealistic virtual try-on system for fashion retail.
 
-IDENTITY PRESERVATION (NON-NEGOTIABLE):
-- The person's face must be an EXACT replica of Image 1: same facial features, structure, expression, skin texture, blemishes, and complexion. Do NOT beautify, smooth, or alter the face in any way.
-- Preserve the EXACT skin tone, hair color, hairstyle, and body proportions (height, weight, build) from Image 1.
-- Maintain the EXACT pose, body alignment, and posture from Image 1. Do not repose the body.
-- Keep the EXACT background from Image 1 unchanged — same environment, objects, depth of field, and composition.
+IMAGE 1 is the customer photo — this is your BASE IMAGE and IMMUTABLE reference.
 
-GARMENT EXTRACTION — each product image may show a model in a full outfit, but represents ONLY ONE product:
+ABSOLUTE RULES — DO NOT VIOLATE:
+The person in Image 1 must remain EXACTLY the same. Preserve all visual characteristics with zero alterations:
+- Face: identical facial features, expression, skin texture, complexion, blemishes. No beautification or smoothing.
+- Hair: exact hairstyle, color, volume, and placement.
+- Body: exact body shape, proportions, height, weight, build. No reshaping.
+- Skin tone: exact match across all visible skin areas.
+- Pose: identical posture, body angle, limb positions. Do NOT repose.
+- Camera angle: same perspective, focal length, and framing.
+- Lighting: same direction, intensity, color temperature, shadows on face and body.
+- Background: completely unchanged — same environment, objects, depth of field, blur.
+
+YOUR ONLY TASK: Remove the original clothing and replace it with the garments from the following product images.
+
+GARMENT EXTRACTION — each product image shows ONE specific product:
 ${itemInstructions}
 
-CLOTHING APPLICATION:
-- Layer garments in correct order: undergarments/base layers first, then mid-layers (shirts, pants), then outerwear (jackets, coats), then accessories (hats, bags, jewelry, scarves) on top.
-- Each garment must fit proportionally to the user's actual body dimensions from Image 1 — no stretching or compression.
-- Simulate natural fabric draping, folds, wrinkles, and gravity effects based on the garment's material (knits drape differently than denim).
-- Add realistic shadows where garments overlap or contact the body (collar shadows on neck, sleeve shadows on arms).
-- Match the lighting direction, intensity, color temperature, and ambient light from Image 1 exactly on all garments.
-- Garment edges must blend seamlessly with the body — no visible cutout borders, halos, or unnatural seams.
+CLOTHING APPLICATION RULES:
+- Strip the person's original clothing entirely before applying new garments.
+- Dress the person from head to toe in the selected outfit only.
+- Layer in correct order: base layers → mid-layers (shirts, pants) → outerwear → accessories.
+- Align garments to the customer's actual body proportions:
+  • Correct shoulder placement matching the person's shoulder width
+  • Natural waist alignment following the person's waistline
+  • Accurate sleeve length and arm fit
+  • Proper garment length (hemlines, pant breaks)
+- Simulate realistic fabric behavior:
+  • Natural draping based on material (silk flows, denim holds shape, knits stretch)
+  • Wrinkles and folds at joints (elbows, knees, waist)
+  • Fabric tension where garments contact the body
+- Shadow and light integration:
+  • Garment shadows must match Image 1's lighting direction exactly
+  • Add contact shadows where clothing meets skin (neckline, wrists, ankles)
+  • Garment-to-garment shadows at overlap points (jacket over shirt)
+- Seamless edge blending: no cutout borders, halos, color fringing, or unnatural seams where garments meet skin.
 ${bodyProfileSection}
 
-OUTPUT:
-- Photorealistic image, indistinguishable from a real photograph.
-- Professional fashion photography quality with correct perspective and depth.
-- The viewer should believe the person actually wore this outfit when the photo was taken.
+OUTPUT REQUIREMENTS:
+- Final image must be PHOTOREALISTIC — indistinguishable from a real photograph.
+- Professional fashion photography quality.
+- The viewer must believe this person was actually photographed wearing this exact outfit.
+- Same resolution and aspect ratio as Image 1.
 
 You MUST generate an image. Output the visualization image now.`;
 }
