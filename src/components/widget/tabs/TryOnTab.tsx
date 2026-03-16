@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Camera, Loader2, X, Sparkles, Eye, Save, User, ShoppingBag } from "lucide-react";
+import { Camera, Loader2, Sparkles, Eye, User, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { ShopifyProduct } from "@/lib/shopify";
 import { toast } from "sonner";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+import { PhotoUpload, getCachedPhotoUrl, setCachedPhotoUrl } from "../PhotoUpload";
 
 interface OutfitItemProp {
   id?: string;
@@ -30,80 +28,54 @@ interface TryOnTabProps {
 }
 
 export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken, onPhotoSaved, bodyShape, sizeInfo }: TryOnTabProps) {
-  const [userImage, setUserImage] = useState<string | null>(null);
+  const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showingOriginal, setShowingOriginal] = useState(false);
-  const [isSavedPhoto, setIsSavedPhoto] = useState(false);
-  const [savingPhoto, setSavingPhoto] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
 
   const addItem = useCartStore((state) => state.addItem);
 
-  // Auto-load saved photo
+  // Auto-load: check cache first, then saved photo from account
   useEffect(() => {
-    if (customerPhotoUrl && !userImage) {
-      setUserImage(customerPhotoUrl);
-      setIsSavedPhoto(true);
+    if (currentPhoto) return;
+    const cached = getCachedPhotoUrl(brandId);
+    if (cached) {
+      setCurrentPhoto(cached);
+    } else if (customerPhotoUrl) {
+      setCurrentPhoto(customerPhotoUrl);
+      setCachedPhotoUrl(brandId, customerPhotoUrl);
     }
-  }, [customerPhotoUrl]);
+  }, [customerPhotoUrl, brandId]);
 
-  const savePhotoToAccount = async (base64: string) => {
-    if (!customerToken || !brandId) return;
-    setSavingPhoto(true);
-    try {
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/photo`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${customerToken}`,
-        },
-        body: JSON.stringify({ photoBase64: base64 }),
-      });
-      const data = await resp.json();
-      if (resp.ok && data.photo_url) {
-        setIsSavedPhoto(true);
-        onPhotoSaved?.(data.photo_url);
-      }
-    } catch {
-      // silently fail
-    }
-    setSavingPhoto(false);
+  const handlePhotoReady = (base64OrUrl: string) => {
+    setCurrentPhoto(base64OrUrl);
+    setResultImage(null);
+    setShowingOriginal(false);
+    setError(null);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Image must be under 5MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        setUserImage(base64);
-        setResultImage(null);
-        setShowingOriginal(false);
-        setError(null);
-        setIsSavedPhoto(false);
-        if (customerToken) {
-          savePhotoToAccount(base64);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+  const handlePhotoCleared = () => {
+    setCurrentPhoto(null);
+    setResultImage(null);
+    setShowingOriginal(false);
+    setError(null);
+  };
+
+  const handlePhotoSaved = (url: string) => {
+    setCachedPhotoUrl(brandId, url);
+    onPhotoSaved?.(url);
   };
 
   const generateTryOn = async () => {
-    if (!userImage || !outfitItems?.length) return;
+    if (!currentPhoto || !outfitItems?.length) return;
     setIsProcessing(true);
     setError(null);
 
     try {
-      // Send image URLs directly — the edge function handles base64 conversion
       const requestBody: Record<string, unknown> = {
-        userImageBase64: userImage,
+        userImageBase64: currentPhoto,
         outfitItems: outfitItems.map(i => ({
           name: i.name,
           imageUrl: i.imageUrl,
@@ -196,10 +168,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
         ? `Added ${shopifyItems.length} items (${skipped} skipped — no Shopify ID)`
         : `${shopifyItems.length} items added`;
 
-      toast.success("Added outfit to cart", {
-        description: msg,
-        position: "top-center",
-      });
+      toast.success("Added outfit to cart", { description: msg, position: "top-center" });
     } catch (error) {
       console.error('Failed to add outfit to cart:', error);
       toast.error("Failed to add items to cart", { position: "top-center" });
@@ -208,6 +177,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
     }
   };
 
+  // --- No outfit selected ---
   if (!outfitItems || outfitItems.length === 0) {
     return (
       <div className="p-6 flex flex-col items-center justify-center text-center gap-4 min-h-[400px]">
@@ -222,7 +192,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
     );
   }
 
-  const displayImage = resultImage && !showingOriginal ? resultImage : userImage;
+  const displayImage = resultImage && !showingOriginal ? resultImage : currentPhoto;
   const hasResult = !!resultImage;
 
   return (
@@ -242,60 +212,51 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
         ))}
       </div>
 
-      {/* Upload / Result area */}
-      {!userImage ? (
-        <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-colors">
-          <Upload className="h-6 w-6 text-muted-foreground mb-2" />
-          <span className="text-sm text-muted-foreground">Upload your photo</span>
-          <span className="text-[11px] text-muted-foreground mt-1">JPG or PNG, max 5MB</span>
-          <Input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-        </label>
-      ) : (
+      {/* Photo upload / result area */}
+      {!currentPhoto ? (
+        <PhotoUpload
+          brandId={brandId}
+          customerToken={customerToken}
+          savedPhotoUrl={customerPhotoUrl}
+          onPhotoReady={handlePhotoReady}
+          onPhotoCleared={handlePhotoCleared}
+          onPhotoSaved={handlePhotoSaved}
+        />
+      ) : hasResult ? (
+        /* Show AI result with toggle */
         <div className="relative">
           <img
             src={displayImage!}
-            alt={hasResult && !showingOriginal ? "Try-on result" : "Your photo"}
+            alt={showingOriginal ? "Your photo" : "Try-on result"}
             className="w-full aspect-[3/4] object-cover rounded-lg"
           />
-          {isSavedPhoto && !hasResult && (
-            <Badge variant="secondary" className="absolute top-2 left-2 text-[10px] gap-1">
-              <Save className="h-3 w-3" />
-              Your saved photo
-            </Badge>
-          )}
-          {savingPhoto && (
-            <Badge variant="secondary" className="absolute top-2 left-2 text-[10px] gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Saving...
-            </Badge>
-          )}
-          {hasResult && !showingOriginal && (
+          {!showingOriginal && (
             <Badge className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px]">
               <Sparkles className="h-3 w-3 mr-1" />
               AI Generated
             </Badge>
           )}
-          {hasResult && (
-            <button
-              onClick={() => setShowingOriginal(!showingOriginal)}
-              className="absolute bottom-2 left-2 h-7 px-2.5 bg-background/80 backdrop-blur-sm rounded-full flex items-center gap-1.5 text-[11px] font-medium text-foreground border border-border/50 hover:bg-background/95 transition-colors"
-            >
-              <Eye className="h-3 w-3" />
-              {showingOriginal ? "View Result" : "View Original"}
-            </button>
-          )}
           <button
-            onClick={() => { setUserImage(null); setResultImage(null); setShowingOriginal(false); setIsSavedPhoto(false); }}
-            className="absolute top-2 right-2 h-6 w-6 bg-background/80 rounded-full flex items-center justify-center"
+            onClick={() => setShowingOriginal(!showingOriginal)}
+            className="absolute bottom-2 left-2 h-7 px-2.5 bg-background/80 backdrop-blur-sm rounded-full flex items-center gap-1.5 text-[11px] font-medium text-foreground border border-border/50 hover:bg-background/95 transition-colors"
           >
-            <X className="h-3 w-3" />
+            <Eye className="h-3 w-3" />
+            {showingOriginal ? "View Result" : "View Original"}
           </button>
         </div>
+      ) : (
+        /* Show the uploaded/saved photo with option to change */
+        <PhotoUpload
+          brandId={brandId}
+          customerToken={customerToken}
+          savedPhotoUrl={currentPhoto}
+          onPhotoReady={handlePhotoReady}
+          onPhotoCleared={handlePhotoCleared}
+          onPhotoSaved={handlePhotoSaved}
+        />
       )}
 
-      {error && (
-        <p className="text-xs text-destructive">{error}</p>
-      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
       {/* Body profile indicator */}
       {bodyShape || (sizeInfo && Object.values(sizeInfo).some(v => v)) ? (
@@ -314,7 +275,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
           className="flex-1 gap-2"
           size="sm"
           onClick={generateTryOn}
-          disabled={!userImage || isProcessing}
+          disabled={!currentPhoto || isProcessing}
         >
           {isProcessing ? (
             <>
