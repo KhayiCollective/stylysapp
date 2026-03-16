@@ -190,9 +190,13 @@ serve(async (req) => {
       const { photoBase64 } = await req.json();
       if (!photoBase64) return json({ error: "photoBase64 is required" }, 400);
 
-      // Extract base64 data (remove data:image/...;base64, prefix if present)
-      const base64Match = photoBase64.match(/^data:image\/\w+;base64,(.+)$/);
-      const rawBase64 = base64Match ? base64Match[1] : photoBase64;
+      // Extract base64 data and detect content type
+      const base64Match = photoBase64.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
+      if (!base64Match && !photoBase64.match(/^[A-Za-z0-9+/=]+$/)) {
+        return json({ error: "Invalid image format. Accepted: JPG, PNG, WebP." }, 400);
+      }
+      const detectedType = base64Match ? base64Match[1] : "jpeg";
+      const rawBase64 = base64Match ? base64Match[2] : photoBase64;
 
       // Decode base64 to Uint8Array
       const binaryString = atob(rawBase64);
@@ -201,13 +205,30 @@ serve(async (req) => {
         bytes[i] = binaryString.charCodeAt(i);
       }
 
-      const filePath = `${customer.sub}/photo.jpg`;
+      // Validate file size (10MB max)
+      const MAX_SIZE = 10 * 1024 * 1024;
+      if (bytes.length > MAX_SIZE) {
+        return json({ error: "Image must be under 10MB" }, 400);
+      }
+
+      // Determine content type and extension
+      const mimeMap: Record<string, string> = { jpeg: "image/jpeg", jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
+      const extMap: Record<string, string> = { jpeg: "jpg", jpg: "jpg", png: "png", webp: "webp" };
+      const contentType = mimeMap[detectedType] || "image/jpeg";
+      const ext = extMap[detectedType] || "jpg";
+      const filePath = `${customer.sub}/photo.${ext}`;
+
+      // Delete any previous photos with different extensions to avoid orphans
+      const otherExts = ["jpg", "png", "webp"].filter(e => e !== ext);
+      for (const oldExt of otherExts) {
+        await supabase.storage.from("customer-photos").remove([`${customer.sub}/photo.${oldExt}`]);
+      }
 
       // Upload to storage (upsert)
       const { error: uploadErr } = await supabase.storage
         .from("customer-photos")
         .upload(filePath, bytes, {
-          contentType: "image/jpeg",
+          contentType,
           upsert: true,
         });
 
@@ -216,7 +237,7 @@ serve(async (req) => {
         return json({ error: "Failed to upload photo" }, 500);
       }
 
-      // Get public URL
+      // Get public URL with cache-bust
       const { data: urlData } = supabase.storage
         .from("customer-photos")
         .getPublicUrl(filePath);
