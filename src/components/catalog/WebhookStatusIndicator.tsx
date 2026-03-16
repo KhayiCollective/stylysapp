@@ -23,12 +23,15 @@ export function WebhookStatusIndicator() {
   const [isConnected, setIsConnected] = useState(false);
   const [brandId, setBrandId] = useState<string | null>(null);
 
-  const expectedWebhooks = [
+  const apiManagedWebhooks = [
     'products/create',
     'products/update',
     'products/delete',
     'inventory_levels/update',
     'app/uninstalled',
+  ];
+
+  const configManagedWebhooks = [
     'customers/data_request',
     'customers/redact',
     'shop/redact',
