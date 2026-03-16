@@ -202,8 +202,8 @@ serve(async (req) => {
       }
     }
 
-    // Faster model first, then fallback
-    const models = ["google/gemini-2.5-flash-image", "google/gemini-3-pro-image-preview"];
+    // Best quality model first, then fallbacks
+    const models = ["google/gemini-3.1-flash-image-preview", "google/gemini-3-pro-image-preview", "google/gemini-2.5-flash-image"];
     let response: Response | null = null;
     let lastStatus = 500;
 
