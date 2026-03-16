@@ -126,7 +126,7 @@ You MUST generate an image. Output the visualization image now.`;
 
 function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   const items = outfitItems.map(i => `"${i.name}" (${i.category})`).join(", ");
-  return `Generate a photorealistic virtual try-on image. The person in Image 1 is the IMMUTABLE reference — preserve their exact face, skin tone, hair, pose, body shape, and background with zero alterations. Digitally dress them in these items: ${items}. Extract only the specified garment category from each product image. Layer correctly: base layers first, outerwear on top, accessories last. Match lighting, add realistic fabric draping and shadows. You MUST output an image.`;
+  return `Generate a photorealistic virtual try-on image. Image 1 is the customer's photo — this is the BASE IMAGE. The person must remain EXACTLY the same: preserve their face, skin tone, hair, pose, body shape, and background with ZERO alterations. Your ONLY task is to remove their current clothing and dress them in these items: ${items}. Extract only the specified garment from each product image. Fit garments realistically to the person's body — correct shoulder alignment, natural draping, proper lengths. Match the lighting and shadows from Image 1. The result must look like a real photograph of this person wearing this outfit. You MUST output an image.`;
 }
 
 async function callAI(apiKey: string, contentParts: any[], model: string) {
