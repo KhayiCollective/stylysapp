@@ -170,8 +170,8 @@ export function WebhookStatusIndicator() {
               Real-time sync webhooks for automatic product updates
             </CardDescription>
           </div>
-          <Badge variant={allRegistered ? 'default' : 'destructive'}>
-            {allRegistered ? 'Active' : 'Incomplete'}
+          <Badge variant={allApiRegistered ? 'default' : 'destructive'}>
+            {allApiRegistered ? 'Active' : 'Incomplete'}
           </Badge>
         </div>
       </CardHeader>
