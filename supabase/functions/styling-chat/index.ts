@@ -6,9 +6,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Per-IP rate limit (in-memory, per instance) to deter unauthenticated credit abuse.
+const rateBuckets = new Map<string, { count: number; reset: number }>();
+function rateLimit(ip: string, limit = 20, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now > bucket.reset) {
+    rateBuckets.set(ip, { count: 1, reset: now + windowMs });
+    return true;
+  }
+  if (bucket.count >= limit) return false;
+  bucket.count++;
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
+  if (!rateLimit(ip)) {
+    return new Response(JSON.stringify({ error: "Too many requests. Please slow down." }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
