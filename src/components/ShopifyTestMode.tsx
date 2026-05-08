@@ -224,7 +224,7 @@ export function ShopifyTestMode() {
             ? `Connected to ${brand.shopify_store_domain}` 
             : 'No Shopify connection yet',
           details: hasConnection 
-            ? `Access Token: ${brand.shopify_access_token ? '✓' : '✗'}, Storefront Token: ${brand.shopify_storefront_token ? '✓' : '✗'}`
+            ? `Connection verified at ${new Date(brand.shopify_connected_at).toLocaleString()} (tokens stored securely server-side)`
             : 'Complete OAuth flow to connect',
         });
       } catch (e) {
