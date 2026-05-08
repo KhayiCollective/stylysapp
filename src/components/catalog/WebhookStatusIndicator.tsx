@@ -53,11 +53,11 @@ export function WebhookStatusIndicator() {
           
           const { data: brand } = await supabase
             .from('brands')
-            .select('shopify_store_domain, shopify_access_token')
+            .select('shopify_store_domain, shopify_connected_at')
             .eq('id', profile.brand_id)
             .single();
 
-          setIsConnected(!!brand?.shopify_store_domain && !!brand?.shopify_access_token);
+          setIsConnected(!!brand?.shopify_store_domain && !!brand?.shopify_connected_at);
         }
       } catch (error) {
         console.error('Error fetching webhook status:', error);
