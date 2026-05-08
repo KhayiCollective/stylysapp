@@ -13,7 +13,8 @@ export default function EmbeddedApp() {
   const [needsConnection, setNeedsConnection] = useState(false);
 
   const shop = searchParams.get("shop") || config?.shop;
-  const isTestMode = searchParams.get("test") === "true";
+  // Test mode is only allowed in non-production builds to prevent shop-verification bypass.
+  const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;
 
   useEffect(() => {
     const verifyShop = async () => {
