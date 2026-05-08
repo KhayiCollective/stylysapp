@@ -210,6 +210,15 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Per-IP rate limit to prevent credit abuse from unauthenticated callers.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
+  if (!rateLimit(ip, 10, 60_000)) {
+    return new Response(
+      JSON.stringify({ error: "Too many try-on requests. Please wait a moment." }),
+      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
