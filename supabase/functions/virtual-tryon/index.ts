@@ -24,16 +24,59 @@ interface TryOnRequest {
   sizeInfo?: SizeInfo;
 }
 
-// Convert an external image URL to a base64 data URI
+// Allowlist of trusted image hosts. Only HTTPS URLs from these domains may be fetched.
+const ALLOWED_IMAGE_HOST_SUFFIXES = [
+  "cdn.shopify.com",
+  "shopify.com",
+  "images.unsplash.com",
+  "supabase.co",
+  "supabase.in",
+  "lovable.app",
+  "lovable.dev",
+];
+
+function isPrivateHost(hostname: string): boolean {
+  // Block common SSRF targets: localhost, link-local, private ranges, cloud metadata.
+  if (!hostname) return true;
+  const lower = hostname.toLowerCase();
+  if (lower === "localhost" || lower === "0.0.0.0" || lower.endsWith(".local") || lower.endsWith(".internal")) return true;
+  if (lower === "169.254.169.254" || lower.startsWith("169.254.")) return true;
+  if (lower.startsWith("10.") || lower.startsWith("127.")) return true;
+  if (lower.startsWith("192.168.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(lower)) return true;
+  if (lower.startsWith("[::1]") || lower === "::1" || lower.startsWith("[fc") || lower.startsWith("[fd")) return true;
+  return false;
+}
+
+function isAllowedImageUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return false;
+    if (isPrivateHost(u.hostname)) return false;
+    return ALLOWED_IMAGE_HOST_SUFFIXES.some(d => u.hostname === d || u.hostname.endsWith("." + d));
+  } catch {
+    return false;
+  }
+}
+
+// Convert an external image URL to a base64 data URI (allowlist enforced)
 async function imageUrlToBase64(url: string): Promise<string> {
   if (url.startsWith("data:")) return url;
+  if (!isAllowedImageUrl(url)) {
+    console.warn(`Rejected image URL (not in allowlist): ${url.substring(0, 120)}`);
+    return url;
+  }
   try {
-    const resp = await fetch(url);
+    const resp = await fetch(url, { redirect: "error" });
     if (!resp.ok) {
       console.error(`Failed to fetch image: ${url} — ${resp.status}`);
       return url;
     }
     const contentType = resp.headers.get("content-type") || "image/jpeg";
+    if (!contentType.startsWith("image/")) {
+      console.warn(`Rejected non-image content-type: ${contentType}`);
+      return url;
+    }
     const buf = await resp.arrayBuffer();
     const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
     return `data:${contentType};base64,${b64}`;
@@ -41,6 +84,20 @@ async function imageUrlToBase64(url: string): Promise<string> {
     console.error(`Error converting image to base64: ${url}`, e);
     return url;
   }
+}
+
+// Simple in-memory IP rate limiter (per-instance). Protects against credit abuse.
+const rateBuckets = new Map<string, { count: number; reset: number }>();
+function rateLimit(ip: string, limit = 10, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now > bucket.reset) {
+    rateBuckets.set(ip, { count: 1, reset: now + windowMs });
+    return true;
+  }
+  if (bucket.count >= limit) return false;
+  bucket.count++;
+  return true;
 }
 
 const bodyShapeDescriptions: Record<string, string> = {
@@ -151,6 +208,15 @@ async function callAI(apiKey: string, contentParts: any[], model: string) {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Per-IP rate limit to prevent credit abuse from unauthenticated callers.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
+  if (!rateLimit(ip, 10, 60_000)) {
+    return new Response(
+      JSON.stringify({ error: "Too many try-on requests. Please wait a moment." }),
+      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   try {

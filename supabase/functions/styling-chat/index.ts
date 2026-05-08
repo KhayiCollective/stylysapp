@@ -6,13 +6,34 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Per-IP rate limit (in-memory, per instance) to deter unauthenticated credit abuse.
+const rateBuckets = new Map<string, { count: number; reset: number }>();
+function rateLimit(ip: string, limit = 20, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now > bucket.reset) {
+    rateBuckets.set(ip, { count: 1, reset: now + windowMs });
+    return true;
+  }
+  if (bucket.count >= limit) return false;
+  bucket.count++;
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
+  if (!rateLimit(ip)) {
+    return new Response(JSON.stringify({ error: "Too many requests. Please slow down." }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
-    // ── Subscription gate ──────────────────────────────────────────
+    // ── Authentication + subscription gate ─────────────────────────
     const authHeader = req.headers.get("Authorization");
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -20,50 +41,64 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    if (authHeader && authHeader !== `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`) {
-      const token = authHeader.replace("Bearer ", "");
-      const { data: userData } = await supabaseClient.auth.getUser(token);
-      if (userData?.user) {
-        const { data: profile } = await supabaseClient
-          .from("profiles")
-          .select("brand_id")
-          .eq("id", userData.user.id)
-          .single();
+    const anonBearer = `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`;
+    if (!authHeader || authHeader === anonBearer) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-        if (profile?.brand_id) {
-          const { data: brand } = await supabaseClient
-            .from("brands")
-            .select("shopify_store_domain, shopify_access_token")
-            .eq("id", profile.brand_id)
-            .single();
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: userErr } = await supabaseClient.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication token." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-          if (brand?.shopify_store_domain && brand?.shopify_access_token) {
-            const query = `query { currentAppInstallation { activeSubscriptions { name status } } }`;
-            const shopifyResp = await fetch(
-              `https://${brand.shopify_store_domain}/admin/api/2025-01/graphql.json`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Shopify-Access-Token": brand.shopify_access_token,
-                },
-                body: JSON.stringify({ query }),
-              }
-            );
-            const shopifyData = await shopifyResp.json();
-            const subs = shopifyData.data?.currentAppInstallation?.activeSubscriptions || [];
-            const hasPro = subs.some((s: any) =>
-              s.status === "ACTIVE" &&
-              (s.name?.toLowerCase().includes("professional") || s.name?.toLowerCase().includes("pro"))
-            );
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("brand_id")
+      .eq("id", userData.user.id)
+      .single();
 
-            if (!hasPro) {
-              return new Response(
-                JSON.stringify({ error: "AI Chatbot requires a Professional plan." }),
-                { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-              );
-            }
+    if (profile?.brand_id) {
+      const { data: tokens } = await supabaseClient
+        .rpc("get_brand_shopify_token", { target_brand_id: profile.brand_id });
+      const accessToken = tokens?.[0]?.access_token;
+      const { data: brand } = await supabaseClient
+        .from("brands")
+        .select("shopify_store_domain")
+        .eq("id", profile.brand_id)
+        .single();
+
+      if (brand?.shopify_store_domain && accessToken) {
+        const query = `query { currentAppInstallation { activeSubscriptions { name status } } }`;
+        const shopifyResp = await fetch(
+          `https://${brand.shopify_store_domain}/admin/api/2025-01/graphql.json`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": accessToken,
+            },
+            body: JSON.stringify({ query }),
           }
+        );
+        const shopifyData = await shopifyResp.json();
+        const subs = shopifyData.data?.currentAppInstallation?.activeSubscriptions || [];
+        const hasPro = subs.some((s: any) =>
+          s.status === "ACTIVE" &&
+          (s.name?.toLowerCase().includes("professional") || s.name?.toLowerCase().includes("pro"))
+        );
+
+        if (!hasPro) {
+          return new Response(
+            JSON.stringify({ error: "AI Chatbot requires a Professional plan." }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
       }
     }

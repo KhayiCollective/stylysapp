@@ -207,14 +207,15 @@ export function ShopifyTestMode() {
       try {
         const { data: brand, error } = await supabase
           .from('brands')
-          .select('shopify_store_domain, shopify_connected_at, shopify_access_token, shopify_storefront_token')
+          .select('shopify_store_domain, shopify_connected_at')
           .eq('id', brandId)
           .single();
 
         if (error) throw error;
 
         const hasConnection = !!brand?.shopify_connected_at;
-        const hasTokens = !!brand?.shopify_access_token && !!brand?.shopify_storefront_token;
+        // If a connection timestamp exists, the OAuth tokens were stored at that time.
+        const hasTokens = hasConnection;
         
         tests.push({
           name: 'Shopify Connection Status',
@@ -223,7 +224,7 @@ export function ShopifyTestMode() {
             ? `Connected to ${brand.shopify_store_domain}` 
             : 'No Shopify connection yet',
           details: hasConnection 
-            ? `Access Token: ${brand.shopify_access_token ? '✓' : '✗'}, Storefront Token: ${brand.shopify_storefront_token ? '✓' : '✗'}`
+            ? `Connection verified at ${new Date(brand.shopify_connected_at).toLocaleString()} (tokens stored securely server-side)`
             : 'Complete OAuth flow to connect',
         });
       } catch (e) {

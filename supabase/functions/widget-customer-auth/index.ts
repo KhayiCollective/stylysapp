@@ -168,6 +168,20 @@ serve(async (req) => {
 
       if (!account) return json({ error: "Account not found" }, 404);
 
+      // Refresh signed photo URL if we have one stored (path-based)
+      if (account.photo_url) {
+        for (const ext of ["jpg", "png", "webp"]) {
+          const filePath = `${customer.sub}/photo.${ext}`;
+          const { data: signed } = await supabase.storage
+            .from("customer-photos")
+            .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+          if (signed?.signedUrl) {
+            account.photo_url = signed.signedUrl;
+            break;
+          }
+        }
+      }
+
       // Also fetch style profile if linked
       let styleProfile = null;
       if (account.customer_id) {
@@ -237,12 +251,17 @@ serve(async (req) => {
         return json({ error: "Failed to upload photo" }, 500);
       }
 
-      // Get public URL with cache-bust
-      const { data: urlData } = supabase.storage
+      // Generate a signed URL (7 days). Bucket is private to protect biometric data.
+      const { data: urlData, error: signErr } = await supabase.storage
         .from("customer-photos")
-        .getPublicUrl(filePath);
+        .createSignedUrl(filePath, 60 * 60 * 24 * 7);
 
-      const photo_url = urlData.publicUrl + "?t=" + Date.now();
+      if (signErr || !urlData?.signedUrl) {
+        console.error("Signed URL error:", signErr);
+        return json({ error: "Failed to generate photo URL" }, 500);
+      }
+
+      const photo_url = urlData.signedUrl;
 
       // Update customer_accounts
       await supabase
