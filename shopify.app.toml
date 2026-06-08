@@ -30,12 +30,12 @@ api_version = "2025-10"
 
   [[webhooks.subscriptions]]
   topics = ["customers/data_request"]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/customers-data-request"
 
   [[webhooks.subscriptions]]
   topics = ["customers/redact"]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/customers-redact"
 
   [[webhooks.subscriptions]]
   topics = ["shop/redact"]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shop-redact"
