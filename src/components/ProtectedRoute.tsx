@@ -21,29 +21,37 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
 
   // Handle embedded mode - verify shop exists in our system (via edge function to bypass RLS)
   useEffect(() => {
+    let cancelled = false;
     const verifyEmbeddedShop = async () => {
       if (!isEmbedded || !config?.shop) {
         setCheckingEmbedded(false);
         return;
       }
 
+      const controller = new AbortController();
+      const t = window.setTimeout(() => controller.abort(), 8000);
+
       try {
         const shopDomain = config.shop.includes('.myshopify.com') ? config.shop : `${config.shop}.myshopify.com`;
         const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
+          { signal: controller.signal }
         );
         const result = await res.json();
-        setEmbeddedBrandVerified(!!result.connected);
+        if (!cancelled) setEmbeddedBrandVerified(!!result.connected);
       } catch (error) {
         console.error('Error verifying embedded shop:', error);
-        setEmbeddedBrandVerified(false);
+        if (!cancelled) setEmbeddedBrandVerified(false);
       } finally {
-        setCheckingEmbedded(false);
+        window.clearTimeout(t);
+        if (!cancelled) setCheckingEmbedded(false);
       }
     };
 
     verifyEmbeddedShop();
+    return () => { cancelled = true; };
   }, [isEmbedded, config?.shop]);
+
 
   useEffect(() => {
     const checkShopifyConnection = async () => {

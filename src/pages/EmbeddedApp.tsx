@@ -11,33 +11,55 @@ export default function EmbeddedApp() {
   const [verifying, setVerifying] = useState(true);
   const [verified, setVerified] = useState(false);
   const [needsConnection, setNeedsConnection] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const shop = searchParams.get("shop") || config?.shop;
   // Test mode is only allowed in non-production builds to prevent shop-verification bypass.
   const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;
 
   useEffect(() => {
+    let cancelled = false;
+
+    // Hard timeout — never spin longer than 10s
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      cancelled = true;
+      setLoadError(
+        "Loading is taking longer than expected. Please check your connection and try reloading the app from Shopify Admin."
+      );
+      setVerifying(false);
+    }, 10000);
+
     const verifyShop = async () => {
       if (isTestMode) {
+        if (cancelled) return;
         setVerified(true);
         setVerifying(false);
+        window.clearTimeout(timeoutId);
         return;
       }
 
       if (!shop) {
+        if (cancelled) return;
         setNeedsConnection(true);
         setVerifying(false);
+        window.clearTimeout(timeoutId);
         return;
       }
 
       try {
-        // Use edge function to verify (bypasses RLS, works without auth)
         const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
+        const controller = new AbortController();
+        const fetchTimeout = window.setTimeout(() => controller.abort(), 8000);
+
         const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
+          { signal: controller.signal }
         );
+        window.clearTimeout(fetchTimeout);
         const result = await res.json();
 
+        if (cancelled) return;
         if (result.connected) {
           setVerified(true);
         } else {
@@ -45,14 +67,42 @@ export default function EmbeddedApp() {
         }
       } catch (err) {
         console.error('Verification error:', err);
+        if (cancelled) return;
+        // On network/abort errors, route to connection screen so the user can retry OAuth
         setNeedsConnection(true);
       } finally {
-        setVerifying(false);
+        if (!cancelled) {
+          setVerifying(false);
+          window.clearTimeout(timeoutId);
+        }
       }
     };
 
     verifyShop();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [shop, isTestMode]);
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md text-center space-y-4">
+          <h1 className="text-xl font-semibold text-foreground">Unable to load STYLYS</h1>
+          <p className="text-sm text-muted-foreground">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
 
   if (verifying) {
     return (
