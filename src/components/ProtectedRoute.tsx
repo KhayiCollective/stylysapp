@@ -3,7 +3,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
-import { EmbeddedConnectionRequired } from '@/components/embedded/EmbeddedConnectionRequired';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,18 +18,31 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
   const [embeddedBrandVerified, setEmbeddedBrandVerified] = useState(false);
   const [checkingEmbedded, setCheckingEmbedded] = useState(true);
 
-  // Embedded mode: trust Shopify's iframe-provided shop+host as proof of session.
-  // The presence of these params inside the admin iframe means Shopify has already
-  // authenticated the merchant — no separate verify-shop call needed.
+  // Handle embedded mode - verify shop exists in our system (via edge function to bypass RLS)
   useEffect(() => {
-    if (!isEmbedded || !config?.shop) {
-      setCheckingEmbedded(false);
-      return;
-    }
-    setEmbeddedBrandVerified(true);
-    setCheckingEmbedded(false);
-  }, [isEmbedded, config?.shop]);
+    const verifyEmbeddedShop = async () => {
+      if (!isEmbedded || !config?.shop) {
+        setCheckingEmbedded(false);
+        return;
+      }
 
+      try {
+        const shopDomain = config.shop.includes('.myshopify.com') ? config.shop : `${config.shop}.myshopify.com`;
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+        );
+        const result = await res.json();
+        setEmbeddedBrandVerified(!!result.connected);
+      } catch (error) {
+        console.error('Error verifying embedded shop:', error);
+        setEmbeddedBrandVerified(false);
+      } finally {
+        setCheckingEmbedded(false);
+      }
+    };
+
+    verifyEmbeddedShop();
+  }, [isEmbedded, config?.shop]);
 
   useEffect(() => {
     const checkShopifyConnection = async () => {
@@ -97,9 +109,17 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     if (embeddedBrandVerified) {
       return <>{children}</>;
     } else {
-      // Shop not connected yet — auto-initiate OAuth using the shop param
-      // from the Shopify admin URL, no manual entry required.
-      return <EmbeddedConnectionRequired shopDomain={config.shop} autoInitiate />;
+      // Shop not found in our system - show error
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center p-8">
+            <h2 className="text-xl font-semibold mb-2">Store Not Connected</h2>
+            <p className="text-muted-foreground">
+              This Shopify store is not connected to STYLYS yet.
+            </p>
+          </div>
+        </div>
+      );
     }
   }
 

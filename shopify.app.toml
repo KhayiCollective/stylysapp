@@ -4,7 +4,7 @@
 
 client_id = "e1bde8232afcab4c37b12a9b29c3dde1"
 name = "AI Stylist Platform"
-application_url = "https://stylysapp.lovable.app/embedded"
+application_url = "https://stylysapp.lovable.app"
 embedded = true
 
 [access_scopes]
