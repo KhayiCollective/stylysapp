@@ -157,19 +157,17 @@ export default function ShopifyConnect() {
             });
             setConnected(true);
             
-            // If this was an embedded flow, redirect back to Shopify Admin
-            if (wasEmbeddedFlow) {
-              const shopName = shopParam.replace('.myshopify.com', '');
-              setTimeout(() => {
-                window.location.href = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
-              }, 1500);
-            } else {
-              // Managed Pricing: Shopify handles billing during install,
-              // so skip auto-checkout and go straight to dashboard.
-              sessionStorage.removeItem('selectedPlan');
-              
-              setTimeout(() => navigate('/dashboard'), 1500);
-            }
+            // Always redirect back to Shopify Admin with the app open
+            sessionStorage.removeItem('selectedPlan');
+            const shopName = shopParam.replace('.myshopify.com', '');
+            const adminUrl = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
+            setTimeout(() => {
+              if (window.top && window.top !== window.self) {
+                window.top.location.href = adminUrl;
+              } else {
+                window.location.href = adminUrl;
+              }
+            }, 1500);
           } else {
             const errorMsg = result.error || "Failed to connect Shopify store";
             console.error('[ShopifyConnect] Callback error:', errorMsg, result.details);
