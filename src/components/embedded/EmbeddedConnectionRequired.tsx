@@ -37,11 +37,7 @@ export function EmbeddedConnectionRequired({ shopDomain, autoInitiate }: Embedde
 
       if (result.authUrl) {
         // Redirect the top-level window (break out of Shopify Admin iframe)
-        if (window.top) {
-          window.top.location.href = result.authUrl;
-        } else {
-          window.location.href = result.authUrl;
-        }
+        window.top.location.href = result.authUrl;
       } else {
         setError(result.error || "Failed to start authorization");
         setInitiating(false);
