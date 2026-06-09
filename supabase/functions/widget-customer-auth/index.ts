@@ -373,7 +373,120 @@ serve(async (req) => {
       return json({ success: true });
     }
 
+    // --- FORGOT PASSWORD: generate token + email reset link ---
+    if (path === "forgot-password" && req.method === "POST") {
+      const { email, brand_id, shop } = await req.json();
+      if (!email || (!brand_id && !shop)) {
+        return json({ error: "email and brand_id (or shop) are required" }, 400);
+      }
+
+      const resolvedBrandId = await resolveBrandId(supabase, brand_id, shop);
+      // Always respond success to avoid leaking which emails exist
+      if (!resolvedBrandId) return json({ success: true });
+
+      const { data: account } = await supabase
+        .from("customer_accounts")
+        .select("id, email, name")
+        .eq("email", email.toLowerCase())
+        .eq("brand_id", resolvedBrandId)
+        .maybeSingle();
+
+      if (account) {
+        const token = generateToken();
+        const token_hash = await sha256Hex(token);
+        const expires_at = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+        await supabase.from("customer_password_resets").insert({
+          customer_account_id: account.id,
+          token_hash,
+          expires_at,
+        });
+
+        // Brand name (for email subject/from label)
+        const { data: brand } = await supabase
+          .from("brands")
+          .select("name")
+          .eq("id", resolvedBrandId)
+          .maybeSingle();
+
+        const resetUrl = `https://stylysapp.com/widget-reset-password?token=${token}`;
+
+        // Try to send via the transactional email function. If unavailable, log it
+        // so it still shows up in the function logs — we never expose this to the client.
+        try {
+          await supabase.functions.invoke("send-transactional-email", {
+            body: {
+              templateName: "customer-password-reset",
+              recipientEmail: account.email,
+              idempotencyKey: `pw-reset-${account.id}-${Date.now()}`,
+              templateData: {
+                name: account.name || "there",
+                brandName: brand?.name || "your store",
+                resetUrl,
+              },
+            },
+          });
+        } catch (e) {
+          console.error("[widget-customer-auth] send-transactional-email failed:", e);
+        }
+        console.log(`[widget-customer-auth] Password reset issued for ${account.email}: ${resetUrl}`);
+      }
+
+      return json({ success: true });
+    }
+
+    // --- RESET PASSWORD: consume token + set new password ---
+    if (path === "reset-password" && req.method === "POST") {
+      const { token, password } = await req.json();
+      if (!token || !password) return json({ error: "token and password are required" }, 400);
+      if (password.length < 8) return json({ error: "Password must be at least 8 characters" }, 400);
+
+      const token_hash = await sha256Hex(token);
+      const { data: reset } = await supabase
+        .from("customer_password_resets")
+        .select("id, customer_account_id, expires_at, used_at")
+        .eq("token_hash", token_hash)
+        .maybeSingle();
+
+      if (!reset || reset.used_at || new Date(reset.expires_at) < new Date()) {
+        return json({ error: "This reset link is invalid or has expired." }, 400);
+      }
+
+      const password_hash = bcrypt.hashSync(password);
+      const { error: upErr } = await supabase
+        .from("customer_accounts")
+        .update({ password_hash })
+        .eq("id", reset.customer_account_id);
+
+      if (upErr) {
+        console.error("Reset password update error:", upErr);
+        return json({ error: "Failed to update password" }, 500);
+      }
+
+      await supabase
+        .from("customer_password_resets")
+        .update({ used_at: new Date().toISOString() })
+        .eq("id", reset.id);
+
+      return json({ success: true });
+    }
+
+    // --- VERIFY RESET TOKEN (for UI to check link before showing form) ---
+    if (path === "verify-reset-token" && req.method === "POST") {
+      const { token } = await req.json();
+      if (!token) return json({ valid: false });
+      const token_hash = await sha256Hex(token);
+      const { data: reset } = await supabase
+        .from("customer_password_resets")
+        .select("id, expires_at, used_at")
+        .eq("token_hash", token_hash)
+        .maybeSingle();
+      const valid = !!reset && !reset.used_at && new Date(reset.expires_at) >= new Date();
+      return json({ valid });
+    }
+
     return json({ error: "Not found" }, 404);
+
   } catch (error) {
     console.error("widget-customer-auth error:", error);
     return json({ error: "Internal server error" }, 500);
