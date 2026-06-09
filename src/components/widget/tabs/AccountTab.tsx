@@ -248,6 +248,48 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
 
   // --- AUTH FORM ---
   if (!isLoggedIn) {
+    // Forgot-password sub-view
+    if (forgotMode) {
+      return (
+        <div className="p-4 space-y-5">
+          <div className="text-center pt-4">
+            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+              <Mail className="h-7 w-7 text-primary" />
+            </div>
+            <h3 className="font-semibold text-base">Reset your password</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              {forgotSent
+                ? "If an account exists for that email, we just sent a reset link. Check your inbox."
+                : "Enter the email you used to sign up and we'll send you a reset link."}
+            </p>
+          </div>
+
+          {!forgotSent && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="forgot-email" className="text-xs">Email</Label>
+                <Input id="forgot-email" type="email" placeholder="your@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              {error && <p className="text-xs text-destructive">{error}</p>}
+              <Button className="w-full gap-2" size="sm" onClick={handleForgotPassword} disabled={!email || loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                Send reset link
+              </Button>
+            </div>
+          )}
+
+          <div className="text-center">
+            <button
+              onClick={() => { setForgotMode(false); setForgotSent(false); setError(""); }}
+              className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1"
+            >
+              <ArrowLeft className="h-3 w-3" /> Back to sign in
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-4 space-y-5">
         <div className="text-center pt-4">
@@ -282,12 +324,12 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
           </Button>
           {!isSignUp && (
             <div className="text-center">
-              <a
-                href="mailto:support@stylysapp.com?subject=Password%20reset%20request"
+              <button
+                onClick={() => { setForgotMode(true); setError(""); setForgotSent(false); }}
                 className="text-xs text-muted-foreground hover:text-primary hover:underline"
               >
                 Forgot password?
-              </a>
+              </button>
             </div>
           )}
         </div>
@@ -298,6 +340,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             {isSignUp ? "Sign In" : "Sign Up"}
           </button>
         </p>
+
 
       </div>
     );
