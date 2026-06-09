@@ -33,7 +33,7 @@ const WidgetPreview = () => {
     )
       .then((r) => r.json())
       .then((data) => {
-        if (data?.brand_id) setBrandId(data.brand_id);
+        if (data?.brandId) setBrandId(data.brandId);
       })
       .catch(() => {})
       .finally(() => setResolving(false));
