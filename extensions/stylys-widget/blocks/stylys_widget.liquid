@@ -1,0 +1,25 @@
+{% comment %}
+  STYLYS Personal Stylist - Theme App Embed
+  Adds the floating widget button to the merchant's storefront.
+  Brand is auto-detected from shop.permanent_domain on the edge function side.
+{% endcomment %}
+
+<script
+  src="https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/widget-loader?shop={{ shop.permanent_domain }}"
+  async
+  data-stylys-shop="{{ shop.permanent_domain }}"
+  {% if customer %}data-stylys-customer-email="{{ customer.email }}"{% endif %}
+></script>
+
+{% schema %}
+{
+  "name": "STYLYS Stylist",
+  "target": "body",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "STYLYS adds an AI personal stylist widget to your storefront. Customers can try outfits on virtually, get AI outfit recommendations from your catalog, and add full looks to their cart. No additional configuration needed — your store is automatically connected."
+    }
+  ]
+}
+{% endschema %}

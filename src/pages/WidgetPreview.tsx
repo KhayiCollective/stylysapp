@@ -3,20 +3,49 @@ import { useSearchParams } from "react-router-dom";
 import { InlineCustomerWidget } from "@/components/widget/InlineCustomerWidget";
 import { CustomerWidget } from "@/components/widget/CustomerWidget";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const WidgetPreview = () => {
   const [searchParams] = useSearchParams();
-  const brandId = searchParams.get("brand_id") || undefined;
+  const queryBrandId = searchParams.get("brand_id") || undefined;
+  const shop = searchParams.get("shop") || undefined;
+  const [brandId, setBrandId] = useState<string | undefined>(queryBrandId);
+  const [resolving, setResolving] = useState(!queryBrandId && !!shop);
   const [isIframe, setIsIframe] = useState(false);
 
   useEffect(() => {
     try {
       setIsIframe(window.self !== window.top);
     } catch {
-      setIsIframe(true); // cross-origin = definitely in iframe
+      setIsIframe(true);
     }
   }, []);
+
+  // Auto-resolve brand from shop domain if brand_id not provided
+  useEffect(() => {
+    if (brandId || !shop) return;
+    setResolving(true);
+    const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+    fetch(
+      `${SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.brandId) setBrandId(data.brandId);
+      })
+      .catch(() => {})
+      .finally(() => setResolving(false));
+  }, [shop, brandId]);
+
+  if (resolving) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   // When loaded in an iframe (Shopify store), render the widget directly
   if (isIframe) {

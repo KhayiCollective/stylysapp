@@ -1,9 +1,27 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+const appUrl = "https://stylysapp.com";
+
+async function resolveBrandIdByShop(shop: string): Promise<string | null> {
+  if (!shop) return null;
+  const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { data, error } = await supabase
+    .from("brands")
+    .select("id")
+    .eq("shopify_store_domain", shopDomain)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.id as string;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,52 +29,72 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const brandId = url.searchParams.get("brand_id");
+  let brandId = url.searchParams.get("brand_id") || "";
+  const shopParam = url.searchParams.get("shop") || "";
 
-  // Use the custom domain for the widget iframe
-  const appUrl = "https://stylysapp.com";
+  // Auto-detect brand from shop domain (preferred path for theme app embed)
+  if (!brandId && shopParam) {
+    const resolved = await resolveBrandIdByShop(shopParam);
+    if (resolved) brandId = resolved;
+  }
 
   const widgetJs = `
 (function() {
   if (window.__stylysWidgetLoaded) return;
   window.__stylysWidgetLoaded = true;
 
-  var brandId = '';
-  var scripts = document.getElementsByTagName('script');
-  for (var i = 0; i < scripts.length; i++) {
-    var src = scripts[i].src || '';
-    if (src.indexOf('widget-loader') !== -1) {
-      var match = src.match(/brand_id=([^&]+)/);
-      if (match) brandId = match[1];
+  // Resolve brand_id at load time. Priority:
+  // 1. Injected by edge function (theme app embed passes ?shop=)
+  // 2. Script tag query string ?brand_id= or ?shop=
+  // 3. Shopify storefront global (window.Shopify.shop)
+  var brandId = ${JSON.stringify(brandId)};
+  var shopDomain = ${JSON.stringify(shopParam)};
+
+  if (!brandId) {
+    var scripts = document.getElementsByTagName('script');
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].src || '';
+      if (src.indexOf('widget-loader') !== -1) {
+        var bMatch = src.match(/brand_id=([^&]+)/);
+        if (bMatch) brandId = decodeURIComponent(bMatch[1]);
+        var sMatch = src.match(/shop=([^&]+)/);
+        if (sMatch && !shopDomain) shopDomain = decodeURIComponent(sMatch[1]);
+      }
     }
+  }
+
+  if (!shopDomain && window.Shopify && window.Shopify.shop) {
+    shopDomain = window.Shopify.shop;
   }
 
   // Create floating button
   var btn = document.createElement('div');
   btn.id = 'stylys-trigger';
+  btn.setAttribute('aria-label', 'Open STYLYS personal stylist');
   btn.innerHTML = '<img src="https://stylysapp.com/S_no_border.png?v=3" alt="STYLYS" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />';
   btn.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999999;width:56px;height:56px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.2s;';
   btn.onmouseenter = function() { btn.style.transform = 'scale(1.1)'; };
   btn.onmouseleave = function() { btn.style.transform = 'scale(1)'; };
 
-  // Create overlay
   var overlay = document.createElement('div');
   overlay.id = 'stylys-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:999998;display:none;opacity:0;transition:opacity 0.3s;';
 
-  // Create sidebar panel
   var panel = document.createElement('div');
   panel.id = 'stylys-panel';
   panel.style.cssText = 'position:fixed;top:0;right:-420px;width:400px;max-width:90vw;height:100vh;z-index:1000000;background:#fff;box-shadow:-4px 0 30px rgba(0,0,0,0.2);transition:right 0.3s ease;';
 
   var iframe = document.createElement('iframe');
-  iframe.src = '${appUrl}/widget-preview' + (brandId ? '?brand_id=' + brandId : '');
+  var params = [];
+  if (brandId) params.push('brand_id=' + encodeURIComponent(brandId));
+  if (shopDomain) params.push('shop=' + encodeURIComponent(shopDomain));
+  var qs = params.length ? '?' + params.join('&') : '';
+  iframe.src = '${appUrl}/widget-preview' + qs;
   iframe.style.cssText = 'width:100%;height:100%;border:none;';
   iframe.allow = 'camera';
   panel.appendChild(iframe);
 
   var isOpen = false;
-
   function toggle() {
     isOpen = !isOpen;
     if (isOpen) {
@@ -75,16 +113,22 @@ Deno.serve(async (req) => {
   btn.onclick = toggle;
   overlay.onclick = toggle;
 
-  // Listen for close message from widget iframe
   window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'stylys-close' && isOpen) {
-      toggle();
-    }
+    if (e.data && e.data.type === 'stylys-close' && isOpen) toggle();
+    if (e.data && e.data.type === 'stylys-open' && !isOpen) toggle();
   });
 
-  document.body.appendChild(overlay);
-  document.body.appendChild(panel);
-  document.body.appendChild(btn);
+  function mount() {
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    document.body.appendChild(btn);
+  }
+
+  if (document.body) {
+    mount();
+  } else {
+    document.addEventListener('DOMContentLoaded', mount);
+  }
 })();
 `;
 
@@ -92,7 +136,8 @@ Deno.serve(async (req) => {
     headers: {
       ...corsHeaders,
       "Content-Type": "application/javascript",
-      "Cache-Control": "public, max-age=3600",
+      // Short cache so brand resolution updates propagate quickly
+      "Cache-Control": "public, max-age=300",
     },
   });
 });
