@@ -63,7 +63,12 @@ export default function EmbeddedApp() {
             if (window.shopify?.idToken) break;
             await new Promise((r) => setTimeout(r, 100));
           }
-          await getSessionToken();
+          await Promise.race([
+            getSessionToken(),
+            new Promise((_, rej) =>
+              setTimeout(() => rej(new Error("getSessionToken timeout")), 3000)
+            ),
+          ]);
         } catch (e) {
           console.warn("Session token fetch failed (continuing):", e);
         }
