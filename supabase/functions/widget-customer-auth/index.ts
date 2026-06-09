@@ -111,8 +111,8 @@ serve(async (req) => {
         .from("customer_accounts")
         .select("id")
         .eq("email", email.toLowerCase())
-        .eq("brand_id", brand_id)
-        .single();
+        .eq("brand_id", resolvedBrandId)
+        .maybeSingle();
 
       if (existing) {
         return json({ error: "An account with this email already exists" }, 409);
@@ -123,7 +123,7 @@ serve(async (req) => {
       // Create a linked customer record for style preferences
       const { data: customer, error: custErr } = await supabase
         .from("customers")
-        .insert({ email: email.toLowerCase(), brand_id })
+        .insert({ email: email.toLowerCase(), brand_id: resolvedBrandId })
         .select("id")
         .single();
 
@@ -136,12 +136,13 @@ serve(async (req) => {
         .insert({
           email: email.toLowerCase(),
           password_hash,
-          brand_id,
+          brand_id: resolvedBrandId,
           name: name || null,
           customer_id: customer?.id || null,
         })
         .select("id, email, name, brand_id, customer_id")
         .single();
+
 
       if (error) {
         console.error("Signup insert error:", error);
