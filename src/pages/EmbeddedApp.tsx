@@ -115,12 +115,33 @@ export default function EmbeddedApp() {
 
   const isEmbedded = window.self !== window.top;
 
+  const hasShopifyGlobal = typeof window !== "undefined" && !!window.shopify;
+  const hasIdToken = !!window.shopify?.idToken;
+  const appBridgeScriptPresent =
+    typeof document !== "undefined" &&
+    !!document.querySelector('script[src*="app-bridge.js"]');
+  const apiKeyMeta =
+    typeof document !== "undefined"
+      ? document
+          .querySelector('meta[name="shopify-api-key"]')
+          ?.getAttribute("content") || null
+      : null;
+
   const debugBanner = (
     <div className="bg-yellow-100 text-yellow-900 p-2 text-xs font-mono border-b border-yellow-300 space-y-1">
       <div><strong>shop:</strong> {shop || "(none)"}</div>
       <div><strong>host:</strong> {host ? `${host.substring(0, 30)}...` : "(none)"}</div>
       <div><strong>window.self === window.top:</strong> {String(window.self === window.top)}</div>
       <div><strong>isEmbedded:</strong> {String(isEmbedded)}</div>
+      <div><strong>verifying:</strong> {String(verifying)}</div>
+      <div><strong>verified:</strong> {String(verified)}</div>
+      <div><strong>needsConnection:</strong> {String(needsConnection)}</div>
+      <div><strong>loadError:</strong> {loadError ?? "(null)"}</div>
+      <div><strong>isTestMode:</strong> {String(isTestMode)}</div>
+      <div><strong>app-bridge script tag present:</strong> {String(appBridgeScriptPresent)}</div>
+      <div><strong>window.shopify present:</strong> {String(hasShopifyGlobal)}</div>
+      <div><strong>window.shopify.idToken present:</strong> {String(hasIdToken)}</div>
+      <div><strong>shopify-api-key meta:</strong> {apiKeyMeta ?? "(missing)"}</div>
     </div>
   );
 
