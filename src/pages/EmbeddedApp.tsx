@@ -118,7 +118,10 @@ export default function EmbeddedApp() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [shop, host, isTestMode, getSessionToken]);
+    // Intentionally exclude getSessionToken — it's a new ref every render and
+    // would re-trigger this effect, cancelling the in-flight verification.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop, host, isTestMode]);
 
   const isEmbedded = window.self !== window.top;
 
