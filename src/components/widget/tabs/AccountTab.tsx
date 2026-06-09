@@ -56,6 +56,8 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [customerUser, setCustomerUser] = useState<CustomerUser | null>(null);
@@ -64,6 +66,12 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Read shop from URL so backend can resolve brand by domain if brandId is stale
+  const shopParam = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("shop") || undefined
+    : undefined;
+
 
   // Style state
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
