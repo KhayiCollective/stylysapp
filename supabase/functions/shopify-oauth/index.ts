@@ -314,12 +314,28 @@ Deno.serve(async (req) => {
       // Save tokens to database
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-      // Clear domain from any other brand to prevent unique constraint violation
-      await supabase
+      // If another brand already owns this shop domain, prefer it (it likely has
+      // products/widget config from a previous install). Re-bind to that brand
+      // and drop the orphan placeholder created by embedded-authorize.
+      const { data: existingForShop } = await supabase
         .from("brands")
-        .update({ shopify_store_domain: null })
+        .select("id")
         .eq("shopify_store_domain", shop)
-        .neq("id", brandId);
+        .maybeSingle();
+
+      if (existingForShop && existingForShop.id !== brandId) {
+        // Delete the orphan brand created by embedded-authorize that has no token yet
+        const { data: orphan } = await supabase
+          .from("brands")
+          .select("id, shopify_connected_at")
+          .eq("id", brandId)
+          .maybeSingle();
+        if (orphan && !orphan.shopify_connected_at) {
+          await supabase.from("brands").delete().eq("id", brandId);
+        }
+        brandId = existingForShop.id;
+      }
+
 
       const updateData = {
         shopify_store_domain: shop,

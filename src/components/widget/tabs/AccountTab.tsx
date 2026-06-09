@@ -252,6 +252,16 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             {isSignUp ? "Create Account" : "Sign In"}
           </Button>
+          {!isSignUp && (
+            <div className="text-center">
+              <a
+                href="mailto:support@stylysapp.com?subject=Password%20reset%20request"
+                className="text-xs text-muted-foreground hover:text-primary hover:underline"
+              >
+                Forgot password?
+              </a>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
@@ -260,6 +270,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             {isSignUp ? "Sign In" : "Sign Up"}
           </button>
         </p>
+
       </div>
     );
   }
