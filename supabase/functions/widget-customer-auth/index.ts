@@ -156,17 +156,21 @@ serve(async (req) => {
 
     // --- LOGIN ---
     if (path === "login" && req.method === "POST") {
-      const { email, password, brand_id } = await req.json();
-      if (!email || !password || !brand_id) {
-        return json({ error: "email, password, and brand_id are required" }, 400);
+      const { email, password, brand_id, shop } = await req.json();
+      if (!email || !password || (!brand_id && !shop)) {
+        return json({ error: "email, password, and brand_id (or shop) are required" }, 400);
       }
+
+      const resolvedBrandId = await resolveBrandId(supabase, brand_id, shop);
+      if (!resolvedBrandId) return json({ error: "Invalid brand" }, 400);
 
       const { data: account } = await supabase
         .from("customer_accounts")
         .select("id, email, name, password_hash, brand_id, customer_id")
         .eq("email", email.toLowerCase())
-        .eq("brand_id", brand_id)
-        .single();
+        .eq("brand_id", resolvedBrandId)
+        .maybeSingle();
+
 
       if (!account) {
         return json({ error: "Invalid email or password" }, 401);
