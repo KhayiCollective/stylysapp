@@ -113,46 +113,78 @@ export default function EmbeddedApp() {
     };
   }, [shop, host, isTestMode, getSessionToken]);
 
+  const isEmbedded = window.self !== window.top;
+
+  const debugBanner = (
+    <div className="bg-yellow-100 text-yellow-900 p-2 text-xs font-mono border-b border-yellow-300 space-y-1">
+      <div><strong>shop:</strong> {shop || "(none)"}</div>
+      <div><strong>host:</strong> {host ? `${host.substring(0, 30)}...` : "(none)"}</div>
+      <div><strong>window.self === window.top:</strong> {String(window.self === window.top)}</div>
+      <div><strong>isEmbedded:</strong> {String(isEmbedded)}</div>
+    </div>
+  );
+
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md text-center space-y-4">
-          <h1 className="text-xl font-semibold text-foreground">Unable to load STYLYS</h1>
-          <p className="text-sm text-muted-foreground">{loadError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
-          >
-            Reload
-          </button>
+      <>
+        {debugBanner}
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <div className="max-w-md text-center space-y-4">
+            <h1 className="text-xl font-semibold text-foreground">Unable to load STYLYS</h1>
+            <p className="text-sm text-muted-foreground">{loadError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+            >
+              Reload
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
 
   if (verifying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Loading STYLYS...</p>
+      <>
+        {debugBanner}
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <p className="text-muted-foreground text-sm">Loading STYLYS...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (needsConnection) {
-    return <EmbeddedConnectionRequired shopDomain={shop} autoInitiate={!!shop} />;
+    return (
+      <>
+        {debugBanner}
+        <EmbeddedConnectionRequired shopDomain={shop} autoInitiate={!!shop} />
+      </>
+    );
   }
 
   if (verified) {
     return (
-      <EmbeddedDashboard testMode={isTestMode} shopDomain={shop}>
-        <Dashboard />
-      </EmbeddedDashboard>
+      <>
+        {debugBanner}
+        <EmbeddedDashboard testMode={isTestMode} shopDomain={shop}>
+          <Dashboard />
+        </EmbeddedDashboard>
+      </>
     );
   }
 
-  return null;
+  return (
+    <>
+      {debugBanner}
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <p className="text-muted-foreground text-sm">Unknown state — please reload.</p>
+      </div>
+    </>
+  );
 }
