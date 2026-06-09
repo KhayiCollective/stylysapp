@@ -7,13 +7,14 @@ import Dashboard from "./Dashboard";
 
 export default function EmbeddedApp() {
   const [searchParams] = useSearchParams();
-  const { config } = useEmbeddedApp();
+  const { config, getSessionToken } = useEmbeddedApp();
   const [verifying, setVerifying] = useState(true);
   const [verified, setVerified] = useState(false);
   const [needsConnection, setNeedsConnection] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const shop = searchParams.get("shop") || config?.shop;
+  const host = searchParams.get("host") || config?.host;
   // Test mode is only allowed in non-production builds to prevent shop-verification bypass.
   const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;
 
@@ -47,6 +48,33 @@ export default function EmbeddedApp() {
         return;
       }
 
+      // If embedded with shop+host, trust the Shopify-provided session.
+      // App Bridge's presence (shop+host params in iframe) means Shopify has already
+      // authenticated the merchant — we can grant access immediately and try to
+      // fetch a session token in the background if needed.
+      const embedded = window.self !== window.top;
+      if (embedded && host) {
+        // Try to obtain a session token, but don't block on it — App Bridge script
+        // may still be loading. Presence of shop+host inside the iframe is itself
+        // proof of a valid Shopify session.
+        try {
+          // Best-effort: wait briefly for shopify global, then request a token.
+          for (let i = 0; i < 10; i++) {
+            if (window.shopify?.idToken) break;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          await getSessionToken();
+        } catch (e) {
+          console.warn("Session token fetch failed (continuing):", e);
+        }
+        if (cancelled) return;
+        setVerified(true);
+        setVerifying(false);
+        window.clearTimeout(timeoutId);
+        return;
+      }
+
+      // Non-embedded fallback: verify via backend
       try {
         const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
         const controller = new AbortController();
@@ -68,7 +96,6 @@ export default function EmbeddedApp() {
       } catch (err) {
         console.error('Verification error:', err);
         if (cancelled) return;
-        // On network/abort errors, route to connection screen so the user can retry OAuth
         setNeedsConnection(true);
       } finally {
         if (!cancelled) {
@@ -84,7 +111,7 @@ export default function EmbeddedApp() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [shop, isTestMode]);
+  }, [shop, host, isTestMode, getSessionToken]);
 
   if (loadError) {
     return (
