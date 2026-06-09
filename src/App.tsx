@@ -81,6 +81,7 @@ const App = () => (
               <Route path="/wishlist" element={<Navigate to="/dashboard" replace />} />
               <Route path="/widget" element={<Navigate to="/rules" replace />} />
               <Route path="/widget-preview" element={<WidgetPreview />} />
+              <Route path="/widget-reset-password" element={<WidgetResetPassword />} />
               <Route path="/settings" element={<ProtectedRoute requireShopify={false}><Settings /></ProtectedRoute>} />
               <Route path="/app-store-assets" element={<ProtectedRoute><AppStoreAssets /></ProtectedRoute>} />
               <Route path="/account/outfits" element={<CustomerAccount />} />
