@@ -57,6 +57,31 @@ const json = (data: unknown, status = 200) =>
     status, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+async function resolveBrandId(supabase: ReturnType<typeof getSupabaseAdmin>, brand_id?: string, shop?: string): Promise<string | null> {
+  if (brand_id) {
+    const { data } = await supabase.from("brands").select("id").eq("id", brand_id).maybeSingle();
+    if (data?.id) return data.id;
+  }
+  if (shop) {
+    const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+    const { data } = await supabase.from("brands").select("id").eq("shopify_store_domain", shopDomain).maybeSingle();
+    if (data?.id) return data.id;
+  }
+  return null;
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function generateToken(): string {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -70,23 +95,24 @@ serve(async (req) => {
 
     // --- SIGNUP ---
     if (path === "signup" && req.method === "POST") {
-      const { email, password, brand_id, name } = await req.json();
-      if (!email || !password || !brand_id) {
-        return json({ error: "email, password, and brand_id are required" }, 400);
+      const { email, password, brand_id, shop, name } = await req.json();
+      if (!email || !password || (!brand_id && !shop)) {
+        return json({ error: "email, password, and brand_id (or shop) are required" }, 400);
       }
       if (password.length < 8) {
         return json({ error: "Password must be at least 8 characters" }, 400);
       }
 
-      const { data: brand } = await supabase.from("brands").select("id").eq("id", brand_id).single();
-      if (!brand) return json({ error: "Invalid brand" }, 400);
+      const resolvedBrandId = await resolveBrandId(supabase, brand_id, shop);
+      if (!resolvedBrandId) return json({ error: "Invalid brand" }, 400);
+
 
       const { data: existing } = await supabase
         .from("customer_accounts")
         .select("id")
         .eq("email", email.toLowerCase())
-        .eq("brand_id", brand_id)
-        .single();
+        .eq("brand_id", resolvedBrandId)
+        .maybeSingle();
 
       if (existing) {
         return json({ error: "An account with this email already exists" }, 409);
@@ -97,7 +123,7 @@ serve(async (req) => {
       // Create a linked customer record for style preferences
       const { data: customer, error: custErr } = await supabase
         .from("customers")
-        .insert({ email: email.toLowerCase(), brand_id })
+        .insert({ email: email.toLowerCase(), brand_id: resolvedBrandId })
         .select("id")
         .single();
 
@@ -110,12 +136,13 @@ serve(async (req) => {
         .insert({
           email: email.toLowerCase(),
           password_hash,
-          brand_id,
+          brand_id: resolvedBrandId,
           name: name || null,
           customer_id: customer?.id || null,
         })
         .select("id, email, name, brand_id, customer_id")
         .single();
+
 
       if (error) {
         console.error("Signup insert error:", error);
@@ -129,17 +156,21 @@ serve(async (req) => {
 
     // --- LOGIN ---
     if (path === "login" && req.method === "POST") {
-      const { email, password, brand_id } = await req.json();
-      if (!email || !password || !brand_id) {
-        return json({ error: "email, password, and brand_id are required" }, 400);
+      const { email, password, brand_id, shop } = await req.json();
+      if (!email || !password || (!brand_id && !shop)) {
+        return json({ error: "email, password, and brand_id (or shop) are required" }, 400);
       }
+
+      const resolvedBrandId = await resolveBrandId(supabase, brand_id, shop);
+      if (!resolvedBrandId) return json({ error: "Invalid brand" }, 400);
 
       const { data: account } = await supabase
         .from("customer_accounts")
         .select("id, email, name, password_hash, brand_id, customer_id")
         .eq("email", email.toLowerCase())
-        .eq("brand_id", brand_id)
-        .single();
+        .eq("brand_id", resolvedBrandId)
+        .maybeSingle();
+
 
       if (!account) {
         return json({ error: "Invalid email or password" }, 401);
@@ -342,7 +373,120 @@ serve(async (req) => {
       return json({ success: true });
     }
 
+    // --- FORGOT PASSWORD: generate token + email reset link ---
+    if (path === "forgot-password" && req.method === "POST") {
+      const { email, brand_id, shop } = await req.json();
+      if (!email || (!brand_id && !shop)) {
+        return json({ error: "email and brand_id (or shop) are required" }, 400);
+      }
+
+      const resolvedBrandId = await resolveBrandId(supabase, brand_id, shop);
+      // Always respond success to avoid leaking which emails exist
+      if (!resolvedBrandId) return json({ success: true });
+
+      const { data: account } = await supabase
+        .from("customer_accounts")
+        .select("id, email, name")
+        .eq("email", email.toLowerCase())
+        .eq("brand_id", resolvedBrandId)
+        .maybeSingle();
+
+      if (account) {
+        const token = generateToken();
+        const token_hash = await sha256Hex(token);
+        const expires_at = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+        await supabase.from("customer_password_resets").insert({
+          customer_account_id: account.id,
+          token_hash,
+          expires_at,
+        });
+
+        // Brand name (for email subject/from label)
+        const { data: brand } = await supabase
+          .from("brands")
+          .select("name")
+          .eq("id", resolvedBrandId)
+          .maybeSingle();
+
+        const resetUrl = `https://stylysapp.com/widget-reset-password?token=${token}`;
+
+        // Try to send via the transactional email function. If unavailable, log it
+        // so it still shows up in the function logs — we never expose this to the client.
+        try {
+          await supabase.functions.invoke("send-transactional-email", {
+            body: {
+              templateName: "customer-password-reset",
+              recipientEmail: account.email,
+              idempotencyKey: `pw-reset-${account.id}-${Date.now()}`,
+              templateData: {
+                name: account.name || "there",
+                brandName: brand?.name || "your store",
+                resetUrl,
+              },
+            },
+          });
+        } catch (e) {
+          console.error("[widget-customer-auth] send-transactional-email failed:", e);
+        }
+        console.log(`[widget-customer-auth] Password reset issued for ${account.email}: ${resetUrl}`);
+      }
+
+      return json({ success: true });
+    }
+
+    // --- RESET PASSWORD: consume token + set new password ---
+    if (path === "reset-password" && req.method === "POST") {
+      const { token, password } = await req.json();
+      if (!token || !password) return json({ error: "token and password are required" }, 400);
+      if (password.length < 8) return json({ error: "Password must be at least 8 characters" }, 400);
+
+      const token_hash = await sha256Hex(token);
+      const { data: reset } = await supabase
+        .from("customer_password_resets")
+        .select("id, customer_account_id, expires_at, used_at")
+        .eq("token_hash", token_hash)
+        .maybeSingle();
+
+      if (!reset || reset.used_at || new Date(reset.expires_at) < new Date()) {
+        return json({ error: "This reset link is invalid or has expired." }, 400);
+      }
+
+      const password_hash = bcrypt.hashSync(password);
+      const { error: upErr } = await supabase
+        .from("customer_accounts")
+        .update({ password_hash })
+        .eq("id", reset.customer_account_id);
+
+      if (upErr) {
+        console.error("Reset password update error:", upErr);
+        return json({ error: "Failed to update password" }, 500);
+      }
+
+      await supabase
+        .from("customer_password_resets")
+        .update({ used_at: new Date().toISOString() })
+        .eq("id", reset.id);
+
+      return json({ success: true });
+    }
+
+    // --- VERIFY RESET TOKEN (for UI to check link before showing form) ---
+    if (path === "verify-reset-token" && req.method === "POST") {
+      const { token } = await req.json();
+      if (!token) return json({ valid: false });
+      const token_hash = await sha256Hex(token);
+      const { data: reset } = await supabase
+        .from("customer_password_resets")
+        .select("id, expires_at, used_at")
+        .eq("token_hash", token_hash)
+        .maybeSingle();
+      const valid = !!reset && !reset.used_at && new Date(reset.expires_at) >= new Date();
+      return json({ valid });
+    }
+
     return json({ error: "Not found" }, 404);
+
   } catch (error) {
     console.error("widget-customer-auth error:", error);
     return json({ error: "Internal server error" }, 500);
