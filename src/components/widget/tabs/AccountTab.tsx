@@ -116,7 +116,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   };
 
   const handleAuth = async () => {
-    if (!email || !password || !brandId) return;
+    if (!email || !password || (!brandId && !shopParam)) return;
     setLoading(true);
     setError("");
 
@@ -125,7 +125,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, brand_id: brandId, name: name || undefined }),
+        body: JSON.stringify({ email, password, brand_id: brandId, shop: shopParam, name: name || undefined }),
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -143,6 +143,26 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
       setLoading(false);
     }
   };
+
+  const handleForgotPassword = async () => {
+    if (!email || (!brandId && !shopParam)) return;
+    setLoading(true);
+    setError("");
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, brand_id: brandId, shop: shopParam }),
+      });
+      setForgotSent(true);
+    } catch {
+      // Show success anyway to avoid email enumeration
+      setForgotSent(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleSignOut = () => {
     localStorage.removeItem(getStorageKey(brandId));
