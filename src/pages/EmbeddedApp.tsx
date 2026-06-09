@@ -66,13 +66,15 @@ export default function EmbeddedApp() {
           await Promise.race([
             getSessionToken(),
             new Promise((_, rej) =>
-              setTimeout(() => rej(new Error("getSessionToken timeout")), 3000)
+              setTimeout(() => rej(new Error("getSessionToken timeout")), 2000)
             ),
           ]);
         } catch (e) {
           console.warn("Session token fetch failed (continuing):", e);
         }
         if (cancelled) return;
+        // Embedded context confirmed (shop+host in iframe). Grant access
+        // regardless of whether the session token call resolved.
         setVerified(true);
         setVerifying(false);
         window.clearTimeout(timeoutId);
@@ -116,7 +118,10 @@ export default function EmbeddedApp() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [shop, host, isTestMode, getSessionToken]);
+    // Intentionally exclude getSessionToken — it's a new ref every render and
+    // would re-trigger this effect, cancelling the in-flight verification.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop, host, isTestMode]);
 
   const isEmbedded = window.self !== window.top;
 
