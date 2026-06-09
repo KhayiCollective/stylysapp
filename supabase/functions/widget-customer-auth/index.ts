@@ -57,6 +57,31 @@ const json = (data: unknown, status = 200) =>
     status, headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+async function resolveBrandId(supabase: ReturnType<typeof getSupabaseAdmin>, brand_id?: string, shop?: string): Promise<string | null> {
+  if (brand_id) {
+    const { data } = await supabase.from("brands").select("id").eq("id", brand_id).maybeSingle();
+    if (data?.id) return data.id;
+  }
+  if (shop) {
+    const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+    const { data } = await supabase.from("brands").select("id").eq("shopify_store_domain", shopDomain).maybeSingle();
+    if (data?.id) return data.id;
+  }
+  return null;
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function generateToken(): string {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -70,16 +95,17 @@ serve(async (req) => {
 
     // --- SIGNUP ---
     if (path === "signup" && req.method === "POST") {
-      const { email, password, brand_id, name } = await req.json();
-      if (!email || !password || !brand_id) {
-        return json({ error: "email, password, and brand_id are required" }, 400);
+      const { email, password, brand_id, shop, name } = await req.json();
+      if (!email || !password || (!brand_id && !shop)) {
+        return json({ error: "email, password, and brand_id (or shop) are required" }, 400);
       }
       if (password.length < 8) {
         return json({ error: "Password must be at least 8 characters" }, 400);
       }
 
-      const { data: brand } = await supabase.from("brands").select("id").eq("id", brand_id).single();
-      if (!brand) return json({ error: "Invalid brand" }, 400);
+      const resolvedBrandId = await resolveBrandId(supabase, brand_id, shop);
+      if (!resolvedBrandId) return json({ error: "Invalid brand" }, 400);
+
 
       const { data: existing } = await supabase
         .from("customer_accounts")
