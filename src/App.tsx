@@ -32,6 +32,7 @@ import WidgetEmbed from "./pages/docs/WidgetEmbed";
 import APIReference from "./pages/docs/APIReference";
 import FAQ from "./pages/docs/FAQ";
 import WidgetPreview from "./pages/WidgetPreview";
+import WidgetResetPassword from "./pages/WidgetResetPassword";
 import { useCartSync } from "@/hooks/useCartSync";
 
 const queryClient = new QueryClient();
