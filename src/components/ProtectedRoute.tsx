@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
+import { EmbeddedConnectionRequired } from '@/components/embedded/EmbeddedConnectionRequired';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
