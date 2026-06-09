@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
+import { EmbeddedConnectionRequired } from '@/components/embedded/EmbeddedConnectionRequired';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -109,17 +110,9 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     if (embeddedBrandVerified) {
       return <>{children}</>;
     } else {
-      // Shop not found in our system - show error
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="text-center p-8">
-            <h2 className="text-xl font-semibold mb-2">Store Not Connected</h2>
-            <p className="text-muted-foreground">
-              This Shopify store is not connected to STYLYS yet.
-            </p>
-          </div>
-        </div>
-      );
+      // Shop not connected yet — auto-initiate OAuth using the shop param
+      // from the Shopify admin URL, no manual entry required.
+      return <EmbeddedConnectionRequired shopDomain={config.shop} autoInitiate />;
     }
   }
 
