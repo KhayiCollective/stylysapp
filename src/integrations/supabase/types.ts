@@ -14,6 +14,61 @@ export type Database = {
   }
   public: {
     Tables: {
+      back_in_stock_notifications: {
+        Row: {
+          brand_id: string
+          created_at: string
+          email: string
+          id: string
+          notified_at: string | null
+          product_id: string | null
+          product_name: string | null
+          shopify_variant_id: string | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          email: string
+          id?: string
+          notified_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          shopify_variant_id?: string | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          notified_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          shopify_variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "back_in_stock_notifications_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "back_in_stock_notifications_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "back_in_stock_notifications_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           created_at: string
