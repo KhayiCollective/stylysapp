@@ -51,7 +51,7 @@ async function verifyWebhookSignature(
 async function getBrandByShop(supabase: any, shopDomain: string) {
   let { data, error } = await supabase
     .from("brands")
-    .select("id, name, shopify_store_domain")
+    .select("id, name, shopify_store_domain, shopify_access_token")
     .eq("shopify_store_domain", shopDomain)
     .single();
 
@@ -59,7 +59,7 @@ async function getBrandByShop(supabase: any, shopDomain: string) {
     const cleanDomain = shopDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const result = await supabase
       .from("brands")
-      .select("id, name, shopify_store_domain")
+      .select("id, name, shopify_store_domain, shopify_access_token")
       .eq("shopify_store_domain", cleanDomain)
       .single();
     data = result.data;
