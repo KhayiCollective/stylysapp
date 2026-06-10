@@ -114,8 +114,50 @@ Deno.serve(async (req) => {
   overlay.onclick = toggle;
 
   window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'stylys-close' && isOpen) toggle();
-    if (e.data && e.data.type === 'stylys-open' && !isOpen) toggle();
+    if (!e.data || !e.data.type) return;
+    if (e.data.type === 'stylys-close' && isOpen) toggle();
+    if (e.data.type === 'stylys-open' && !isOpen) toggle();
+    if (e.data.type === 'stylys-add-to-cart') {
+      var reqId = e.data.requestId;
+      var rawItems = Array.isArray(e.data.items) ? e.data.items : [];
+      var items = rawItems
+        .map(function(it) {
+          var raw = it && (it.id || it.variant_id || it.variantId);
+          if (raw == null) return null;
+          var s = String(raw);
+          var m = s.match(/(\d+)\s*$/);
+          var id = m ? parseInt(m[1], 10) : NaN;
+          if (!id || isNaN(id)) return null;
+          return { id: id, quantity: Math.max(1, parseInt(it.quantity, 10) || 1) };
+        })
+        .filter(Boolean);
+      if (!items.length) {
+        e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: 'No valid variant IDs' }, '*');
+        return;
+      }
+      fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ items: items })
+      })
+        .then(function(r) { return r.json().then(function(b) { return { ok: r.ok, body: b }; }); })
+        .then(function(res) {
+          if (!res.ok) {
+            e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: (res.body && (res.body.description || res.body.message)) || 'Add to cart failed' }, '*');
+            return;
+          }
+          // Notify the storefront theme so its cart drawer/count refreshes.
+          try {
+            document.dispatchEvent(new CustomEvent('cart:refresh'));
+            document.dispatchEvent(new CustomEvent('cart:updated'));
+          } catch (_) {}
+          e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: true, count: items.length }, '*');
+        })
+        .catch(function(err) {
+          e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: String(err && err.message || err) }, '*');
+        });
+    }
   });
 
   function mount() {
