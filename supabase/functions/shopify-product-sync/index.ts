@@ -187,6 +187,106 @@ async function fetchWebhooks(shop: string, accessToken: string): Promise<Shopify
   return data.webhooks || [];
 }
 
+// Build a map of shopify_product_id -> array of collection summaries
+async function fetchProductCollectionsMap(
+  shop: string,
+  accessToken: string
+): Promise<Record<string, { id: string; title: string; handle: string }[]>> {
+  const map: Record<string, { id: string; title: string; handle: string }[]> = {};
+
+  async function fetchCollections(endpoint: "custom_collections" | "smart_collections") {
+    let nextUrl = `https://${shop}/admin/api/2025-01/${endpoint}.json?limit=250`;
+    const collections: { id: number; title: string; handle: string }[] = [];
+    while (nextUrl) {
+      const res = await fetch(nextUrl, {
+        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        console.error(`[PRODUCT-SYNC] Failed to fetch ${endpoint}: ${res.status}`);
+        return collections;
+      }
+      const data = await res.json();
+      collections.push(...(data[endpoint] || []));
+      const link = res.headers.get("Link");
+      nextUrl = "";
+      if (link) {
+        const m = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (m) nextUrl = m[1];
+      }
+    }
+    return collections;
+  }
+
+  async function fetchCollects(collectionId: number): Promise<number[]> {
+    const productIds: number[] = [];
+    let nextUrl = `https://${shop}/admin/api/2025-01/collects.json?collection_id=${collectionId}&limit=250`;
+    while (nextUrl) {
+      const res = await fetch(nextUrl, {
+        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return productIds;
+      const data = await res.json();
+      for (const c of data.collects || []) productIds.push(c.product_id);
+      const link = res.headers.get("Link");
+      nextUrl = "";
+      if (link) {
+        const m = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (m) nextUrl = m[1];
+      }
+    }
+    return productIds;
+  }
+
+  async function fetchSmartCollectionProducts(collectionId: number): Promise<number[]> {
+    const productIds: number[] = [];
+    let nextUrl = `https://${shop}/admin/api/2025-01/collections/${collectionId}/products.json?limit=250`;
+    while (nextUrl) {
+      const res = await fetch(nextUrl, {
+        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return productIds;
+      const data = await res.json();
+      for (const p of data.products || []) productIds.push(p.id);
+      const link = res.headers.get("Link");
+      nextUrl = "";
+      if (link) {
+        const m = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (m) nextUrl = m[1];
+      }
+    }
+    return productIds;
+  }
+
+  try {
+    const [custom, smart] = await Promise.all([
+      fetchCollections("custom_collections"),
+      fetchCollections("smart_collections"),
+    ]);
+
+    for (const col of custom) {
+      const productIds = await fetchCollects(col.id);
+      for (const pid of productIds) {
+        const key = String(pid);
+        if (!map[key]) map[key] = [];
+        map[key].push({ id: String(col.id), title: col.title, handle: col.handle });
+      }
+    }
+
+    for (const col of smart) {
+      const productIds = await fetchSmartCollectionProducts(col.id);
+      for (const pid of productIds) {
+        const key = String(pid);
+        if (!map[key]) map[key] = [];
+        map[key].push({ id: String(col.id), title: col.title, handle: col.handle });
+      }
+    }
+  } catch (err) {
+    console.error("[PRODUCT-SYNC] Error fetching collections:", err);
+  }
+
+  return map;
+}
+
 async function createSyncHistoryEntry(supabase: any, brandId: string, syncType: string) {
   const { data, error } = await supabase
     .from("sync_history")
