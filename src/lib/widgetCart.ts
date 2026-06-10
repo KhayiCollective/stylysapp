@@ -7,24 +7,29 @@
 export interface CartAddItem {
   variantId: string | number;
   quantity?: number;
+  name?: string;
+}
+
+export interface CartAddFailure {
+  id: string;
+  name: string;
+  reason: string;
 }
 
 export interface CartAddResult {
   ok: boolean;
   error?: string;
   count?: number;
+  added?: { id: string; name: string }[];
+  failed?: CartAddFailure[];
 }
 
-const PARENT_TIMEOUT_MS = 8000;
+const PARENT_TIMEOUT_MS = 15000;
 
 function hasParent(): boolean {
   return typeof window !== "undefined" && window.parent && window.parent !== window;
 }
 
-/**
- * Extracts the numeric Shopify variant id from any of the formats we may
- * receive (plain numeric string, GID, or number).
- */
 /**
  * Extracts the numeric Shopify variant id from any format we may receive:
  *   - plain numeric string:   "47562317627604"
@@ -38,21 +43,36 @@ function hasParent(): boolean {
  */
 export function toNumericVariantId(raw: unknown): string | null {
   if (raw == null) return null;
-  // Unwrap common object shapes
   if (typeof raw === "object") {
     const o = raw as Record<string, unknown>;
     return toNumericVariantId(o.variant_id ?? o.variantId ?? o.id);
   }
   const s = String(raw).trim();
   if (!s) return null;
-  // Strip GID prefix and any query string
   const noQuery = s.split("?")[0];
   const tail = noQuery.includes("/") ? noQuery.slice(noQuery.lastIndexOf("/") + 1) : noQuery;
   const digits = tail.match(/\d+/g);
   if (!digits || !digits.length) return null;
-  // Use the longest digit run — handles edge cases like "ProductVariant1234"
   const best = digits.reduce((a, b) => (b.length > a.length ? b : a));
   return /^[1-9]\d{0,19}$/.test(best) ? best : null;
+}
+
+async function addOneSameOrigin(item: { id: string; quantity: number; name: string }): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const resp = await fetch("/cart/add.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ id: item.id, quantity: item.quantity }),
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      return { ok: false, reason: body?.description || body?.message || `HTTP ${resp.status}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function addItemsToShopifyCart(items: CartAddItem[]): Promise<CartAddResult> {
@@ -60,35 +80,35 @@ export async function addItemsToShopifyCart(items: CartAddItem[]): Promise<CartA
     .map((i) => {
       const id = toNumericVariantId(i.variantId);
       if (!id) return null;
-      return { id, quantity: Math.max(1, Math.floor(i.quantity || 1)) };
+      return { id, quantity: Math.max(1, Math.floor(i.quantity || 1)), name: i.name || "" };
     })
-    .filter(Boolean) as { id: string; quantity: number }[];
+    .filter(Boolean) as { id: string; quantity: number; name: string }[];
 
   if (!cleaned.length) {
     console.warn("[widgetCart] No valid Shopify variant IDs after normalization", { received: items });
-    return { ok: false, error: "No valid Shopify variant IDs" };
+    return { ok: false, error: "No valid Shopify variant IDs", added: [], failed: [] };
   }
 
-  // Same-origin (merchant dashboard preview, or running directly on the storefront)
+  // Same-origin path (merchant dashboard preview, or widget served from the storefront).
+  // Add items one at a time so sold-out items don't block the rest.
   if (!hasParent()) {
-    try {
-      const resp = await fetch("/cart/add.js", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ items: cleaned }),
-      });
-      if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}));
-        return { ok: false, error: body?.description || body?.message || `HTTP ${resp.status}` };
-      }
-      return { ok: true, count: cleaned.length };
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    const added: { id: string; name: string }[] = [];
+    const failed: CartAddFailure[] = [];
+    for (const it of cleaned) {
+      const r = await addOneSameOrigin(it);
+      if (r.ok) added.push({ id: it.id, name: it.name });
+      else failed.push({ id: it.id, name: it.name, reason: r.reason || "Unavailable" });
     }
+    return {
+      ok: added.length > 0,
+      count: added.length,
+      added,
+      failed,
+      error: added.length === 0 ? failed[0]?.reason || "Add to cart failed" : undefined,
+    };
   }
 
-  // Inside an iframe → ask the parent (widget-loader script) to call /cart/add.js
+  // Iframe path → ask the parent (widget-loader script) to call /cart/add.js per item.
   return new Promise<CartAddResult>((resolve) => {
     const requestId = `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     let settled = false;
@@ -97,14 +117,20 @@ export async function addItemsToShopifyCart(items: CartAddItem[]): Promise<CartA
       if (!d || d.type !== "stylys-cart-result" || d.requestId !== requestId) return;
       settled = true;
       window.removeEventListener("message", onMessage);
-      resolve({ ok: !!d.ok, error: d.error, count: d.count });
+      resolve({
+        ok: !!d.ok,
+        error: d.error,
+        count: d.count,
+        added: Array.isArray(d.added) ? d.added : [],
+        failed: Array.isArray(d.failed) ? d.failed : [],
+      });
     };
     window.addEventListener("message", onMessage);
     window.parent.postMessage({ type: "stylys-add-to-cart", requestId, items: cleaned }, "*");
     setTimeout(() => {
       if (settled) return;
       window.removeEventListener("message", onMessage);
-      resolve({ ok: false, error: "Cart request timed out" });
+      resolve({ ok: false, error: "Cart request timed out", added: [], failed: [] });
     }, PARENT_TIMEOUT_MS);
   });
 }
