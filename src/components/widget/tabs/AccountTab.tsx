@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera } from "lucide-react";
+import { getCustomerToken, setCustomerToken, clearCustomerToken } from "@/lib/widgetAuth";
 
 interface AccountTabProps {
   brandId?: string;
@@ -23,10 +24,6 @@ const SIZE_OPTIONS = {
   bottoms: ["24", "25", "26", "27", "28", "29", "30", "31", "32", "34", "36"],
   shoes: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "11", "12"],
 };
-
-function getStorageKey(brandId?: string) {
-  return `stylys_customer_token_${brandId || "default"}`;
-}
 
 type SubView = "home" | "style" | "sizing";
 
@@ -82,7 +79,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [sizeInfo, setSizeInfo] = useState<Record<string, string>>({ tops: "", bottoms: "", shoes: "" });
 
   useEffect(() => {
-    const token = localStorage.getItem(getStorageKey(brandId));
+    const token = getCustomerToken();
     if (token) {
       fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -95,10 +92,10 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             populateStyleFromProfile(data.user.styleProfile);
             onCustomerLogin?.(data.user.photo_url || null, token!, { body_shape: data.user.styleProfile?.body_shape, size_info: data.user.styleProfile?.size_info });
           } else {
-            localStorage.removeItem(getStorageKey(brandId));
+            clearCustomerToken();
           }
         })
-        .catch(() => localStorage.removeItem(getStorageKey(brandId)))
+        .catch(() => clearCustomerToken())
         .finally(() => setCheckingSession(false));
     } else {
       setCheckingSession(false);
@@ -132,7 +129,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
         setError(data.error || "Something went wrong");
         return;
       }
-      localStorage.setItem(getStorageKey(brandId), data.token);
+      setCustomerToken(data.token);
       setCustomerUser(data.user);
       setIsLoggedIn(true);
       setPassword("");
@@ -165,7 +162,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
 
 
   const handleSignOut = () => {
-    localStorage.removeItem(getStorageKey(brandId));
+    clearCustomerToken();
     setIsLoggedIn(false);
     setCustomerUser(null);
     setEmail("");
@@ -177,7 +174,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const token = localStorage.getItem(getStorageKey(brandId));
+    const token = getCustomerToken();
     if (!token) return;
 
     setUploadingPhoto(true);
@@ -206,7 +203,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   };
 
   const saveProfile = async (section: "style" | "sizing") => {
-    const token = localStorage.getItem(getStorageKey(brandId));
+    const token = getCustomerToken();
     if (!token) return;
     setSaving(true);
 

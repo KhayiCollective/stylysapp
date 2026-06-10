@@ -14,10 +14,12 @@ interface WishlistTabProps {
   brandId?: string;
 }
 
+import { getCustomerToken } from "@/lib/widgetAuth";
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-function getToken(brandId?: string) {
-  return localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
+function getToken(_brandId?: string) {
+  return getCustomerToken();
 }
 
 export function WishlistTab({ brandId }: WishlistTabProps) {
