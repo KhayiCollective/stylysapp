@@ -175,17 +175,14 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     onSelectOutfitForTryOn?.(items);
   };
 
-  const addItem = useCartStore((state) => state.addItem);
-
   const handleAddAllToCart = async (outfit: Outfit) => {
-    const shopifyItems = outfit.items.filter(item => {
-      const vid = item.shopify_variant_id || item.id;
-      return vid.startsWith('gid://shopify/ProductVariant/');
-    });
+    const valid = outfit.items
+      .map((item) => ({ item, variantId: toNumericVariantId(item.shopify_variant_id) }))
+      .filter((x) => x.variantId !== null);
 
-    if (shopifyItems.length === 0) {
+    if (valid.length === 0) {
       toast.error("Cannot add to cart", {
-        description: "These outfit items don't have valid Shopify product IDs.",
+        description: "These outfit items don't have valid Shopify variant IDs.",
         position: "top-center",
       });
       return;
@@ -193,52 +190,20 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
 
     setAddingToCart(outfit.id);
     try {
-      for (const item of shopifyItems) {
-        const variantId = item.shopify_variant_id || item.id;
-        const mockProduct: ShopifyProduct = {
-          node: {
-            id: item.id,
-            title: item.name,
-            description: "",
-            handle: item.id,
-            priceRange: {
-              minVariantPrice: { amount: String(item.price), currencyCode: "ZAR" },
-            },
-            images: {
-              edges: (item.imageUrl || item.image_url)
-                ? [{ node: { url: (item.imageUrl || item.image_url)!, altText: item.name } }]
-                : [],
-            },
-            variants: {
-              edges: [{
-                node: {
-                  id: variantId,
-                  title: "Default",
-                  price: { amount: String(item.price), currencyCode: "ZAR" },
-                  availableForSale: true,
-                  selectedOptions: [],
-                },
-              }],
-            },
-            options: [],
-          },
-        };
-
-        await addItem({
-          product: mockProduct,
-          variantId,
-          variantTitle: "Default",
-          price: { amount: String(item.price), currencyCode: "ZAR" },
-          quantity: 1,
-          selectedOptions: [],
+      const result = await addItemsToShopifyCart(
+        valid.map((v) => ({ variantId: v.variantId as number, quantity: 1 }))
+      );
+      if (!result.ok) {
+        toast.error("Failed to add items to cart", {
+          description: result.error || undefined,
+          position: "top-center",
         });
+        return;
       }
-
-      const skipped = outfit.items.length - shopifyItems.length;
+      const skipped = outfit.items.length - valid.length;
       const msg = skipped > 0
-        ? `Added ${shopifyItems.length} items (${skipped} skipped — no Shopify ID)`
-        : `${shopifyItems.length} items added`;
-
+        ? `Added ${valid.length} items (${skipped} skipped — no Shopify variant)`
+        : `${valid.length} items added`;
       toast.success(`Added "${outfit.name}" to cart`, {
         description: msg,
         position: "top-center",
