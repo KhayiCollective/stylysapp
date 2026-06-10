@@ -56,6 +56,12 @@ serve(async (req) => {
         .eq("inventory_status", "in_stock")
         .limit(200);
 
+      console.log("[widget-outfits/generate] request", {
+        brand_id, anchor_product_id,
+        raw_count: rawProducts?.length || 0,
+        prod_err: prodErr?.message || null,
+      });
+
       if (prodErr || !rawProducts?.length) {
         return json({ error: "No products available" }, 404);
       }
