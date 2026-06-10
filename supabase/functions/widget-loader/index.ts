@@ -117,6 +117,10 @@ Deno.serve(async (req) => {
     if (!e.data || !e.data.type) return;
     if (e.data.type === 'stylys-close' && isOpen) toggle();
     if (e.data.type === 'stylys-open' && !isOpen) toggle();
+    if (e.data.type === 'stylys-open-cart') {
+      try { window.location.href = '/cart'; } catch (_) {}
+      return;
+    }
     if (e.data.type === 'stylys-add-to-cart') {
       var reqId = e.data.requestId;
       var rawItems = Array.isArray(e.data.items) ? e.data.items : [];
@@ -168,9 +172,35 @@ Deno.serve(async (req) => {
       });
       chain.then(function() {
         if (added.length > 0) {
+          // Fan out every refresh signal we know of — themes vary widely
+          // (Dawn, Sense, Refresh, Liquid Ajax Cart, custom drawers, etc.).
           try {
-            document.dispatchEvent(new CustomEvent('cart:refresh'));
-            document.dispatchEvent(new CustomEvent('cart:updated'));
+            var evts = ['cart:refresh','cart:updated','cart:build','cart:change','cart-updated','ajaxProduct:added'];
+            evts.forEach(function(n){
+              try { document.dispatchEvent(new CustomEvent(n, { bubbles: true })); } catch(_) {}
+              try { window.dispatchEvent(new CustomEvent(n)); } catch(_) {}
+            });
+            // PUB/SUB used by Dawn theme
+            if (typeof window.PUB_SUB_EVENTS !== 'undefined' && window.publish) {
+              try { window.publish('cart-update', { source: 'stylys' }); } catch(_) {}
+            }
+            // Refresh cart sections (Dawn / Section Rendering API) so the
+            // header bubble + drawer re-render immediately.
+            fetch('/?sections=cart-icon-bubble,cart-drawer,cart-notification', { credentials: 'same-origin' })
+              .then(function(r){ return r.ok ? r.json() : null; })
+              .then(function(sections){
+                if (!sections) return;
+                Object.keys(sections).forEach(function(key){
+                  var html = sections[key];
+                  if (!html) return;
+                  var selectors = ['#shopify-section-' + key, '#' + key, '[data-section-id="' + key + '"]'];
+                  selectors.forEach(function(sel){
+                    var el = document.querySelector(sel);
+                    if (el) { try { el.innerHTML = html; } catch(_) {} }
+                  });
+                });
+              })
+              .catch(function(){});
           } catch (_) {}
         }
         e.source && e.source.postMessage({

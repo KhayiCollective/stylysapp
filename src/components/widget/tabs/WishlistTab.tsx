@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingBag, Trash2, Loader2, LogIn } from "lucide-react";
-import { addItemsToShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
+import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
 import { toast } from "sonner";
 
 interface SavedOutfit {
@@ -81,7 +81,8 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
       toast.success("Added to cart", {
         description,
         position: "top-center",
-        duration: unavailableNames.length ? 6000 : 4000,
+        duration: unavailableNames.length ? 8000 : 6000,
+        action: { label: "View Cart", onClick: () => openShopifyCart() },
       });
     } finally {
       setAddingId(null);

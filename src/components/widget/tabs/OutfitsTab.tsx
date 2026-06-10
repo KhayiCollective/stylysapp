@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingBag, Sparkles, RefreshCw, Loader2, LogIn, Camera } from "lucide-react";
-import { addItemsToShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
+import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
 import { toast } from "sonner";
 import type { QuizAnswers } from "./StyleQuizTab";
 
@@ -227,7 +227,8 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
       toast.success(`Added "${outfit.name}" to cart`, {
         description,
         position: "top-center",
-        duration: unavailableNames.length ? 6000 : 4000,
+        duration: unavailableNames.length ? 8000 : 6000,
+        action: { label: "View Cart", onClick: () => openShopifyCart() },
       });
     } catch (error) {
       console.error('Failed to add outfit to cart:', error);

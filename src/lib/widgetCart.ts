@@ -30,6 +30,16 @@ function hasParent(): boolean {
   return typeof window !== "undefined" && window.parent && window.parent !== window;
 }
 
+/** Navigate the storefront (parent window) to /cart. */
+export function openShopifyCart(): void {
+  if (typeof window === "undefined") return;
+  if (hasParent()) {
+    window.parent.postMessage({ type: "stylys-open-cart" }, "*");
+  } else {
+    window.location.href = "/cart";
+  }
+}
+
 /**
  * Extracts the numeric Shopify variant id from any format we may receive:
  *   - plain numeric string:   "47562317627604"
