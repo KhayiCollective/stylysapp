@@ -18,12 +18,25 @@ interface ShopifyVariant {
   inventory_quantity?: number;
 }
 
+interface ShopifyImage {
+  id?: number;
+  src: string;
+  alt?: string | null;
+  position?: number;
+  width?: number;
+  height?: number;
+  variant_ids?: number[];
+}
+
 interface ShopifyProduct {
   id: number;
   title: string;
   handle: string;
   product_type: string;
-  images: { src: string; variant_ids?: number[] }[];
+  tags?: string;
+  vendor?: string;
+  status?: string;
+  images: ShopifyImage[];
   variants: ShopifyVariant[];
   options: { name: string; position: number; values: string[] }[];
 }
