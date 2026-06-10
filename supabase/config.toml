@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.customer-portal]
 verify_jwt = false
+
+[functions.widget-notify]
+verify_jwt = false

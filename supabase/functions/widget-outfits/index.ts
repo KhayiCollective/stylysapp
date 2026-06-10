@@ -306,6 +306,10 @@ Variation seed: ${crypto.randomUUID()}`;
             fit: p.fit,
             // Prefer the variant matching the customer's size when available
             shopify_variant_id: p._matchedVariantId || p.shopify_variant_id || null,
+            // Items in /generate come from the in_stock filter + size availability check.
+            // Expose this so the widget can render a Sold Out badge if any item later
+            // becomes unavailable (also useful for wishlist enrichment via /stock).
+            in_stock: p._sizeAvailable !== false,
           }));
         return {
           id: crypto.randomUUID(),
@@ -382,6 +386,51 @@ Variation seed: ${crypto.randomUUID()}`;
       }
 
       return json({ success: true });
+    }
+
+    // --- STOCK CHECK (public) ---
+    // Body: { brand_id?, shop?, variant_ids: string[] }
+    // Returns: { stock: { [variant_id]: boolean } }
+    if (path === "stock" && req.method === "POST") {
+      const body = await req.json();
+      let brand_id: string | undefined = body.brand_id;
+      const shop: string | undefined = body.shop;
+      const variantIds: string[] = Array.isArray(body.variant_ids)
+        ? body.variant_ids.map((v: unknown) => String(v)).filter(Boolean)
+        : [];
+
+      if (shop) {
+        const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+        const { data: brandRow } = await supabase
+          .from("brands").select("id").eq("shopify_store_domain", shopDomain).maybeSingle();
+        if (brandRow?.id) brand_id = brandRow.id;
+      }
+      if (!brand_id) return json({ error: "brand_id or shop required" }, 400);
+      if (!variantIds.length) return json({ stock: {} });
+
+      const { data: prods } = await supabase
+        .from("products")
+        .select("shopify_variant_id, inventory_status, variants_json")
+        .eq("brand_id", brand_id)
+        .or(variantIds.map((v) => `shopify_variant_id.eq.${v}`).join(","));
+
+      const stock: Record<string, boolean> = {};
+      for (const id of variantIds) stock[id] = false;
+      for (const p of prods || []) {
+        const variants: any[] = Array.isArray(p.variants_json) ? p.variants_json : [];
+        const inStockBase = (p.inventory_status || "in_stock") === "in_stock";
+        for (const id of variantIds) {
+          if (String(p.shopify_variant_id) === id) {
+            stock[id] = inStockBase && (variants.length === 0 || variants.some((v) => v?.available !== false));
+          }
+          for (const v of variants) {
+            if (v?.variant_id && String(v.variant_id) === id) {
+              stock[id] = inStockBase && v?.available !== false;
+            }
+          }
+        }
+      }
+      return json({ stock });
     }
 
     return json({ error: "Not found" }, 404);

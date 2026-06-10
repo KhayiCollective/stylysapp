@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingBag, Sparkles, RefreshCw, Loader2, LogIn, Camera } from "lucide-react";
 import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
+import { NotifyMeButton } from "@/components/widget/NotifyMeButton";
 import { toast } from "sonner";
 import type { QuizAnswers } from "./StyleQuizTab";
 
@@ -14,6 +15,7 @@ interface OutfitItem {
   price: number;
   category: string;
   shopify_variant_id?: string;
+  in_stock?: boolean;
 }
 
 interface Outfit {
@@ -124,6 +126,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
           imageUrl: i.image_url || i.imageUrl,
           category: i.category,
           shopify_variant_id: i.shopify_variant_id,
+          in_stock: i.in_stock !== false,
         })),
         totalPrice: o.totalPrice,
         occasion: o.occasion,
@@ -176,7 +179,9 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   };
 
   const handleAddAllToCart = async (outfit: Outfit) => {
+    // Exclude sold-out items entirely — they should never be added to cart.
     const valid = outfit.items
+      .filter((item) => item.in_stock !== false)
       .map((item) => ({ item, variantId: toNumericVariantId(item.shopify_variant_id) }))
       .filter((x) => x.variantId !== null);
 
@@ -198,12 +203,16 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
       const soldOut = result.failed || [];
       const noIdSkipped = outfit.items.length - valid.length;
 
-      // Names of items that have no valid variant ID at all
+      // Names of items that have no valid variant ID at all (excluding sold-out)
       const noIdNames = outfit.items
-        .filter((item) => toNumericVariantId(item.shopify_variant_id) === null)
+        .filter((item) => item.in_stock !== false && toNumericVariantId(item.shopify_variant_id) === null)
+        .map((item) => item.name);
+      // Names of items skipped because they're sold out
+      const soldOutLocalNames = outfit.items
+        .filter((item) => item.in_stock === false)
         .map((item) => item.name);
 
-      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...noIdNames];
+      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...soldOutLocalNames, ...noIdNames];
 
       if (added.length === 0) {
         toast.error("Couldn't add items to cart", {
@@ -304,19 +313,44 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
             <div className="grid grid-cols-3 gap-px bg-border">
               {outfit.items.map((item) => (
                 <div key={item.id} className="bg-card">
-                  <div className="aspect-square overflow-hidden">
-                    <img src={item.imageUrl || item.image_url || ""} alt={item.name} className="w-full h-full object-cover" />
+                  <div className="aspect-square overflow-hidden relative">
+                    <img
+                      src={item.imageUrl || item.image_url || ""}
+                      alt={item.name}
+                      className={`w-full h-full object-cover ${item.in_stock === false ? "opacity-60" : ""}`}
+                    />
+                    {item.in_stock === false && (
+                      <span className="absolute top-1 left-1 bg-destructive text-destructive-foreground text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                        Sold Out
+                      </span>
+                    )}
                   </div>
                   <div className="p-2">
                     <p className="text-[11px] truncate">{item.name}</p>
-                    <p className="text-[11px] text-muted-foreground">${item.price}</p>
+                    {item.in_stock === false ? (
+                      <>
+                        <p className="text-[11px] text-muted-foreground line-through">${item.price}</p>
+                        <div className="mt-1">
+                          <NotifyMeButton
+                            brandId={brandId}
+                            productId={item.id}
+                            shopifyVariantId={item.shopify_variant_id || null}
+                            productName={item.name}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">${item.price}</p>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="p-3 flex items-center justify-between border-t border-border gap-2">
-              <span className="font-semibold text-sm">${outfit.totalPrice.toFixed(2)}</span>
+              <span className="font-semibold text-sm">
+                ${outfit.items.filter(i => i.in_stock !== false).reduce((s, i) => s + Number(i.price || 0), 0).toFixed(2)}
+              </span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="text-xs h-8 gap-1" onClick={() => handleTryOn(outfit)}>
                   <Camera className="h-3 w-3" />
