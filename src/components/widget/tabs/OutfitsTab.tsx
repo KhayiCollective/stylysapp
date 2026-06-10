@@ -191,22 +191,43 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     setAddingToCart(outfit.id);
     try {
       const result = await addItemsToShopifyCart(
-        valid.map((v) => ({ variantId: v.variantId as string, quantity: 1 }))
+        valid.map((v) => ({ variantId: v.variantId as string, quantity: 1, name: v.item.name }))
       );
-      if (!result.ok) {
-        toast.error("Failed to add items to cart", {
-          description: result.error || undefined,
+
+      const added = result.added || [];
+      const soldOut = result.failed || [];
+      const noIdSkipped = outfit.items.length - valid.length;
+
+      // Names of items that have no valid variant ID at all
+      const noIdNames = outfit.items
+        .filter((item) => toNumericVariantId(item.shopify_variant_id) === null)
+        .map((item) => item.name);
+
+      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...noIdNames];
+
+      if (added.length === 0) {
+        toast.error("Couldn't add items to cart", {
+          description: unavailableNames.length
+            ? `Sold out: ${unavailableNames.join(", ")}`
+            : result.error || "All items unavailable",
           position: "top-center",
         });
         return;
       }
-      const skipped = outfit.items.length - valid.length;
-      const msg = skipped > 0
-        ? `Added ${valid.length} items (${skipped} skipped — no Shopify variant)`
-        : `${valid.length} items added`;
+
+      let description = `Added ${added.length} item${added.length === 1 ? "" : "s"} to cart.`;
+      if (unavailableNames.length) {
+        description += unavailableNames.length === 1
+          ? ` Note: ${unavailableNames[0]} is currently sold out and was not added.`
+          : ` Note: ${unavailableNames.join(", ")} are currently sold out and were not added.`;
+      } else if (noIdSkipped > 0) {
+        description += ` (${noIdSkipped} skipped — no Shopify variant)`;
+      }
+
       toast.success(`Added "${outfit.name}" to cart`, {
-        description: msg,
+        description,
         position: "top-center",
+        duration: unavailableNames.length ? 6000 : 4000,
       });
     } catch (error) {
       console.error('Failed to add outfit to cart:', error);
