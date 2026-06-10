@@ -25,13 +25,34 @@ function hasParent(): boolean {
  * Extracts the numeric Shopify variant id from any of the formats we may
  * receive (plain numeric string, GID, or number).
  */
-export function toNumericVariantId(raw: unknown): number | null {
+/**
+ * Extracts the numeric Shopify variant id from any format we may receive:
+ *   - plain numeric string:   "47562317627604"
+ *   - number:                 47562317627604
+ *   - Admin GID:              "gid://shopify/ProductVariant/47562317627604"
+ *   - Storefront GID:         "gid://shopify/ProductVariant/47562317627604?..."
+ *   - Object with `.id`:      { id: "...", ... }
+ *
+ * Returns the id as a STRING of digits (variant ids can exceed
+ * Number.MAX_SAFE_INTEGER, and /cart/add.js accepts string ids).
+ */
+export function toNumericVariantId(raw: unknown): string | null {
   if (raw == null) return null;
-  const s = String(raw);
-  const m = s.match(/(\d+)\s*$/);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  // Unwrap common object shapes
+  if (typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    return toNumericVariantId(o.variant_id ?? o.variantId ?? o.id);
+  }
+  const s = String(raw).trim();
+  if (!s) return null;
+  // Strip GID prefix and any query string
+  const noQuery = s.split("?")[0];
+  const tail = noQuery.includes("/") ? noQuery.slice(noQuery.lastIndexOf("/") + 1) : noQuery;
+  const digits = tail.match(/\d+/g);
+  if (!digits || !digits.length) return null;
+  // Use the longest digit run — handles edge cases like "ProductVariant1234"
+  const best = digits.reduce((a, b) => (b.length > a.length ? b : a));
+  return /^[1-9]\d{0,19}$/.test(best) ? best : null;
 }
 
 export async function addItemsToShopifyCart(items: CartAddItem[]): Promise<CartAddResult> {
@@ -41,9 +62,12 @@ export async function addItemsToShopifyCart(items: CartAddItem[]): Promise<CartA
       if (!id) return null;
       return { id, quantity: Math.max(1, Math.floor(i.quantity || 1)) };
     })
-    .filter(Boolean) as { id: number; quantity: number }[];
+    .filter(Boolean) as { id: string; quantity: number }[];
 
-  if (!cleaned.length) return { ok: false, error: "No valid Shopify variant IDs" };
+  if (!cleaned.length) {
+    console.warn("[widgetCart] No valid Shopify variant IDs after normalization", { received: items });
+    return { ok: false, error: "No valid Shopify variant IDs" };
+  }
 
   // Same-origin (merchant dashboard preview, or running directly on the storefront)
   if (!hasParent()) {
