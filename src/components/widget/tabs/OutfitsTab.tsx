@@ -227,7 +227,8 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
       toast.success(`Added "${outfit.name}" to cart`, {
         description,
         position: "top-center",
-        duration: unavailableNames.length ? 6000 : 4000,
+        duration: unavailableNames.length ? 8000 : 6000,
+        action: { label: "View Cart", onClick: () => openShopifyCart() },
       });
     } catch (error) {
       console.error('Failed to add outfit to cart:', error);
