@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera } from "lucide-react";
+import { getCustomerToken, setCustomerToken, clearCustomerToken } from "@/lib/widgetAuth";
 
 interface AccountTabProps {
   brandId?: string;
@@ -23,10 +24,6 @@ const SIZE_OPTIONS = {
   bottoms: ["24", "25", "26", "27", "28", "29", "30", "31", "32", "34", "36"],
   shoes: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "11", "12"],
 };
-
-function getStorageKey(brandId?: string) {
-  return `stylys_customer_token_${brandId || "default"}`;
-}
 
 type SubView = "home" | "style" | "sizing";
 
