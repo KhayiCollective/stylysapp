@@ -19,9 +19,17 @@ interface OutfitItem {
   available?: boolean;
 }
 
-// Single source of truth: an item is buyable only when neither flag is explicitly false.
-const isAvailable = (i: { available?: boolean; in_stock?: boolean }) =>
-  i.available !== false && i.in_stock !== false;
+// Single source of truth: an item is buyable only when neither flag is explicitly false
+// and (if we have live stock data) the variant is in stock per Shopify right now.
+const isAvailableWithStock = (
+  i: { available?: boolean; in_stock?: boolean; shopify_variant_id?: string },
+  stockMap: Record<string, boolean>,
+) => {
+  if (i.available === false || i.in_stock === false) return false;
+  const vid = toNumericVariantId(i.shopify_variant_id);
+  if (vid && vid in stockMap) return stockMap[vid];
+  return true;
+};
 
 interface Outfit {
   id: string;
