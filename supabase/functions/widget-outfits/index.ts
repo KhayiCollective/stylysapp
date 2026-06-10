@@ -324,8 +324,8 @@ Variation seed: ${crypto.randomUUID()}`;
             // Items in /generate come from the in_stock filter + size availability check.
             // `available` (preferred) and `in_stock` (back-compat) both reflect whether
             // a buyable variant exists in Shopify for this product right now.
-            in_stock: p._sizeAvailable !== false,
-            available: p._sizeAvailable !== false,
+            in_stock: p._sizeAvailable !== false && p.inventory_status === "in_stock",
+            available: p._sizeAvailable !== false && p.inventory_status === "in_stock",
           }));
         return {
           id: crypto.randomUUID(),
