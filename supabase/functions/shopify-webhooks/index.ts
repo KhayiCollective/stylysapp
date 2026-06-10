@@ -562,7 +562,7 @@ serve(async (req) => {
     switch (topic) {
       case "products/create":
       case "products/update":
-        result = await handleProductCreateOrUpdate(supabase, brand.id, payload);
+        result = await handleProductCreateOrUpdate(supabase, brand, payload);
         break;
 
       case "products/delete":
