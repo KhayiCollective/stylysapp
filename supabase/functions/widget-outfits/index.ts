@@ -43,10 +43,37 @@ serve(async (req) => {
   try {
     const supabase = getSupabaseAdmin();
 
-    // --- GENERATE (public, just needs brand_id) ---
+    // --- GENERATE (public, just needs brand_id OR shop) ---
     if (path === "generate" && req.method === "POST") {
-      const { brand_id, anchor_product_id, occasion, style, customer_profile, quiz_session, rules } = await req.json();
-      if (!brand_id) return json({ error: "brand_id is required" }, 400);
+      const body = await req.json();
+      const { anchor_product_id, occasion, style, customer_profile, quiz_session, rules } = body;
+      let brand_id: string | undefined = body.brand_id;
+      const shop: string | undefined = body.shop;
+
+      // SECURITY / CORRECTNESS: if a shop domain is provided, ALWAYS re-resolve
+      // brand_id server-side from brands.shopify_store_domain. This makes the
+      // function immune to stale/cached/spoofed brand_ids from the client and
+      // guarantees each merchant only ever queries their own products.
+      if (shop) {
+        const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+        const { data: brandRow } = await supabase
+          .from("brands")
+          .select("id")
+          .eq("shopify_store_domain", shopDomain)
+          .maybeSingle();
+        if (brandRow?.id) {
+          if (brand_id && brand_id !== brandRow.id) {
+            console.log("[widget-outfits/generate] overriding client brand_id with shop-resolved brand", {
+              client_brand_id: brand_id, resolved_brand_id: brandRow.id, shop: shopDomain,
+            });
+          }
+          brand_id = brandRow.id;
+        } else {
+          console.log("[widget-outfits/generate] shop not found in brands table", { shop: shopDomain });
+        }
+      }
+
+      if (!brand_id) return json({ error: "brand_id or shop is required" }, 400);
 
       // Fetch products for this brand (richer columns for smarter matching)
       const { data: rawProducts, error: prodErr } = await supabase
