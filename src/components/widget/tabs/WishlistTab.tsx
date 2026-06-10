@@ -31,11 +31,14 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
   const [addingId, setAddingId] = useState<string | null>(null);
 
   const handleAddOutfitToCart = async (outfit: SavedOutfit) => {
-    const items = Array.isArray(outfit.outfit_data?.items) ? outfit.outfit_data.items : [];
+    const items: any[] = Array.isArray(outfit.outfit_data?.items) ? outfit.outfit_data.items : [];
+
     const valid = items
-      .map((it: any) => toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id))
-      .filter((v: number | null): v is number => v !== null)
-      .map((variantId: number) => ({ variantId, quantity: 1 }));
+      .map((it: any) => {
+        const variantId = toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id);
+        return variantId ? { variantId, quantity: 1, name: String(it?.name || "") } : null;
+      })
+      .filter((v): v is { variantId: string; quantity: number; name: string } => v !== null);
 
     if (!valid.length) {
       toast.error("Cannot add to cart", {
@@ -48,19 +51,37 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
     setAddingId(outfit.id);
     try {
       const result = await addItemsToShopifyCart(valid);
-      if (!result.ok) {
-        toast.error("Failed to add items to cart", {
-          description: result.error || undefined,
+
+      const added = result.added || [];
+      const soldOut = result.failed || [];
+
+      const noIdNames = items
+        .filter((it: any) => toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id) === null)
+        .map((it: any) => String(it?.name || "")).filter(Boolean);
+
+      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...noIdNames];
+
+      if (added.length === 0) {
+        toast.error("Couldn't add items to cart", {
+          description: unavailableNames.length
+            ? `Sold out: ${unavailableNames.join(", ")}`
+            : result.error || "All items unavailable",
           position: "top-center",
         });
         return;
       }
-      const skipped = items.length - valid.length;
+
+      let description = `Added ${added.length} item${added.length === 1 ? "" : "s"} to cart.`;
+      if (unavailableNames.length) {
+        description += unavailableNames.length === 1
+          ? ` Note: ${unavailableNames[0]} is currently sold out and was not added.`
+          : ` Note: ${unavailableNames.join(", ")} are currently sold out and were not added.`;
+      }
+
       toast.success("Added to cart", {
-        description: skipped > 0
-          ? `${valid.length} items added (${skipped} skipped — no Shopify variant)`
-          : `${valid.length} items added`,
+        description,
         position: "top-center",
+        duration: unavailableNames.length ? 6000 : 4000,
       });
     } finally {
       setAddingId(null);
