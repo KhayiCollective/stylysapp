@@ -206,7 +206,9 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
       ) : (
         outfits.map((outfit) => {
           const items = Array.isArray(outfit.outfit_data?.items) ? outfit.outfit_data.items : [];
-          const totalPrice = outfit.outfit_data?.totalPrice || items.reduce((s: number, i: any) => s + Number(i.price || 0), 0);
+          const availableTotal = items
+            .filter((i: any) => isItemInStock(i))
+            .reduce((s: number, i: any) => s + Number(i.price || 0), 0);
 
           return (
             <div key={outfit.id} className="border border-border rounded-lg overflow-hidden">
@@ -232,26 +234,48 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
 
               {items.length > 0 && (
                 <div className="grid grid-cols-3 gap-px bg-border">
-                  {items.slice(0, 6).map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="bg-card">
-                      <div className="aspect-square overflow-hidden">
-                        <img
-                          src={item.imageUrl || item.image_url || ""}
-                          alt={item.name || "Product"}
-                          className="w-full h-full object-cover"
-                        />
+                  {items.slice(0, 6).map((item: any, idx: number) => {
+                    const inStock = isItemInStock(item);
+                    return (
+                      <div key={item.id || idx} className="bg-card">
+                        <div className="aspect-square overflow-hidden relative">
+                          <img
+                            src={item.imageUrl || item.image_url || ""}
+                            alt={item.name || "Product"}
+                            className={`w-full h-full object-cover ${!inStock ? "opacity-60" : ""}`}
+                          />
+                          {!inStock && (
+                            <span className="absolute top-1 left-1 bg-destructive text-destructive-foreground text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                              Sold Out
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-1.5">
+                          <p className="text-[10px] truncate">{item.name}</p>
+                          {!inStock ? (
+                            <>
+                              <p className="text-[10px] text-muted-foreground line-through">${Number(item.price || 0).toFixed(0)}</p>
+                              <div className="mt-1">
+                                <NotifyMeButton
+                                  brandId={brandId}
+                                  productId={item.id}
+                                  shopifyVariantId={item.shopify_variant_id ?? item.variant_id ?? null}
+                                  productName={item.name}
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">${Number(item.price || 0).toFixed(0)}</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="p-1.5">
-                        <p className="text-[10px] truncate">{item.name}</p>
-                        <p className="text-[10px] text-muted-foreground">${Number(item.price || 0).toFixed(0)}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               <div className="p-3 flex items-center justify-between border-t border-border">
-                <span className="font-semibold text-sm">${Number(totalPrice).toFixed(2)}</span>
+                <span className="font-semibold text-sm">${availableTotal.toFixed(2)}</span>
                 <Button
                   size="sm"
                   className="text-xs h-8 gap-1"
