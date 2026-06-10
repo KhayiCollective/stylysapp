@@ -117,6 +117,10 @@ Deno.serve(async (req) => {
     if (!e.data || !e.data.type) return;
     if (e.data.type === 'stylys-close' && isOpen) toggle();
     if (e.data.type === 'stylys-open' && !isOpen) toggle();
+    if (e.data.type === 'stylys-open-cart') {
+      try { window.location.href = '/cart'; } catch (_) {}
+      return;
+    }
     if (e.data.type === 'stylys-add-to-cart') {
       var reqId = e.data.requestId;
       var rawItems = Array.isArray(e.data.items) ? e.data.items : [];
