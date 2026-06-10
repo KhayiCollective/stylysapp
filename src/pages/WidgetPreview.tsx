@@ -11,8 +11,11 @@ const WidgetPreview = () => {
   const [searchParams] = useSearchParams();
   const queryBrandId = searchParams.get("brand_id") || undefined;
   const shop = searchParams.get("shop") || undefined;
-  const [brandId, setBrandId] = useState<string | undefined>(queryBrandId);
-  const [resolving, setResolving] = useState(!queryBrandId && !!shop);
+  // When a shop domain is present, ALWAYS resolve brand_id fresh from the
+  // backend so we never use a cached/stale brand_id. Only fall back to the
+  // query brand_id when there is no shop (e.g. merchant dashboard preview).
+  const [brandId, setBrandId] = useState<string | undefined>(shop ? undefined : queryBrandId);
+  const [resolving, setResolving] = useState(!!shop);
   const [isIframe, setIsIframe] = useState(false);
 
   useEffect(() => {
@@ -23,9 +26,9 @@ const WidgetPreview = () => {
     }
   }, []);
 
-  // Auto-resolve brand from shop domain if brand_id not provided
+  // Auto-resolve brand from shop domain on every load (no caching).
   useEffect(() => {
-    if (brandId || !shop) return;
+    if (!shop) return;
     setResolving(true);
     const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
     fetch(
@@ -37,7 +40,7 @@ const WidgetPreview = () => {
       })
       .catch(() => {})
       .finally(() => setResolving(false));
-  }, [shop, brandId]);
+  }, [shop]);
 
   if (resolving) {
     return (
