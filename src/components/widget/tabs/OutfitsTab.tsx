@@ -67,7 +67,17 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   };
 
   const fetchOutfits = async () => {
-    if (!brandId) return;
+    // Always re-derive shop from the current URL (or Shopify.shop when running
+    // inside the storefront) so brand_id is resolved fresh on EVERY API call.
+    const shopFromUrl = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("shop") || undefined
+      : undefined;
+    const shopFromGlobal = typeof window !== "undefined"
+      ? (window as unknown as { Shopify?: { shop?: string } }).Shopify?.shop
+      : undefined;
+    const shop = shopFromUrl || shopFromGlobal;
+
+    if (!brandId && !shop) return;
     setLoading(true);
     setError("");
     try {
@@ -88,7 +98,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
       // Fetch customer profile if logged in
       const customerProfile = await getCustomerProfile();
 
-      const body: Record<string, unknown> = { brand_id: brandId, rules: compositionRules, anchor_product_id: anchorProductId };
+      const body: Record<string, unknown> = { brand_id: brandId, shop, rules: compositionRules, anchor_product_id: anchorProductId };
       if (customerProfile) body.customer_profile = customerProfile;
       if (quizAnswers) body.quiz_session = quizAnswers;
 
