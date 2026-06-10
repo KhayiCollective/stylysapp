@@ -179,7 +179,9 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   };
 
   const handleAddAllToCart = async (outfit: Outfit) => {
+    // Exclude sold-out items entirely — they should never be added to cart.
     const valid = outfit.items
+      .filter((item) => item.in_stock !== false)
       .map((item) => ({ item, variantId: toNumericVariantId(item.shopify_variant_id) }))
       .filter((x) => x.variantId !== null);
 
