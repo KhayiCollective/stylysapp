@@ -132,6 +132,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
           category: i.category,
           shopify_variant_id: i.shopify_variant_id,
           in_stock: i.in_stock !== false,
+          available: i.available !== false && i.in_stock !== false,
         })),
         totalPrice: o.totalPrice,
         occasion: o.occasion,
