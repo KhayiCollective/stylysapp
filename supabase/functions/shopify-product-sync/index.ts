@@ -79,6 +79,17 @@ interface ColorGroup {
   imageUrl: string | null;
 }
 
+// Always store the plain numeric Shopify variant id (no `gid://...` prefix),
+// since Shopify's AJAX cart API (/cart/add.js) requires numeric ids.
+function toNumericId(raw: unknown): string {
+  if (raw == null) return "";
+  const s = String(raw).split("?")[0];
+  const tail = s.includes("/") ? s.slice(s.lastIndexOf("/") + 1) : s;
+  const m = tail.match(/\d+/g);
+  if (!m || !m.length) return "";
+  return m.reduce((a, b) => (b.length > a.length ? b : a));
+}
+
 function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
   const { colorOptionPosition, sizeOptionPosition } = identifyOptionAxes(product.options);
 
