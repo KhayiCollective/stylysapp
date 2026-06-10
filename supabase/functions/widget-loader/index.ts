@@ -122,16 +122,19 @@ Deno.serve(async (req) => {
       var rawItems = Array.isArray(e.data.items) ? e.data.items : [];
       var items = rawItems
         .map(function(it) {
-          var raw = it && (it.id || it.variant_id || it.variantId);
+          var raw = it && (it.id != null ? it.id : (it.variant_id != null ? it.variant_id : it.variantId));
           if (raw == null) return null;
-          var s = String(raw);
-          var m = s.match(/(\d+)\s*$/);
-          var id = m ? parseInt(m[1], 10) : NaN;
-          if (!id || isNaN(id)) return null;
-          return { id: id, quantity: Math.max(1, parseInt(it.quantity, 10) || 1) };
+          var s = String(raw).split('?')[0];
+          var tail = s.indexOf('/') !== -1 ? s.slice(s.lastIndexOf('/') + 1) : s;
+          var digits = tail.match(/\\d+/g);
+          if (!digits || !digits.length) return null;
+          var best = digits.reduce(function(a, b) { return b.length > a.length ? b : a; });
+          if (!/^[1-9]\\d{0,19}$/.test(best)) return null;
+          return { id: best, quantity: Math.max(1, parseInt(it.quantity, 10) || 1) };
         })
         .filter(Boolean);
       if (!items.length) {
+        try { console.warn('[stylys] cart add: no valid variant IDs', rawItems); } catch (_) {}
         e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: 'No valid variant IDs' }, '*');
         return;
       }

@@ -79,13 +79,24 @@ interface ColorGroup {
   imageUrl: string | null;
 }
 
+// Always store the plain numeric Shopify variant id (no `gid://...` prefix),
+// since Shopify's AJAX cart API (/cart/add.js) requires numeric ids.
+function toNumericId(raw: unknown): string {
+  if (raw == null) return "";
+  const s = String(raw).split("?")[0];
+  const tail = s.includes("/") ? s.slice(s.lastIndexOf("/") + 1) : s;
+  const m = tail.match(/\d+/g);
+  if (!m || !m.length) return "";
+  return m.reduce((a, b) => (b.length > a.length ? b : a));
+}
+
 function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
   const { colorOptionPosition, sizeOptionPosition } = identifyOptionAxes(product.options);
 
   // No color option → single group for entire product
   if (!colorOptionPosition) {
     const variants = product.variants.map((v) => ({
-      variant_id: String(v.id),
+      variant_id: toNumericId(v.id),
       size: sizeOptionPosition ? getOptionValue(v, sizeOptionPosition) : v.title,
       price: v.price,
       available: true,
@@ -93,7 +104,7 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
     return [{
       color: null,
       variants,
-      primaryVariantId: String(product.variants[0]?.id),
+      primaryVariantId: toNumericId(product.variants[0]?.id),
       price: parseFloat(product.variants[0]?.price || "0"),
       imageUrl: product.images[0]?.src || null,
     }];
@@ -119,14 +130,14 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
       groups[colorValue] = {
         color: colorValue || null,
         variants: [],
-        primaryVariantId: String(variant.id),
+        primaryVariantId: toNumericId(variant.id),
         price: parseFloat(variant.price),
         imageUrl,
       };
     }
 
     groups[colorValue].variants.push({
-      variant_id: String(variant.id),
+      variant_id: toNumericId(variant.id),
       size: sizeValue,
       price: variant.price,
       available: true,
