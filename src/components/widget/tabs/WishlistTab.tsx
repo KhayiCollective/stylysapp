@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingBag, Trash2, Loader2, LogIn } from "lucide-react";
+import { addItemsToShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
+import { toast } from "sonner";
 
 interface SavedOutfit {
   id: string;
