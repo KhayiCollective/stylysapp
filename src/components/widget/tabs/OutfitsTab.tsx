@@ -161,6 +161,41 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     if (quizAnswers) fetchOutfits();
   }, [quizAnswers]);
 
+  // Whenever outfits change, look up live Shopify stock for their variants so
+  // sold-out items are blocked from cart adds even if the DB inventory_status
+  // or variants_json is stale.
+  useEffect(() => {
+    const variantIds = Array.from(new Set(
+      outfits.flatMap((o) =>
+        o.items
+          .map((i) => toNumericVariantId(i.shopify_variant_id))
+          .filter((v): v is string => !!v)
+      )
+    ));
+    if (!variantIds.length) { setStockMap({}); return; }
+    const shopFromUrl = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("shop") || undefined
+      : undefined;
+    const shopFromGlobal = typeof window !== "undefined"
+      ? (window as unknown as { Shopify?: { shop?: string } }).Shopify?.shop
+      : undefined;
+    const shop = shopFromUrl || shopFromGlobal;
+    (async () => {
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/stock`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ brand_id: brandId, shop, variant_ids: variantIds }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data?.stock) setStockMap(data.stock);
+      } catch { /* ignore */ }
+    })();
+  }, [outfits, brandId]);
+
   const toggleSave = async (outfit: Outfit) => {
     const token = getToken(brandId);
     if (!token) return;
