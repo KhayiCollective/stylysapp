@@ -51,7 +51,7 @@ async function verifyWebhookSignature(
 async function getBrandByShop(supabase: any, shopDomain: string) {
   let { data, error } = await supabase
     .from("brands")
-    .select("id, name, shopify_store_domain")
+    .select("id, name, shopify_store_domain, shopify_access_token")
     .eq("shopify_store_domain", shopDomain)
     .single();
 
@@ -59,7 +59,7 @@ async function getBrandByShop(supabase: any, shopDomain: string) {
     const cleanDomain = shopDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const result = await supabase
       .from("brands")
-      .select("id, name, shopify_store_domain")
+      .select("id, name, shopify_store_domain, shopify_access_token")
       .eq("shopify_store_domain", cleanDomain)
       .single();
     data = result.data;
@@ -73,30 +73,114 @@ async function getBrandByShop(supabase: any, shopDomain: string) {
   return data;
 }
 
-// Map Shopify product to our schema
-function mapShopifyProduct(shopifyProduct: any, brandId: string) {
-  const products: any[] = [];
+// ---- Variant grouping helpers (mirror shopify-product-sync) ----
+const COLOR_OPTION_NAMES = ["color", "colour", "colors", "colours"];
+const SIZE_OPTION_NAMES = ["size", "sizes", "length", "width"];
 
-  for (const variant of shopifyProduct.variants || []) {
-    const product = {
-      brand_id: brandId,
-      name: shopifyProduct.variants.length > 1
-        ? `${shopifyProduct.title} - ${variant.title}`
-        : shopifyProduct.title,
-      shopify_product_id: String(shopifyProduct.id),
-      shopify_variant_id: `gid://shopify/ProductVariant/${variant.id}`,
-      shopify_handle: shopifyProduct.handle,
-      price: parseFloat(variant.price) || 0,
-      image_url: shopifyProduct.image?.src || shopifyProduct.images?.[0]?.src || null,
-      category: shopifyProduct.product_type || "Uncategorized",
-      inventory_status: variant.inventory_quantity > 0 ? "in_stock" : "out_of_stock",
+function identifyOptionAxes(options: any[]) {
+  let colorOptionPosition: number | null = null;
+  let sizeOptionPosition: number | null = null;
+  for (const opt of options || []) {
+    const lower = (opt.name || "").toLowerCase();
+    if (COLOR_OPTION_NAMES.includes(lower)) colorOptionPosition = opt.position;
+    else if (SIZE_OPTION_NAMES.includes(lower)) sizeOptionPosition = opt.position;
+  }
+  return { colorOptionPosition, sizeOptionPosition };
+}
+
+function getOptionValue(variant: any, position: number): string {
+  if (position === 1) return variant.option1 || "";
+  if (position === 2) return variant.option2 || "";
+  if (position === 3) return variant.option3 || "";
+  return "";
+}
+
+interface ColorGroup {
+  color: string | null;
+  variants: { variant_id: string; size: string; price: string; available: boolean }[];
+  primaryVariantId: string;
+  price: number;
+  imageUrl: string | null;
+}
+
+function groupVariantsByColor(product: any): ColorGroup[] {
+  const { colorOptionPosition, sizeOptionPosition } = identifyOptionAxes(product.options || []);
+  const variants = product.variants || [];
+  const images = product.images || [];
+
+  if (!colorOptionPosition) {
+    const mapped = variants.map((v: any) => ({
+      variant_id: String(v.id),
+      size: sizeOptionPosition ? getOptionValue(v, sizeOptionPosition) : v.title,
+      price: v.price,
+      available: (v.inventory_quantity ?? 1) > 0,
+    }));
+    return [{
       color: null,
-      fit: null,
-    };
-    products.push(product);
+      variants: mapped,
+      primaryVariantId: String(variants[0]?.id),
+      price: parseFloat(variants[0]?.price || "0"),
+      imageUrl: product.image?.src || images[0]?.src || null,
+    }];
   }
 
-  return products;
+  const groups: Record<string, ColorGroup> = {};
+  for (const variant of variants) {
+    const colorValue = getOptionValue(variant, colorOptionPosition);
+    const sizeValue = sizeOptionPosition ? getOptionValue(variant, sizeOptionPosition) : variant.title;
+
+    if (!groups[colorValue]) {
+      let imageUrl = images[0]?.src || null;
+      const variantImage = images.find((img: any) => img.variant_ids && img.variant_ids.includes(variant.id));
+      if (variantImage) imageUrl = variantImage.src;
+
+      groups[colorValue] = {
+        color: colorValue || null,
+        variants: [],
+        primaryVariantId: String(variant.id),
+        price: parseFloat(variant.price),
+        imageUrl,
+      };
+    }
+
+    groups[colorValue].variants.push({
+      variant_id: String(variant.id),
+      size: sizeValue,
+      price: variant.price,
+      available: (variant.inventory_quantity ?? 1) > 0,
+    });
+  }
+
+  return Object.values(groups);
+}
+
+// Fetch collections (custom + smart) containing a given product
+async function fetchProductCollections(
+  shop: string,
+  accessToken: string,
+  productId: string | number
+): Promise<{ id: string; title: string; handle: string }[]> {
+  if (!shop || !accessToken) return [];
+  const out: { id: string; title: string; handle: string }[] = [];
+
+  async function fetchOne(endpoint: "custom_collections" | "smart_collections") {
+    try {
+      const res = await fetch(
+        `https://${shop}/admin/api/2025-01/${endpoint}.json?product_id=${productId}&limit=250`,
+        { headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const c of data[endpoint] || []) {
+        out.push({ id: String(c.id), title: c.title, handle: c.handle });
+      }
+    } catch (err) {
+      console.error(`[WEBHOOK] Failed to fetch ${endpoint} for product ${productId}:`, err);
+    }
+  }
+
+  await Promise.all([fetchOne("custom_collections"), fetchOne("smart_collections")]);
+  return out;
 }
 
 // Create sync history entry
@@ -127,58 +211,116 @@ async function createSyncHistoryEntry(
   }
 }
 
-// Handle product creation/update
+// Handle product creation/update — mirrors shopify-product-sync logic
 async function handleProductCreateOrUpdate(
   supabase: any,
-  brandId: string,
+  brand: { id: string; shopify_store_domain: string | null; shopify_access_token: string | null },
   shopifyProduct: any
 ) {
-  console.log(`Processing product: ${shopifyProduct.title} (ID: ${shopifyProduct.id})`);
+  const brandId = brand.id;
+  console.log(`[WEBHOOK] Processing product: ${shopifyProduct.title} (ID: ${shopifyProduct.id})`);
 
-  const products = mapShopifyProduct(shopifyProduct, brandId);
+  const colorGroups = groupVariantsByColor(shopifyProduct);
+
+  const productTags = typeof shopifyProduct.tags === "string"
+    ? shopifyProduct.tags.split(",").map((t: string) => t.trim()).filter((t: string) => t.length > 0)
+    : Array.isArray(shopifyProduct.tags) ? shopifyProduct.tags : [];
+
+  const imagesJson = (shopifyProduct.images || []).map((img: any) => ({
+    id: img.id ? String(img.id) : null,
+    src: img.src,
+    alt: img.alt ?? null,
+    position: img.position ?? null,
+    width: img.width ?? null,
+    height: img.height ?? null,
+    variant_ids: (img.variant_ids || []).map(String),
+  }));
+
+  const productCollections = await fetchProductCollections(
+    brand.shopify_store_domain || "",
+    brand.shopify_access_token || "",
+    shopifyProduct.id
+  );
+
   let created = 0;
   let updated = 0;
+  const upsertedRowIds: string[] = [];
+  const errors: string[] = [];
 
-  for (const product of products) {
+  for (const group of colorGroups) {
+    const name = group.color ? `${shopifyProduct.title} - ${group.color}` : shopifyProduct.title;
+    const anyAvailable = group.variants.some((v) => v.available);
+
+    const productData = {
+      brand_id: brandId,
+      name,
+      category: shopifyProduct.product_type?.toLowerCase() || "uncategorized",
+      product_type: shopifyProduct.product_type || null,
+      tags: productTags,
+      collections: productCollections,
+      images_json: imagesJson,
+      price: group.price,
+      image_url: group.imageUrl,
+      color: group.color?.toLowerCase() || null,
+      shopify_product_id: String(shopifyProduct.id),
+      shopify_variant_id: group.primaryVariantId,
+      shopify_handle: shopifyProduct.handle,
+      inventory_status: anyAvailable ? "in_stock" : "out_of_stock",
+      source: "shopify",
+      variants_json: group.variants,
+    };
+
     const { data: existing } = await supabase
       .from("products")
       .select("id")
       .eq("brand_id", brandId)
-      .eq("shopify_variant_id", product.shopify_variant_id)
+      .eq("shopify_variant_id", group.primaryVariantId)
       .maybeSingle();
 
     if (existing) {
-      const { error } = await supabase
-        .from("products")
-        .update({
-          name: product.name,
-          price: product.price,
-          image_url: product.image_url,
-          category: product.category,
-          inventory_status: product.inventory_status,
-        })
-        .eq("id", existing.id);
-
-      if (error) {
-        console.error("Error updating product:", error);
-      } else {
-        updated++;
-      }
+      const { error } = await supabase.from("products").update(productData).eq("id", existing.id);
+      if (error) errors.push(`Update ${name}: ${error.message}`);
+      else { updated++; upsertedRowIds.push(existing.id); }
     } else {
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("products")
-        .insert(product);
-
-      if (error) {
-        console.error("Error inserting product:", error);
-      } else {
-        created++;
-      }
+        .insert(productData)
+        .select("id")
+        .single();
+      if (error) errors.push(`Create ${name}: ${error.message}`);
+      else { created++; if (inserted) upsertedRowIds.push(inserted.id); }
     }
   }
 
-  await createSyncHistoryEntry(supabase, brandId, "webhook", created, updated, 0);
-  return { synced: products.length, created, updated };
+  // Cleanup stale rows for this Shopify product (e.g. removed color variants)
+  let deleted = 0;
+  const { data: allRows } = await supabase
+    .from("products")
+    .select("id")
+    .eq("brand_id", brandId)
+    .eq("shopify_product_id", String(shopifyProduct.id));
+
+  if (allRows) {
+    const keep = new Set(upsertedRowIds);
+    const staleIds = allRows.filter((r: any) => !keep.has(r.id)).map((r: any) => r.id);
+    if (staleIds.length > 0) {
+      const { error: delError } = await supabase.from("products").delete().in("id", staleIds);
+      if (delError) errors.push(`Cleanup: ${delError.message}`);
+      else deleted = staleIds.length;
+    }
+  }
+
+  await createSyncHistoryEntry(
+    supabase,
+    brandId,
+    "webhook",
+    created,
+    updated,
+    deleted,
+    errors.length > 0 ? errors.slice(0, 5).join("; ") : null
+  );
+
+  return { synced: colorGroups.length, created, updated, deleted };
 }
 
 // Handle product deletion
@@ -420,7 +562,7 @@ serve(async (req) => {
     switch (topic) {
       case "products/create":
       case "products/update":
-        result = await handleProductCreateOrUpdate(supabase, brand.id, payload);
+        result = await handleProductCreateOrUpdate(supabase, brand, payload);
         break;
 
       case "products/delete":
