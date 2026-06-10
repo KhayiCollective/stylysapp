@@ -195,7 +195,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   const handleAddAllToCart = async (outfit: Outfit) => {
     // Exclude sold-out items entirely — they should never be added to cart.
     const valid = outfit.items
-      .filter((item) => isAvailable(item))
+      .filter((item) => isAvailableWithStock(item, stockMap))
       .map((item) => ({ item, variantId: toNumericVariantId(item.shopify_variant_id) }))
       .filter((x) => x.variantId !== null);
 
@@ -219,11 +219,11 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
 
       // Names of items that have no valid variant ID at all (excluding sold-out)
       const noIdNames = outfit.items
-        .filter((item) => isAvailable(item) && toNumericVariantId(item.shopify_variant_id) === null)
+        .filter((item) => isAvailableWithStock(item, stockMap) && toNumericVariantId(item.shopify_variant_id) === null)
         .map((item) => item.name);
       // Names of items skipped because they're sold out
       const soldOutLocalNames = outfit.items
-        .filter((item) => !isAvailable(item))
+        .filter((item) => !isAvailableWithStock(item, stockMap))
         .map((item) => item.name);
 
       const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...soldOutLocalNames, ...noIdNames];
@@ -331,9 +331,9 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
                     <img
                       src={item.imageUrl || item.image_url || ""}
                       alt={item.name}
-                      className={`w-full h-full object-cover ${!isAvailable(item) ? "opacity-60" : ""}`}
+                      className={`w-full h-full object-cover ${!isAvailableWithStock(item, stockMap) ? "opacity-60" : ""}`}
                     />
-                    {!isAvailable(item) && (
+                    {!isAvailableWithStock(item, stockMap) && (
                       <span className="absolute top-1 left-1 bg-destructive text-destructive-foreground text-[9px] font-semibold px-1.5 py-0.5 rounded">
                         Sold Out
                       </span>
@@ -341,7 +341,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
                   </div>
                   <div className="p-2">
                     <p className="text-[11px] truncate">{item.name}</p>
-                    {!isAvailable(item) ? (
+                    {!isAvailableWithStock(item, stockMap) ? (
                       <>
                         <p className="text-[11px] text-muted-foreground line-through">${item.price}</p>
                         <div className="mt-1">
@@ -363,7 +363,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
 
             <div className="p-3 flex items-center justify-between border-t border-border gap-2">
               <span className="font-semibold text-sm">
-                ${outfit.items.filter(i => isAvailable(i)).reduce((s, i) => s + Number(i.price || 0), 0).toFixed(2)}
+                ${outfit.items.filter(i => isAvailableWithStock(i, stockMap)).reduce((s, i) => s + Number(i.price || 0), 0).toFixed(2)}
               </span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="text-xs h-8 gap-1" onClick={() => handleTryOn(outfit)}>
