@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, ArrowRight, ArrowLeft, Sparkles, ShoppingBag } from "lucide-react";
+import { Check, ArrowLeft } from "lucide-react";
 
 export interface QuizAnswers {
   occasion: string;
@@ -34,42 +34,58 @@ const BUDGET_OPTIONS = [
   "Under $100", "$100–$250", "$250–$500", "No limit"
 ];
 
+const AUTO_ADVANCE_DELAY = 350; // ms — enough to see the selection highlight
+
 export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
   const [step, setStep] = useState(0);
-  const [completed, setCompleted] = useState(false);
   const [occasion, setOccasion] = useState("");
   const [colorMood, setColorMood] = useState("");
   const [formality, setFormality] = useState("");
   const [budget, setBudget] = useState("");
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const totalSteps = 4;
 
-  const handleSubmit = () => {
-    const answers: QuizAnswers = { occasion, colorMood, formality, budget };
-    setCompleted(true);
-    onComplete?.(answers);
+  const goToStep = (target: number) => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setStep(target);
+      setIsTransitioning(false);
+    }, 180);
   };
 
-  if (completed) {
-    return (
-      <div className="p-6 flex flex-col items-center justify-center text-center gap-4 min-h-[400px]">
-        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-          <Check className="h-8 w-8 text-primary" />
-        </div>
-        <h3 className="font-semibold text-lg">Great choices!</h3>
-        <p className="text-sm text-muted-foreground max-w-[280px]">
-          We're generating outfits matched to your mood. View them now.
-        </p>
-        <Button size="sm" className="gap-2" onClick={() => onComplete?.({ occasion, colorMood, formality, budget })}>
-          <ShoppingBag className="h-4 w-4" />
-          View My Outfits
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => { setCompleted(false); setStep(0); }}>
-          Retake Quiz
-        </Button>
-      </div>
-    );
-  }
+  const handleOccasionSelect = (occ: string) => {
+    setOccasion(occ);
+    setTimeout(() => goToStep(1), AUTO_ADVANCE_DELAY);
+  };
+
+  const handleColorMoodSelect = (mood: string) => {
+    setColorMood(mood);
+    setTimeout(() => goToStep(2), AUTO_ADVANCE_DELAY);
+  };
+
+  const handleFormalitySelect = (label: string) => {
+    setFormality(label);
+    setTimeout(() => goToStep(3), AUTO_ADVANCE_DELAY);
+  };
+
+  const handleBudgetSelect = (b: string) => {
+    setBudget(b);
+    setTimeout(() => {
+      const answers: QuizAnswers = { occasion, colorMood, formality, budget: b };
+      onComplete?.(answers);
+    }, AUTO_ADVANCE_DELAY);
+  };
+
+  const handleBack = () => {
+    if (step > 0) {
+      goToStep(step - 1);
+    }
+  };
+
+  const contentClass = `transition-all duration-300 ease-out ${
+    isTransitioning ? "opacity-0 translate-y-3" : "opacity-100 translate-y-0"
+  }`;
 
   return (
     <div className="p-4 flex flex-col min-h-[400px]">
@@ -78,12 +94,14 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
         {Array.from({ length: totalSteps }).map((_, i) => (
           <div
             key={i}
-            className={`flex-1 h-1 rounded-full transition-colors ${i <= step ? "bg-primary" : "bg-muted"}`}
+            className={`flex-1 h-1.5 rounded-full transition-colors duration-500 ${
+              i <= step ? "bg-primary" : "bg-muted"
+            }`}
           />
         ))}
       </div>
 
-      <div className="flex-1">
+      <div className={`flex-1 ${contentClass}`}>
         {/* Step 0: Occasion */}
         {step === 0 && (
           <div className="space-y-4">
@@ -96,8 +114,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
                 <Badge
                   key={occ}
                   variant={occasion === occ ? "default" : "outline"}
-                  className="cursor-pointer px-3 py-1.5 text-sm transition-colors"
-                  onClick={() => setOccasion(occ)}
+                  className="cursor-pointer px-3 py-1.5 text-sm transition-all duration-200 hover:scale-105"
+                  onClick={() => handleOccasionSelect(occ)}
                 >
                   {occasion === occ && <Check className="h-3 w-3 mr-1" />}
                   {occ}
@@ -119,8 +137,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
                 <Badge
                   key={mood}
                   variant={colorMood === mood ? "default" : "outline"}
-                  className="cursor-pointer px-3 py-1.5 text-sm transition-colors"
-                  onClick={() => setColorMood(mood)}
+                  className="cursor-pointer px-3 py-1.5 text-sm transition-all duration-200 hover:scale-105"
+                  onClick={() => handleColorMoodSelect(mood)}
                 >
                   {colorMood === mood && <Check className="h-3 w-3 mr-1" />}
                   {mood}
@@ -141,8 +159,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
               {FORMALITY_OPTIONS.map((opt) => (
                 <button
                   key={opt.label}
-                  onClick={() => setFormality(opt.label)}
-                  className={`p-3 rounded-lg border text-left transition-colors ${
+                  onClick={() => handleFormalitySelect(opt.label)}
+                  className={`p-3 rounded-lg border text-left transition-all duration-200 hover:scale-[1.02] ${
                     formality === opt.label
                       ? "border-primary bg-primary/5 font-medium"
                       : "border-border hover:border-primary/40"
@@ -168,8 +186,8 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
               {BUDGET_OPTIONS.map((b) => (
                 <button
                   key={b}
-                  onClick={() => setBudget(b)}
-                  className={`p-3 rounded-lg border text-sm text-left transition-colors ${
+                  onClick={() => handleBudgetSelect(b)}
+                  className={`p-3 rounded-lg border text-sm text-left transition-all duration-200 hover:scale-[1.02] ${
                     budget === b
                       ? "border-primary bg-primary/5 font-medium"
                       : "border-border hover:border-primary/40"
@@ -189,26 +207,15 @@ export function StyleQuizTab({ brandId, onComplete }: StyleQuizTabProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setStep(step - 1)}
+          onClick={handleBack}
           disabled={step === 0}
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
-        {step < totalSteps - 1 ? (
-          <Button
-            size="sm"
-            onClick={() => setStep(step + 1)}
-          >
-            Next
-            <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        ) : (
-          <Button size="sm" onClick={handleSubmit}>
-            <Sparkles className="h-4 w-4 mr-1" />
-            Get My Outfits
-          </Button>
-        )}
+        <span className="text-xs text-muted-foreground">
+          {step + 1} of {totalSteps}
+        </span>
       </div>
     </div>
   );
