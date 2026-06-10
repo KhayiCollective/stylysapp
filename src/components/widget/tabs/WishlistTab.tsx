@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingBag, Trash2, Loader2, LogIn } from "lucide-react";
+import { addItemsToShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
+import { toast } from "sonner";
 
 interface SavedOutfit {
   id: string;
@@ -26,6 +28,44 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
   const [outfits, setOutfits] = useState<SavedOutfit[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  const handleAddOutfitToCart = async (outfit: SavedOutfit) => {
+    const items = Array.isArray(outfit.outfit_data?.items) ? outfit.outfit_data.items : [];
+    const valid = items
+      .map((it: any) => toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id))
+      .filter((v: number | null): v is number => v !== null)
+      .map((variantId: number) => ({ variantId, quantity: 1 }));
+
+    if (!valid.length) {
+      toast.error("Cannot add to cart", {
+        description: "These saved items don't have valid Shopify variant IDs.",
+        position: "top-center",
+      });
+      return;
+    }
+
+    setAddingId(outfit.id);
+    try {
+      const result = await addItemsToShopifyCart(valid);
+      if (!result.ok) {
+        toast.error("Failed to add items to cart", {
+          description: result.error || undefined,
+          position: "top-center",
+        });
+        return;
+      }
+      const skipped = items.length - valid.length;
+      toast.success("Added to cart", {
+        description: skipped > 0
+          ? `${valid.length} items added (${skipped} skipped — no Shopify variant)`
+          : `${valid.length} items added`,
+        position: "top-center",
+      });
+    } finally {
+      setAddingId(null);
+    }
+  };
 
   const token = getToken(brandId);
   const isLoggedIn = !!token;
@@ -139,8 +179,16 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
 
               <div className="p-3 flex items-center justify-between border-t border-border">
                 <span className="font-semibold text-sm">${Number(totalPrice).toFixed(2)}</span>
-                <Button size="sm" className="text-xs h-8 gap-1">
-                  <ShoppingBag className="h-3 w-3" />Add All to Cart
+                <Button
+                  size="sm"
+                  className="text-xs h-8 gap-1"
+                  onClick={() => handleAddOutfitToCart(outfit)}
+                  disabled={addingId === outfit.id}
+                >
+                  {addingId === outfit.id
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : <ShoppingBag className="h-3 w-3" />}
+                  Add All to Cart
                 </Button>
               </div>
             </div>
