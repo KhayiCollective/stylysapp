@@ -478,6 +478,13 @@ Deno.serve(async (req) => {
 
     console.log(`[PRODUCT-SYNC] Got ${products.length} products from Shopify`);
 
+    // Fetch collections map (best-effort; failures don't block sync)
+    const collectionsMap = await fetchProductCollectionsMap(
+      brand.shopify_store_domain,
+      brand.shopify_access_token
+    );
+    console.log(`[PRODUCT-SYNC] Loaded collections for ${Object.keys(collectionsMap).length} products`);
+
     let created = 0;
     let updated = 0;
     let deleted = 0;
@@ -489,6 +496,23 @@ Deno.serve(async (req) => {
     for (const product of products) {
       const colorGroups = groupVariantsByColor(product);
 
+      const productTags = (product.tags || "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      const imagesJson = (product.images || []).map((img) => ({
+        id: img.id ? String(img.id) : null,
+        src: img.src,
+        alt: img.alt ?? null,
+        position: img.position ?? null,
+        width: img.width ?? null,
+        height: img.height ?? null,
+        variant_ids: (img.variant_ids || []).map(String),
+      }));
+
+      const productCollections = collectionsMap[String(product.id)] || [];
+
       for (const group of colorGroups) {
         const name = group.color
           ? `${product.title} - ${group.color}`
@@ -498,6 +522,10 @@ Deno.serve(async (req) => {
           brand_id,
           name,
           category: product.product_type?.toLowerCase() || "uncategorized",
+          product_type: product.product_type || null,
+          tags: productTags,
+          collections: productCollections,
+          images_json: imagesJson,
           price: group.price,
           image_url: group.imageUrl,
           color: group.color?.toLowerCase() || null,
@@ -508,6 +536,7 @@ Deno.serve(async (req) => {
           source: "shopify",
           variants_json: group.variants,
         };
+
 
         // Upsert by brand_id + shopify_product_id + primary variant
         const { data: existing } = await supabase
