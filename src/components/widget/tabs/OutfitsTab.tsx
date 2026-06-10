@@ -191,7 +191,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     setAddingToCart(outfit.id);
     try {
       const result = await addItemsToShopifyCart(
-        valid.map((v) => ({ variantId: v.variantId as number, quantity: 1 }))
+        valid.map((v) => ({ variantId: v.variantId as string, quantity: 1 }))
       );
       if (!result.ok) {
         toast.error("Failed to add items to cart", {
