@@ -69,10 +69,13 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
       const soldOut = result.failed || [];
 
       const noIdNames = items
-        .filter((it: any) => toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id) === null)
+        .filter((it: any) => isItemInStock(it) && toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id) === null)
+        .map((it: any) => String(it?.name || "")).filter(Boolean);
+      const soldOutLocalNames = items
+        .filter((it: any) => !isItemInStock(it))
         .map((it: any) => String(it?.name || "")).filter(Boolean);
 
-      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...noIdNames];
+      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...soldOutLocalNames, ...noIdNames];
 
       if (added.length === 0) {
         toast.error("Couldn't add items to cart", {
