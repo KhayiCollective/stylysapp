@@ -85,34 +85,61 @@ serve(async (req) => {
         }
       }
 
+      // Treat as a clothing size only if it matches typical apparel size tokens.
+      // Otherwise the variant "size" is really a color/style label (e.g. "Tortoise",
+      // "Default Title") and we should NOT exclude the product on that basis.
+      const APPAREL_SIZE = /^(xxs|xs|s|m|l|xl|xxl|xxxl|\d{1,3})$/i;
+      const isApparelSize = (v: unknown) => typeof v === "string" && APPAREL_SIZE.test(v.trim());
+
       const productHasAvailableSize = (p: any): { available: boolean; matchedVariantId: string | null } => {
         const variants: any[] = Array.isArray(p.variants_json) ? p.variants_json : [];
         if (!variants.length) return { available: true, matchedVariantId: p.shopify_variant_id || null };
         const anyAvail = variants.some(v => v?.available !== false);
+        const firstAvail = variants.find(v => v?.available !== false) || variants[0];
+        const fallbackId = firstAvail?.variant_id || p.shopify_variant_id || null;
+
         if (!customerSizes.size) {
-          const first = variants.find(v => v?.available !== false) || variants[0];
-          return { available: anyAvail, matchedVariantId: first?.variant_id || p.shopify_variant_id || null };
+          return { available: anyAvail, matchedVariantId: fallbackId };
+        }
+        // Only enforce size matching when this product's variants actually use apparel sizes.
+        const productUsesApparelSizes = variants.some(v => isApparelSize(v?.size));
+        if (!productUsesApparelSizes) {
+          return { available: anyAvail, matchedVariantId: fallbackId };
         }
         const match = variants.find(v => v?.available !== false && v?.size && customerSizes.has(String(v.size).toLowerCase()));
-        if (match) return { available: true, matchedVariantId: match.variant_id || p.shopify_variant_id || null };
+        if (match) return { available: true, matchedVariantId: match.variant_id || fallbackId };
         return { available: false, matchedVariantId: null };
       };
 
-      // ---- Apply server-side filters (budget + size availability) ----
-      const filtered = rawProducts
-        .map((p: any) => {
-          const sz = productHasAvailableSize(p);
-          return { ...p, _matchedVariantId: sz.matchedVariantId, _sizeAvailable: sz.available };
-        })
-        .filter((p: any) => {
-          if (!p._sizeAvailable) return false;
-          if (budgetRange) {
-            const price = Number(p.price) || 0;
-            // Per-item budget heuristic: allow items up to the upper bound
-            if (price > budgetRange.max) return false;
-          }
-          return true;
-        });
+      // ---- Apply server-side filters with logging + graceful fallbacks ----
+      const enriched = rawProducts.map((p: any) => {
+        const sz = productHasAvailableSize(p);
+        return { ...p, _matchedVariantId: sz.matchedVariantId, _sizeAvailable: sz.available };
+      });
+      const sizeOk = enriched.filter((p: any) => p._sizeAvailable);
+      const budgetOk = budgetRange
+        ? sizeOk.filter((p: any) => (Number(p.price) || 0) <= budgetRange.max)
+        : sizeOk;
+
+      console.log("[widget-outfits/generate] filter stats", {
+        brand_id,
+        raw: rawProducts.length,
+        after_size_filter: sizeOk.length,
+        after_budget_filter: budgetOk.length,
+        customer_sizes: Array.from(customerSizes),
+        budget: budgetRange,
+      });
+
+      // Graceful fallback: never return empty just because filters were too strict.
+      let filtered = budgetOk;
+      if (!filtered.length && sizeOk.length) {
+        console.log("[widget-outfits/generate] budget filter eliminated all products — falling back to size-only pool");
+        filtered = sizeOk;
+      }
+      if (!filtered.length && enriched.length) {
+        console.log("[widget-outfits/generate] size filter eliminated all products — falling back to full in-stock pool");
+        filtered = enriched.map((p: any) => ({ ...p, _matchedVariantId: p._matchedVariantId || p.shopify_variant_id || null }));
+      }
 
       // Always keep anchor in pool even if filtered out
       let anchorProduct: any = null;
@@ -124,13 +151,14 @@ serve(async (req) => {
         }
         if (anchorProduct && !filtered.find((p: any) => p.id === anchorProduct.id)) {
           const sz = productHasAvailableSize(anchorProduct);
-          filtered.unshift({ ...anchorProduct, _matchedVariantId: sz.matchedVariantId, _sizeAvailable: true });
+          filtered.unshift({ ...anchorProduct, _matchedVariantId: sz.matchedVariantId || anchorProduct.shopify_variant_id || null, _sizeAvailable: true });
         }
       }
 
       const products = filtered.slice(0, 60);
       if (!products.length) {
-        return json({ error: "No products match the selected preferences" }, 404);
+        console.log("[widget-outfits/generate] no products available", { brand_id, raw: rawProducts.length });
+        return json({ error: "No products available" }, 404);
       }
 
       // ---- Catalog payload for the AI (with product_type, tags, collections) ----
