@@ -179,8 +179,16 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
 
               <div className="p-3 flex items-center justify-between border-t border-border">
                 <span className="font-semibold text-sm">${Number(totalPrice).toFixed(2)}</span>
-                <Button size="sm" className="text-xs h-8 gap-1">
-                  <ShoppingBag className="h-3 w-3" />Add All to Cart
+                <Button
+                  size="sm"
+                  className="text-xs h-8 gap-1"
+                  onClick={() => handleAddOutfitToCart(outfit)}
+                  disabled={addingId === outfit.id}
+                >
+                  {addingId === outfit.id
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : <ShoppingBag className="h-3 w-3" />}
+                  Add All to Cart
                 </Button>
               </div>
             </div>
