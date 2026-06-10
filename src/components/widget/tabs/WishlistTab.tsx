@@ -30,6 +30,16 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
+  // Map of shopify_variant_id (numeric string) -> in_stock boolean.
+  // Items without a known variant default to in-stock (treat as available).
+  const [stockMap, setStockMap] = useState<Record<string, boolean>>({});
+
+  const isItemInStock = (it: any): boolean => {
+    const vid = toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id);
+    if (!vid) return true; // unknown variant → don't block; cart layer will handle
+    if (vid in stockMap) return stockMap[vid];
+    return true;
+  };
 
   const handleAddOutfitToCart = async (outfit: SavedOutfit) => {
     const items: any[] = Array.isArray(outfit.outfit_data?.items) ? outfit.outfit_data.items : [];
