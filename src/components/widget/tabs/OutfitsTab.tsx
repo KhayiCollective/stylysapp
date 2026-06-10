@@ -63,6 +63,8 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
   const [saving, setSaving] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const [error, setError] = useState("");
+  // Live Shopify stock for the variants in the currently-generated outfits.
+  const [stockMap, setStockMap] = useState<Record<string, boolean>>({});
 
   const isLoggedIn = !!getToken(brandId);
 
