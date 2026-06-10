@@ -28,6 +28,44 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
   const [outfits, setOutfits] = useState<SavedOutfit[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  const handleAddOutfitToCart = async (outfit: SavedOutfit) => {
+    const items = Array.isArray(outfit.outfit_data?.items) ? outfit.outfit_data.items : [];
+    const valid = items
+      .map((it: any) => toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id))
+      .filter((v: number | null): v is number => v !== null)
+      .map((variantId: number) => ({ variantId, quantity: 1 }));
+
+    if (!valid.length) {
+      toast.error("Cannot add to cart", {
+        description: "These saved items don't have valid Shopify variant IDs.",
+        position: "top-center",
+      });
+      return;
+    }
+
+    setAddingId(outfit.id);
+    try {
+      const result = await addItemsToShopifyCart(valid);
+      if (!result.ok) {
+        toast.error("Failed to add items to cart", {
+          description: result.error || undefined,
+          position: "top-center",
+        });
+        return;
+      }
+      const skipped = items.length - valid.length;
+      toast.success("Added to cart", {
+        description: skipped > 0
+          ? `${valid.length} items added (${skipped} skipped — no Shopify variant)`
+          : `${valid.length} items added`,
+        position: "top-center",
+      });
+    } finally {
+      setAddingId(null);
+    }
+  };
 
   const token = getToken(brandId);
   const isLoggedIn = !!token;
