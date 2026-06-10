@@ -45,37 +45,105 @@ serve(async (req) => {
 
     // --- GENERATE (public, just needs brand_id) ---
     if (path === "generate" && req.method === "POST") {
-      const { brand_id, anchor_product_id, occasion, style, customer_profile, quiz_session } = await req.json();
+      const { brand_id, anchor_product_id, occasion, style, customer_profile, quiz_session, rules } = await req.json();
       if (!brand_id) return json({ error: "brand_id is required" }, 400);
 
-      // Fetch products for this brand
-      const { data: products, error: prodErr } = await supabase
+      // Fetch products for this brand (richer columns for smarter matching)
+      const { data: rawProducts, error: prodErr } = await supabase
         .from("products")
-        .select("id, name, price, image_url, category, color, fit, shopify_variant_id, shopify_product_id")
+        .select("id, name, price, image_url, category, color, fit, shopify_variant_id, shopify_product_id, product_type, tags, collections, variants_json, images_json")
         .eq("brand_id", brand_id)
         .eq("inventory_status", "in_stock")
-        .limit(30);
+        .limit(200);
 
-      if (prodErr || !products?.length) {
+      if (prodErr || !rawProducts?.length) {
         return json({ error: "No products available" }, 404);
       }
 
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) return json({ error: "AI service not configured" }, 500);
 
-      // Match anchor by UUID first, then by Shopify GID
-      let anchorProduct: any = null;
-      if (anchor_product_id) {
-        anchorProduct = products.find(p => p.id === anchor_product_id);
-        if (!anchorProduct && anchor_product_id.includes("gid://")) {
-          const numericId = anchor_product_id.split("/").pop();
-          if (numericId) {
-            anchorProduct = products.find(p => p.shopify_product_id === numericId);
-          }
+      // ---- Parse budget from quiz (e.g. "Under $100", "$100–$250", "No limit") ----
+      const parseBudget = (b?: string): { min: number; max: number } | null => {
+        if (!b) return null;
+        const s = b.toLowerCase().replace(/[,\s]/g, "");
+        if (s.includes("nolimit") || s.includes("any")) return null;
+        const nums = (b.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+        if (s.startsWith("under") && nums.length >= 1) return { min: 0, max: nums[0] };
+        if (s.startsWith("over") && nums.length >= 1) return { min: nums[0], max: Infinity };
+        if (nums.length >= 2) return { min: nums[0], max: nums[1] };
+        if (nums.length === 1) return { min: 0, max: nums[0] };
+        return null;
+      };
+      const budgetRange = parseBudget(quiz_session?.budget);
+
+      // ---- Customer sizes for variant availability filtering ----
+      const customerSizes = new Set<string>();
+      if (customer_profile?.size_info) {
+        for (const v of Object.values(customer_profile.size_info as Record<string, unknown>)) {
+          if (typeof v === "string" && v.trim()) customerSizes.add(v.trim().toLowerCase());
         }
       }
-      const productCatalog = products.map(p => ({
-        id: p.id, name: p.name, category: p.category, color: p.color || "unknown", price: p.price
+
+      const productHasAvailableSize = (p: any): { available: boolean; matchedVariantId: string | null } => {
+        const variants: any[] = Array.isArray(p.variants_json) ? p.variants_json : [];
+        if (!variants.length) return { available: true, matchedVariantId: p.shopify_variant_id || null };
+        const anyAvail = variants.some(v => v?.available !== false);
+        if (!customerSizes.size) {
+          const first = variants.find(v => v?.available !== false) || variants[0];
+          return { available: anyAvail, matchedVariantId: first?.variant_id || p.shopify_variant_id || null };
+        }
+        const match = variants.find(v => v?.available !== false && v?.size && customerSizes.has(String(v.size).toLowerCase()));
+        if (match) return { available: true, matchedVariantId: match.variant_id || p.shopify_variant_id || null };
+        return { available: false, matchedVariantId: null };
+      };
+
+      // ---- Apply server-side filters (budget + size availability) ----
+      const filtered = rawProducts
+        .map((p: any) => {
+          const sz = productHasAvailableSize(p);
+          return { ...p, _matchedVariantId: sz.matchedVariantId, _sizeAvailable: sz.available };
+        })
+        .filter((p: any) => {
+          if (!p._sizeAvailable) return false;
+          if (budgetRange) {
+            const price = Number(p.price) || 0;
+            // Per-item budget heuristic: allow items up to the upper bound
+            if (price > budgetRange.max) return false;
+          }
+          return true;
+        });
+
+      // Always keep anchor in pool even if filtered out
+      let anchorProduct: any = null;
+      if (anchor_product_id) {
+        anchorProduct = rawProducts.find((p: any) => p.id === anchor_product_id);
+        if (!anchorProduct && anchor_product_id.includes("gid://")) {
+          const numericId = anchor_product_id.split("/").pop();
+          if (numericId) anchorProduct = rawProducts.find((p: any) => p.shopify_product_id === numericId);
+        }
+        if (anchorProduct && !filtered.find((p: any) => p.id === anchorProduct.id)) {
+          const sz = productHasAvailableSize(anchorProduct);
+          filtered.unshift({ ...anchorProduct, _matchedVariantId: sz.matchedVariantId, _sizeAvailable: true });
+        }
+      }
+
+      const products = filtered.slice(0, 60);
+      if (!products.length) {
+        return json({ error: "No products match the selected preferences" }, 404);
+      }
+
+      // ---- Catalog payload for the AI (with product_type, tags, collections) ----
+      const productCatalog = products.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        product_type: p.product_type || null,
+        tags: Array.isArray(p.tags) ? p.tags.slice(0, 10) : [],
+        collections: Array.isArray(p.collections) ? p.collections.map((c: any) => c?.title).filter(Boolean).slice(0, 5) : [],
+        color: p.color || "unknown",
+        fit: p.fit || null,
+        price: Number(p.price),
       }));
 
       // Build personalization context
@@ -83,10 +151,7 @@ serve(async (req) => {
       if (customer_profile) {
         const parts: string[] = [];
         if (customer_profile.body_shape) parts.push(`Body shape: ${customer_profile.body_shape}`);
-        if (customer_profile.size_info) {
-          const sizes = Object.entries(customer_profile.size_info).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(", ");
-          if (sizes) parts.push(`Sizes: ${sizes}`);
-        }
+        if (customerSizes.size) parts.push(`Sizes: ${Array.from(customerSizes).join(", ")}`);
         if (customer_profile.style_preferences?.length) parts.push(`Style preferences: ${customer_profile.style_preferences.join(", ")}`);
         if (customer_profile.preferred_colors?.length) parts.push(`Preferred colors: ${customer_profile.preferred_colors.join(", ")}`);
         if (customer_profile.avoided_colors?.length) parts.push(`Colors to avoid: ${customer_profile.avoided_colors.join(", ")}`);
@@ -96,27 +161,40 @@ serve(async (req) => {
       if (quiz_session) {
         const qParts: string[] = [];
         if (quiz_session.occasion) qParts.push(`Today's occasion: ${quiz_session.occasion}`);
-        if (quiz_session.colorMood) qParts.push(`Color mood: ${quiz_session.colorMood}`);
-        if (quiz_session.formality) qParts.push(`Formality: ${quiz_session.formality}`);
-        if (quiz_session.budget) qParts.push(`Budget: ${quiz_session.budget}`);
+        if (quiz_session.colorMood) qParts.push(`Color mood / palette: ${quiz_session.colorMood}`);
+        if (quiz_session.formality) qParts.push(`Formality (dressy↔casual): ${quiz_session.formality}`);
+        if (quiz_session.budget) {
+          qParts.push(`Budget: ${quiz_session.budget}${budgetRange ? ` (per item ≤ $${budgetRange.max})` : ""}`);
+        }
         if (qParts.length) personalization += `\nSESSION PREFERENCES:\n${qParts.join("\n")}`;
       }
 
-      const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Create cohesive outfit combinations from a product catalog.
-RULES:
-1. Each outfit must have 2-5 items that work together aesthetically
-2. Consider color harmony
-3. Balance categories - top, bottom, optional accessories/layers
-4. If an anchor product is specified, include it in all outfits
-5. If customer profile or session preferences are provided, heavily personalize the outfits to match their style, body shape, preferred colors, occasion, formality level, and budget
-6. Avoid colors the customer has marked to avoid
-OUTPUT: Return JSON: { "outfits": [{ "name": "string", "productIds": ["id1","id2"], "reason": "string", "occasion": "string" }] }
-Return exactly 3 outfits. Only valid JSON, no other text.`;
+      // Composition rules (required/optional categories, min/max items)
+      const composition = rules || {};
+      const minItems = composition.minItems ?? 3;
+      const maxItems = composition.maxItems ?? 5;
+      const requiredCats: string[] = composition.requiredCategories ?? ["tops", "bottoms"];
+      const optionalCats: string[] = composition.optionalCategories ?? ["shoes", "accessories", "bags", "jewelry", "hats", "sunglasses"];
 
-      const userPrompt = `Create 3 outfit combinations:\nPRODUCTS:\n${JSON.stringify(productCatalog, null, 2)}
-${anchorProduct ? `\nANCHOR (must include): ${anchorProduct.name} (${anchorProduct.category})` : ""}
-${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}${personalization}
-\nVariation seed: ${crypto.randomUUID()}`;
+      const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Build cohesive complete outfits ONLY from the provided catalog.
+RULES:
+1. Each outfit has ${minItems}-${maxItems} items that work together aesthetically.
+2. Required categories per outfit: ${requiredCats.join(", ")}. Add optional categories when available: ${optionalCats.join(", ")}.
+3. Use product_type, tags, and collections to classify pieces and match them to the customer's occasion, formality, and color mood.
+4. Respect color harmony (max ~3 dominant colors) and the customer's preferred/avoided colors.
+5. Respect the budget — prefer items that fit within the stated budget.
+6. If an ANCHOR product is provided, include it in every outfit.
+7. Only reference product ids that appear in the PRODUCTS list. Never invent items.
+OUTPUT: Return strict JSON: { "outfits": [{ "name": "string", "productIds": ["id1","id2"], "reason": "string", "occasion": "string" }] }
+Return exactly 3 outfits. JSON only, no commentary.`;
+
+      const userPrompt = `Create 3 outfit combinations.
+PRODUCTS:
+${JSON.stringify(productCatalog, null, 2)}
+${anchorProduct ? `\nANCHOR (must include in every outfit): id=${anchorProduct.id} name="${anchorProduct.name}" category=${anchorProduct.category}` : ""}
+${occasion ? `\nOCCASION OVERRIDE: ${occasion}` : ""}${style ? `\nSTYLE OVERRIDE: ${style}` : ""}${personalization}
+
+Variation seed: ${crypto.randomUUID()}`;
 
       const aiMessages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
       const models = ["google/gemini-2.5-flash", "openai/gpt-5-nano", "google/gemini-2.5-flash-lite"];
@@ -126,7 +204,7 @@ ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}$
         const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model, messages: aiMessages, temperature: 1.2 }),
+          body: JSON.stringify({ model, messages: aiMessages, temperature: 1.1 }),
         });
 
         if (aiResp.ok) {
@@ -152,10 +230,21 @@ ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}$
         return json({ error: "Failed to parse outfit recommendations" }, 500);
       }
 
-      const outfits = parsed.outfits.map((o: any, i: number) => {
-        const items = o.productIds.map((id: string) => products.find(p => p.id === id)).filter(Boolean)
+      const outfits = (parsed.outfits || []).map((o: any, i: number) => {
+        const items = (o.productIds || [])
+          .map((id: string) => products.find((p: any) => p.id === id))
+          .filter(Boolean)
           .map((p: any) => ({
-            id: p.id, name: p.name, price: p.price, image_url: p.image_url, category: p.category, color: p.color, fit: p.fit, shopify_variant_id: p.shopify_variant_id || null,
+            id: p.id,
+            name: p.name,
+            price: Number(p.price),
+            image_url: p.image_url,
+            category: p.category,
+            product_type: p.product_type,
+            color: p.color,
+            fit: p.fit,
+            // Prefer the variant matching the customer's size when available
+            shopify_variant_id: p._matchedVariantId || p.shopify_variant_id || null,
           }));
         return {
           id: crypto.randomUUID(),
@@ -165,7 +254,7 @@ ${occasion ? `\nOCCASION: ${occasion}` : ""}${style ? `\nSTYLE: ${style}` : ""}$
           reason: o.reason,
           occasion: o.occasion,
         };
-      });
+      }).filter((o: any) => o.items.length > 0);
 
       return json({ outfits });
     }
