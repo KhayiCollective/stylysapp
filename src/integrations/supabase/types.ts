@@ -627,6 +627,39 @@ export type Database = {
           },
         ]
       }
+      restock_notifications: {
+        Row: {
+          brand_id: string
+          created_at: string
+          email: string
+          id: string
+          notified_at: string | null
+          product_id: string | null
+          product_name: string | null
+          shopify_variant_id: string | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          email: string
+          id?: string
+          notified_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          shopify_variant_id?: string | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          notified_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          shopify_variant_id?: string | null
+        }
+        Relationships: []
+      }
       rules: {
         Row: {
           brand_id: string
