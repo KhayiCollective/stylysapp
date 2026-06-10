@@ -16,7 +16,12 @@ interface OutfitItem {
   category: string;
   shopify_variant_id?: string;
   in_stock?: boolean;
+  available?: boolean;
 }
+
+// Single source of truth: an item is buyable only when neither flag is explicitly false.
+const isAvailable = (i: { available?: boolean; in_stock?: boolean }) =>
+  i.available !== false && i.in_stock !== false;
 
 interface Outfit {
   id: string;
