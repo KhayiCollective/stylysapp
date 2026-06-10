@@ -96,7 +96,7 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
   // No color option → single group for entire product
   if (!colorOptionPosition) {
     const variants = product.variants.map((v) => ({
-      variant_id: String(v.id),
+      variant_id: toNumericId(v.id),
       size: sizeOptionPosition ? getOptionValue(v, sizeOptionPosition) : v.title,
       price: v.price,
       available: true,
@@ -104,7 +104,7 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
     return [{
       color: null,
       variants,
-      primaryVariantId: String(product.variants[0]?.id),
+      primaryVariantId: toNumericId(product.variants[0]?.id),
       price: parseFloat(product.variants[0]?.price || "0"),
       imageUrl: product.images[0]?.src || null,
     }];
@@ -130,14 +130,14 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
       groups[colorValue] = {
         color: colorValue || null,
         variants: [],
-        primaryVariantId: String(variant.id),
+        primaryVariantId: toNumericId(variant.id),
         price: parseFloat(variant.price),
         imageUrl,
       };
     }
 
     groups[colorValue].variants.push({
-      variant_id: String(variant.id),
+      variant_id: toNumericId(variant.id),
       size: sizeValue,
       price: variant.price,
       available: true,
