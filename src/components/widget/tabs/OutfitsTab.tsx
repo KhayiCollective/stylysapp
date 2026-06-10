@@ -34,10 +34,12 @@ interface OutfitsTabProps {
   quizAnswers?: QuizAnswers;
 }
 
+import { getCustomerToken } from "@/lib/widgetAuth";
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-function getToken(brandId?: string) {
-  return localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
+function getToken(_brandId?: string) {
+  return getCustomerToken();
 }
 
 export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName, onClearAnchor, quizAnswers }: OutfitsTabProps) {

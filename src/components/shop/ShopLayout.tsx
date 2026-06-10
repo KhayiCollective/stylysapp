@@ -67,7 +67,7 @@ export function ShopLayout({ children, products = [] }: ShopLayoutProps) {
   const [widgetOpen, setWidgetOpen] = useState(false);
   const [widgetTab, setWidgetTab] = useState("outfits");
   const BRAND_ID = "90729a9c-a8b2-4eda-9d82-ddbb970d5565";
-  const isLoggedIn = !!localStorage.getItem(`stylys_customer_token_${BRAND_ID}`);
+  const isLoggedIn = !!(typeof window !== "undefined" && localStorage.getItem("stylys_customer_token"));
   const [anchorProductId, setAnchorProductId] = useState<string | undefined>();
   const [anchorProductName, setAnchorProductName] = useState<string | undefined>();
   const { toast } = useToast();

@@ -8,6 +8,7 @@ import { OutfitsTab } from "./tabs/OutfitsTab";
 import { WishlistTab } from "./tabs/WishlistTab";
 import { TryOnTab } from "./tabs/TryOnTab";
 import { AccountTab } from "./tabs/AccountTab";
+import { getCustomerToken } from "@/lib/widgetAuth";
 
 interface OutfitItem {
   id?: string;
@@ -31,7 +32,7 @@ interface CustomerWidgetProps {
 
 export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChange, onTabChange, anchorProductId, anchorProductName, onClearAnchor }: CustomerWidgetProps) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const isLoggedIn = !!localStorage.getItem(`stylys_customer_token_${brandId || "default"}`);
+  const isLoggedIn = !!getCustomerToken();
   const [internalTab, setInternalTab] = useState(isLoggedIn ? "outfits" : "account");
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
   const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
