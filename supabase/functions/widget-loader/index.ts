@@ -130,36 +130,59 @@ Deno.serve(async (req) => {
           if (!digits || !digits.length) return null;
           var best = digits.reduce(function(a, b) { return b.length > a.length ? b : a; });
           if (!/^[1-9]\\d{0,19}$/.test(best)) return null;
-          return { id: best, quantity: Math.max(1, parseInt(it.quantity, 10) || 1) };
+          return { id: best, quantity: Math.max(1, parseInt(it.quantity, 10) || 1), name: (it && it.name) ? String(it.name) : '' };
         })
         .filter(Boolean);
       if (!items.length) {
         try { console.warn('[stylys] cart add: no valid variant IDs', rawItems); } catch (_) {}
-        e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: 'No valid variant IDs' }, '*');
+        e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: 'No valid variant IDs', added: [], failed: [] }, '*');
         return;
       }
-      fetch('/cart/add.js', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ items: items })
-      })
-        .then(function(r) { return r.json().then(function(b) { return { ok: r.ok, body: b }; }); })
-        .then(function(res) {
-          if (!res.ok) {
-            e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: (res.body && (res.body.description || res.body.message)) || 'Add to cart failed' }, '*');
-            return;
-          }
-          // Notify the storefront theme so its cart drawer/count refreshes.
+      // Add each item one at a time so a single sold-out item does not block the rest.
+      // Shopify's /cart/add.js bulk mode is all-or-nothing — it rejects the whole
+      // request if ANY line is unavailable, so we deliberately fan out instead.
+      var added = [];
+      var failed = [];
+      var chain = Promise.resolve();
+      items.forEach(function(it) {
+        chain = chain.then(function() {
+          return fetch('/cart/add.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: it.id, quantity: it.quantity })
+          })
+            .then(function(r) { return r.json().then(function(b) { return { ok: r.ok, body: b }; }); })
+            .then(function(res) {
+              if (res.ok) {
+                added.push({ id: it.id, name: it.name });
+              } else {
+                var reason = (res.body && (res.body.description || res.body.message)) || 'Unavailable';
+                failed.push({ id: it.id, name: it.name, reason: reason });
+              }
+            })
+            .catch(function(err) {
+              failed.push({ id: it.id, name: it.name, reason: String(err && err.message || err) });
+            });
+        });
+      });
+      chain.then(function() {
+        if (added.length > 0) {
           try {
             document.dispatchEvent(new CustomEvent('cart:refresh'));
             document.dispatchEvent(new CustomEvent('cart:updated'));
           } catch (_) {}
-          e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: true, count: items.length }, '*');
-        })
-        .catch(function(err) {
-          e.source && e.source.postMessage({ type: 'stylys-cart-result', requestId: reqId, ok: false, error: String(err && err.message || err) }, '*');
-        });
+        }
+        e.source && e.source.postMessage({
+          type: 'stylys-cart-result',
+          requestId: reqId,
+          ok: added.length > 0,
+          count: added.length,
+          added: added,
+          failed: failed,
+          error: added.length === 0 ? (failed[0] && failed[0].reason) || 'Add to cart failed' : undefined
+        }, '*');
+      });
     }
   });
 
