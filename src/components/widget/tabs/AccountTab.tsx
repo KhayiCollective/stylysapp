@@ -79,7 +79,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [sizeInfo, setSizeInfo] = useState<Record<string, string>>({ tops: "", bottoms: "", shoes: "" });
 
   useEffect(() => {
-    const token = localStorage.getItem(getStorageKey(brandId));
+    const token = getCustomerToken();
     if (token) {
       fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -92,10 +92,10 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
             populateStyleFromProfile(data.user.styleProfile);
             onCustomerLogin?.(data.user.photo_url || null, token!, { body_shape: data.user.styleProfile?.body_shape, size_info: data.user.styleProfile?.size_info });
           } else {
-            localStorage.removeItem(getStorageKey(brandId));
+            clearCustomerToken();
           }
         })
-        .catch(() => localStorage.removeItem(getStorageKey(brandId)))
+        .catch(() => clearCustomerToken())
         .finally(() => setCheckingSession(false));
     } else {
       setCheckingSession(false);
@@ -129,7 +129,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
         setError(data.error || "Something went wrong");
         return;
       }
-      localStorage.setItem(getStorageKey(brandId), data.token);
+      setCustomerToken(data.token);
       setCustomerUser(data.user);
       setIsLoggedIn(true);
       setPassword("");
@@ -162,7 +162,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
 
 
   const handleSignOut = () => {
-    localStorage.removeItem(getStorageKey(brandId));
+    clearCustomerToken();
     setIsLoggedIn(false);
     setCustomerUser(null);
     setEmail("");
@@ -174,7 +174,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const token = localStorage.getItem(getStorageKey(brandId));
+    const token = getCustomerToken();
     if (!token) return;
 
     setUploadingPhoto(true);
@@ -203,7 +203,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   };
 
   const saveProfile = async (section: "style" | "sizing") => {
-    const token = localStorage.getItem(getStorageKey(brandId));
+    const token = getCustomerToken();
     if (!token) return;
     setSaving(true);
 
