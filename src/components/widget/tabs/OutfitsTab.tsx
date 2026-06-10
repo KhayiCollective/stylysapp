@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heart, ShoppingBag, Sparkles, RefreshCw, Loader2, LogIn, Camera } from "lucide-react";
 import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
+import { NotifyMeButton } from "@/components/widget/NotifyMeButton";
 import { toast } from "sonner";
 import type { QuizAnswers } from "./StyleQuizTab";
 
@@ -14,6 +15,7 @@ interface OutfitItem {
   price: number;
   category: string;
   shopify_variant_id?: string;
+  in_stock?: boolean;
 }
 
 interface Outfit {
