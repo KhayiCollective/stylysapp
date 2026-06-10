@@ -75,13 +75,28 @@ serve(async (req) => {
 
       if (!brand_id) return json({ error: "brand_id or shop is required" }, 400);
 
-      // Fetch products for this brand (richer columns for smarter matching)
-      const { data: rawProducts, error: prodErr } = await supabase
-        .from("products")
-        .select("id, name, price, image_url, category, color, fit, shopify_variant_id, shopify_product_id, product_type, tags, collections, variants_json, images_json")
+      // Read the merchant's "In-Stock Only" inventory rule. If enabled (default),
+      // sold-out products are excluded from outfit generation entirely. If disabled,
+      // sold-out products are included and surfaced to the widget with available=false.
+      const { data: inStockRule } = await supabase
+        .from("rules")
+        .select("enabled")
         .eq("brand_id", brand_id)
-        .eq("inventory_status", "in_stock")
+        .eq("category", "inventory")
+        .eq("name", "In-Stock Only")
+        .maybeSingle();
+      const inStockOnly = inStockRule?.enabled !== false; // default ON if rule missing
+
+      // Fetch products for this brand (richer columns for smarter matching)
+      let productsQuery = supabase
+        .from("products")
+        .select("id, name, price, image_url, category, color, fit, shopify_variant_id, shopify_product_id, product_type, tags, collections, variants_json, images_json, inventory_status")
+        .eq("brand_id", brand_id)
         .limit(200);
+      if (inStockOnly) {
+        productsQuery = productsQuery.eq("inventory_status", "in_stock");
+      }
+      const { data: rawProducts, error: prodErr } = await productsQuery;
 
       console.log("[widget-outfits/generate] request", {
         brand_id, anchor_product_id,
@@ -309,8 +324,8 @@ Variation seed: ${crypto.randomUUID()}`;
             // Items in /generate come from the in_stock filter + size availability check.
             // `available` (preferred) and `in_stock` (back-compat) both reflect whether
             // a buyable variant exists in Shopify for this product right now.
-            in_stock: p._sizeAvailable !== false,
-            available: p._sizeAvailable !== false,
+            in_stock: p._sizeAvailable !== false && p.inventory_status === "in_stock",
+            available: p._sizeAvailable !== false && p.inventory_status === "in_stock",
           }));
         return {
           id: crypto.randomUUID(),
