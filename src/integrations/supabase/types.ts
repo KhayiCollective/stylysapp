@@ -373,14 +373,17 @@ export type Database = {
         Row: {
           brand_id: string
           category: string
+          collections: Json | null
           color: string | null
           created_at: string
           fit: string | null
           id: string
           image_url: string | null
+          images_json: Json | null
           inventory_status: string
           name: string
           price: number
+          product_type: string | null
           shopify_handle: string | null
           shopify_product_id: string | null
           shopify_variant_id: string | null
@@ -393,14 +396,17 @@ export type Database = {
         Insert: {
           brand_id: string
           category: string
+          collections?: Json | null
           color?: string | null
           created_at?: string
           fit?: string | null
           id?: string
           image_url?: string | null
+          images_json?: Json | null
           inventory_status?: string
           name: string
           price?: number
+          product_type?: string | null
           shopify_handle?: string | null
           shopify_product_id?: string | null
           shopify_variant_id?: string | null
@@ -413,14 +419,17 @@ export type Database = {
         Update: {
           brand_id?: string
           category?: string
+          collections?: Json | null
           color?: string | null
           created_at?: string
           fit?: string | null
           id?: string
           image_url?: string | null
+          images_json?: Json | null
           inventory_status?: string
           name?: string
           price?: number
+          product_type?: string | null
           shopify_handle?: string | null
           shopify_product_id?: string | null
           shopify_variant_id?: string | null

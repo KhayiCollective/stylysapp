@@ -18,12 +18,25 @@ interface ShopifyVariant {
   inventory_quantity?: number;
 }
 
+interface ShopifyImage {
+  id?: number;
+  src: string;
+  alt?: string | null;
+  position?: number;
+  width?: number;
+  height?: number;
+  variant_ids?: number[];
+}
+
 interface ShopifyProduct {
   id: number;
   title: string;
   handle: string;
   product_type: string;
-  images: { src: string; variant_ids?: number[] }[];
+  tags?: string;
+  vendor?: string;
+  status?: string;
+  images: ShopifyImage[];
   variants: ShopifyVariant[];
   options: { name: string; position: number; values: string[] }[];
 }
@@ -172,6 +185,106 @@ async function fetchWebhooks(shop: string, accessToken: string): Promise<Shopify
 
   const data = await response.json();
   return data.webhooks || [];
+}
+
+// Build a map of shopify_product_id -> array of collection summaries
+async function fetchProductCollectionsMap(
+  shop: string,
+  accessToken: string
+): Promise<Record<string, { id: string; title: string; handle: string }[]>> {
+  const map: Record<string, { id: string; title: string; handle: string }[]> = {};
+
+  async function fetchCollections(endpoint: "custom_collections" | "smart_collections") {
+    let nextUrl = `https://${shop}/admin/api/2025-01/${endpoint}.json?limit=250`;
+    const collections: { id: number; title: string; handle: string }[] = [];
+    while (nextUrl) {
+      const res = await fetch(nextUrl, {
+        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        console.error(`[PRODUCT-SYNC] Failed to fetch ${endpoint}: ${res.status}`);
+        return collections;
+      }
+      const data = await res.json();
+      collections.push(...(data[endpoint] || []));
+      const link = res.headers.get("Link");
+      nextUrl = "";
+      if (link) {
+        const m = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (m) nextUrl = m[1];
+      }
+    }
+    return collections;
+  }
+
+  async function fetchCollects(collectionId: number): Promise<number[]> {
+    const productIds: number[] = [];
+    let nextUrl = `https://${shop}/admin/api/2025-01/collects.json?collection_id=${collectionId}&limit=250`;
+    while (nextUrl) {
+      const res = await fetch(nextUrl, {
+        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return productIds;
+      const data = await res.json();
+      for (const c of data.collects || []) productIds.push(c.product_id);
+      const link = res.headers.get("Link");
+      nextUrl = "";
+      if (link) {
+        const m = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (m) nextUrl = m[1];
+      }
+    }
+    return productIds;
+  }
+
+  async function fetchSmartCollectionProducts(collectionId: number): Promise<number[]> {
+    const productIds: number[] = [];
+    let nextUrl = `https://${shop}/admin/api/2025-01/collections/${collectionId}/products.json?limit=250`;
+    while (nextUrl) {
+      const res = await fetch(nextUrl, {
+        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return productIds;
+      const data = await res.json();
+      for (const p of data.products || []) productIds.push(p.id);
+      const link = res.headers.get("Link");
+      nextUrl = "";
+      if (link) {
+        const m = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (m) nextUrl = m[1];
+      }
+    }
+    return productIds;
+  }
+
+  try {
+    const [custom, smart] = await Promise.all([
+      fetchCollections("custom_collections"),
+      fetchCollections("smart_collections"),
+    ]);
+
+    for (const col of custom) {
+      const productIds = await fetchCollects(col.id);
+      for (const pid of productIds) {
+        const key = String(pid);
+        if (!map[key]) map[key] = [];
+        map[key].push({ id: String(col.id), title: col.title, handle: col.handle });
+      }
+    }
+
+    for (const col of smart) {
+      const productIds = await fetchSmartCollectionProducts(col.id);
+      for (const pid of productIds) {
+        const key = String(pid);
+        if (!map[key]) map[key] = [];
+        map[key].push({ id: String(col.id), title: col.title, handle: col.handle });
+      }
+    }
+  } catch (err) {
+    console.error("[PRODUCT-SYNC] Error fetching collections:", err);
+  }
+
+  return map;
 }
 
 async function createSyncHistoryEntry(supabase: any, brandId: string, syncType: string) {
@@ -365,6 +478,13 @@ Deno.serve(async (req) => {
 
     console.log(`[PRODUCT-SYNC] Got ${products.length} products from Shopify`);
 
+    // Fetch collections map (best-effort; failures don't block sync)
+    const collectionsMap = await fetchProductCollectionsMap(
+      brand.shopify_store_domain,
+      brand.shopify_access_token
+    );
+    console.log(`[PRODUCT-SYNC] Loaded collections for ${Object.keys(collectionsMap).length} products`);
+
     let created = 0;
     let updated = 0;
     let deleted = 0;
@@ -376,6 +496,23 @@ Deno.serve(async (req) => {
     for (const product of products) {
       const colorGroups = groupVariantsByColor(product);
 
+      const productTags = (product.tags || "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      const imagesJson = (product.images || []).map((img) => ({
+        id: img.id ? String(img.id) : null,
+        src: img.src,
+        alt: img.alt ?? null,
+        position: img.position ?? null,
+        width: img.width ?? null,
+        height: img.height ?? null,
+        variant_ids: (img.variant_ids || []).map(String),
+      }));
+
+      const productCollections = collectionsMap[String(product.id)] || [];
+
       for (const group of colorGroups) {
         const name = group.color
           ? `${product.title} - ${group.color}`
@@ -385,6 +522,10 @@ Deno.serve(async (req) => {
           brand_id,
           name,
           category: product.product_type?.toLowerCase() || "uncategorized",
+          product_type: product.product_type || null,
+          tags: productTags,
+          collections: productCollections,
+          images_json: imagesJson,
           price: group.price,
           image_url: group.imageUrl,
           color: group.color?.toLowerCase() || null,
@@ -395,6 +536,7 @@ Deno.serve(async (req) => {
           source: "shopify",
           variants_json: group.variants,
         };
+
 
         // Upsert by brand_id + shopify_product_id + primary variant
         const { data: existing } = await supabase
