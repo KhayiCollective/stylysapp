@@ -348,7 +348,9 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
             </div>
 
             <div className="p-3 flex items-center justify-between border-t border-border gap-2">
-              <span className="font-semibold text-sm">${outfit.totalPrice.toFixed(2)}</span>
+              <span className="font-semibold text-sm">
+                ${outfit.items.filter(i => i.in_stock !== false).reduce((s, i) => s + Number(i.price || 0), 0).toFixed(2)}
+              </span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="text-xs h-8 gap-1" onClick={() => handleTryOn(outfit)}>
                   <Camera className="h-3 w-3" />
