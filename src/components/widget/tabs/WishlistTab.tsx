@@ -123,6 +123,41 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
 
   useEffect(() => { fetchSaved(); }, [brandId, isLoggedIn]);
 
+  // Whenever saved outfits change, look up live stock status for their variants
+  // so we can show Sold Out badges and block sold-out items from cart adds.
+  useEffect(() => {
+    const variantIds = Array.from(new Set(
+      outfits.flatMap((o) => {
+        const items: any[] = Array.isArray(o.outfit_data?.items) ? o.outfit_data.items : [];
+        return items
+          .map((it) => toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id))
+          .filter((v): v is string => !!v);
+      })
+    ));
+    if (!variantIds.length) return;
+    const shopFromUrl = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("shop") || undefined
+      : undefined;
+    const shopFromGlobal = typeof window !== "undefined"
+      ? (window as unknown as { Shopify?: { shop?: string } }).Shopify?.shop
+      : undefined;
+    const shop = shopFromUrl || shopFromGlobal;
+    (async () => {
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/stock`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ brand_id: brandId, shop, variant_ids: variantIds }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data?.stock) setStockMap(data.stock);
+      } catch { /* ignore */ }
+    })();
+  }, [outfits, brandId]);
+
   const handleDelete = async (outfitId: string) => {
     if (!token) return;
     setDeleting(outfitId);
