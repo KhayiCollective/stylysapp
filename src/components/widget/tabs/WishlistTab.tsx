@@ -44,7 +44,9 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
   const handleAddOutfitToCart = async (outfit: SavedOutfit) => {
     const items: any[] = Array.isArray(outfit.outfit_data?.items) ? outfit.outfit_data.items : [];
 
+    // Exclude sold-out items entirely — they should never be added to cart.
     const valid = items
+      .filter((it: any) => isItemInStock(it))
       .map((it: any) => {
         const variantId = toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id);
         return variantId ? { variantId, quantity: 1, name: String(it?.name || "") } : null;
@@ -53,7 +55,7 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
 
     if (!valid.length) {
       toast.error("Cannot add to cart", {
-        description: "These saved items don't have valid Shopify variant IDs.",
+        description: "These saved items are sold out or have no valid Shopify variant IDs.",
         position: "top-center",
       });
       return;
