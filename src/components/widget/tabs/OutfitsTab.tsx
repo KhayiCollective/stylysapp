@@ -203,12 +203,16 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
       const soldOut = result.failed || [];
       const noIdSkipped = outfit.items.length - valid.length;
 
-      // Names of items that have no valid variant ID at all
+      // Names of items that have no valid variant ID at all (excluding sold-out)
       const noIdNames = outfit.items
-        .filter((item) => toNumericVariantId(item.shopify_variant_id) === null)
+        .filter((item) => item.in_stock !== false && toNumericVariantId(item.shopify_variant_id) === null)
+        .map((item) => item.name);
+      // Names of items skipped because they're sold out
+      const soldOutLocalNames = outfit.items
+        .filter((item) => item.in_stock === false)
         .map((item) => item.name);
 
-      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...noIdNames];
+      const unavailableNames = [...soldOut.map((f) => f.name).filter(Boolean), ...soldOutLocalNames, ...noIdNames];
 
       if (added.length === 0) {
         toast.error("Couldn't add items to cart", {
