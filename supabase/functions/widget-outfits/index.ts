@@ -307,9 +307,10 @@ Variation seed: ${crypto.randomUUID()}`;
             // Prefer the variant matching the customer's size when available
             shopify_variant_id: p._matchedVariantId || p.shopify_variant_id || null,
             // Items in /generate come from the in_stock filter + size availability check.
-            // Expose this so the widget can render a Sold Out badge if any item later
-            // becomes unavailable (also useful for wishlist enrichment via /stock).
+            // `available` (preferred) and `in_stock` (back-compat) both reflect whether
+            // a buyable variant exists in Shopify for this product right now.
             in_stock: p._sizeAvailable !== false,
+            available: p._sizeAvailable !== false,
           }));
         return {
           id: crypto.randomUUID(),

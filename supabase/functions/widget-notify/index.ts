@@ -44,7 +44,7 @@ serve(async (req) => {
     // Upsert-style: avoid duplicates per (brand, variant, email).
     if (variantStr) {
       const { data: existing } = await supabase
-        .from("back_in_stock_notifications")
+        .from("restock_notifications")
         .select("id")
         .eq("brand_id", brand_id)
         .eq("shopify_variant_id", variantStr)
@@ -53,7 +53,7 @@ serve(async (req) => {
       if (existing?.id) return json({ ok: true, already: true });
     }
 
-    const { error } = await supabase.from("back_in_stock_notifications").insert({
+    const { error } = await supabase.from("restock_notifications").insert({
       brand_id,
       product_id: product_id || null,
       shopify_variant_id: variantStr,

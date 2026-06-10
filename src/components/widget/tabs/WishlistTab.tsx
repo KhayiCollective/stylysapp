@@ -35,6 +35,8 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
   const [stockMap, setStockMap] = useState<Record<string, boolean>>({});
 
   const isItemInStock = (it: any): boolean => {
+    // Respect any explicit availability flag persisted on the saved item.
+    if (it?.available === false || it?.in_stock === false) return false;
     const vid = toNumericVariantId(it?.shopify_variant_id ?? it?.variant_id ?? it?.id);
     if (!vid) return true; // unknown variant → don't block; cart layer will handle
     if (vid in stockMap) return stockMap[vid];
