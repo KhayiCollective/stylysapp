@@ -313,12 +313,35 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
             <div className="grid grid-cols-3 gap-px bg-border">
               {outfit.items.map((item) => (
                 <div key={item.id} className="bg-card">
-                  <div className="aspect-square overflow-hidden">
-                    <img src={item.imageUrl || item.image_url || ""} alt={item.name} className="w-full h-full object-cover" />
+                  <div className="aspect-square overflow-hidden relative">
+                    <img
+                      src={item.imageUrl || item.image_url || ""}
+                      alt={item.name}
+                      className={`w-full h-full object-cover ${item.in_stock === false ? "opacity-60" : ""}`}
+                    />
+                    {item.in_stock === false && (
+                      <span className="absolute top-1 left-1 bg-destructive text-destructive-foreground text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                        Sold Out
+                      </span>
+                    )}
                   </div>
                   <div className="p-2">
                     <p className="text-[11px] truncate">{item.name}</p>
-                    <p className="text-[11px] text-muted-foreground">${item.price}</p>
+                    {item.in_stock === false ? (
+                      <>
+                        <p className="text-[11px] text-muted-foreground line-through">${item.price}</p>
+                        <div className="mt-1">
+                          <NotifyMeButton
+                            brandId={brandId}
+                            productId={item.id}
+                            shopifyVariantId={item.shopify_variant_id || null}
+                            productName={item.name}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">${item.price}</p>
+                    )}
                   </div>
                 </div>
               ))}
