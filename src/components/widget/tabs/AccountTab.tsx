@@ -468,9 +468,51 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     );
   }
 
+  // --- BUDGET SUB-VIEW ---
+  if (subView === "budget") {
+    const isSelected = (opt: { min: number; max: number }) =>
+      budgetRange !== null && budgetRange.min === opt.min && budgetRange.max === opt.max;
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSubView("home")} className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h3 className="font-semibold text-base">Budget Preference</h3>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Pick your typical per-item budget. We'll prioritize outfits that fit it.
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          {BUDGET_OPTIONS.map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => setBudgetRange({ min: opt.min, max: opt.max })}
+              className={`p-2.5 rounded-lg border text-xs text-left transition-colors ${isSelected(opt) ? "border-primary bg-primary/5 font-medium" : "border-border hover:border-primary/40"}`}
+            >
+              {isSelected(opt) && <Check className="h-3 w-3 inline mr-1" />}{opt.label}
+            </button>
+          ))}
+        </div>
+
+        <Button className="w-full gap-2" size="sm" onClick={() => saveProfile("budget")} disabled={saving || !budgetRange}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Save Budget
+        </Button>
+      </div>
+    );
+  }
+
   // --- HOME (logged in) ---
   const hasStyleProfile = selectedStyles.length > 0 || bodyShape;
   const hasSizing = sizeInfo.tops || sizeInfo.bottoms || sizeInfo.shoes;
+  const hasBudget = budgetRange !== null;
+  const budgetLabel = hasBudget
+    ? (BUDGET_OPTIONS.find(o => o.min === budgetRange!.min && o.max === budgetRange!.max)?.label
+        || `$${budgetRange!.min} – $${budgetRange!.max}`)
+    : null;
 
   return (
     <div className="p-4 space-y-5">
