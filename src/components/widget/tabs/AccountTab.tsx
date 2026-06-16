@@ -573,6 +573,21 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
           {hasSizing && <Check className="h-4 w-4 text-primary" />}
         </button>
 
+        <button
+          onClick={() => setSubView("budget")}
+          className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors text-left border border-border"
+        >
+          <Wallet className="h-4 w-4 text-muted-foreground" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Budget Preference</p>
+            <p className="text-xs text-muted-foreground">
+              {hasBudget ? budgetLabel : "Set your typical per-item budget"}
+            </p>
+          </div>
+          {hasBudget && <Check className="h-4 w-4 text-primary" />}
+        </button>
+
+
         {!hasStyleProfile && (
           <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
             <div className="flex items-center gap-2 mb-1">
