@@ -351,8 +351,11 @@ Deno.serve(async (req) => {
         shopify_store_domain: shop,
         shopify_access_token: accessToken,
         shopify_storefront_token: storefrontToken,
+        shopify_refresh_token: refreshToken,
+        shopify_token_expires_at: tokenExpiresAt,
         shopify_connected_at: new Date().toISOString(),
       };
+
 
       const { error: updateError } = await supabase
         .from("brands")
