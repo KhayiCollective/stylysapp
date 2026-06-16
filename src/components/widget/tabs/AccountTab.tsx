@@ -86,6 +86,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [bodyShape, setBodyShape] = useState("");
   const [occasions, setOccasions] = useState<string[]>([]);
   const [sizeInfo, setSizeInfo] = useState<Record<string, string>>({ tops: "", bottoms: "", shoes: "" });
+  const [budgetRange, setBudgetRange] = useState<{ min: number; max: number } | null>(null);
 
   useEffect(() => {
     const token = getCustomerToken();
