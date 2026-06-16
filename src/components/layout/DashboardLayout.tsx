@@ -115,7 +115,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
   return (
     <div className="min-h-screen bg-background flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 border-r border-border bg-sidebar">
+      <aside className="hidden md:flex flex-col w-64 border-r border-border bg-sidebar">
         <div className="p-6 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2">
             <img src={stylysIcon} alt="STYLYS" className="w-8 h-8 rounded-sm object-cover" />
@@ -152,7 +152,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
       </aside>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="flex items-center justify-between h-14 px-4">
           <Link to="/" className="flex items-center gap-2">
             <img src={stylysIcon} alt="STYLYS" className="w-7 h-7 rounded-sm object-cover" />
@@ -198,15 +198,15 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 lg:overflow-auto">
-        <div className="pt-14 lg:pt-0">
-          <header className="border-b border-border bg-background/50 backdrop-blur-sm sticky top-14 lg:top-0 z-40">
-            <div className="px-6 lg:px-8 py-6">
-              <h1 className="font-display text-2xl lg:text-3xl font-medium">{title}</h1>
+      <main className="flex-1 md:overflow-auto">
+        <div className="pt-14 md:pt-0">
+          <header className="border-b border-border bg-background/50 backdrop-blur-sm sticky top-14 md:top-0 z-40">
+            <div className="px-6 md:px-8 py-6">
+              <h1 className="font-display text-2xl md:text-3xl font-medium">{title}</h1>
               {description && <p className="text-muted-foreground mt-1">{description}</p>}
             </div>
           </header>
-          <div className="p-6 lg:p-8">{children}</div>
+          <div className="p-6 md:p-8">{children}</div>
         </div>
       </main>
 
