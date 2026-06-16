@@ -120,6 +120,9 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     if (profile.body_shape) setBodyShape(profile.body_shape);
     if (profile.occasions && Array.isArray(profile.occasions)) setOccasions(profile.occasions);
     if (profile.size_info && typeof profile.size_info === "object") setSizeInfo({ tops: "", bottoms: "", shoes: "", ...profile.size_info });
+    if (profile.budget_range && typeof profile.budget_range === "object" && "min" in profile.budget_range && "max" in profile.budget_range) {
+      setBudgetRange({ min: Number(profile.budget_range.min) || 0, max: Number(profile.budget_range.max) || 0 });
+    }
   };
 
   const handleAuth = async () => {
