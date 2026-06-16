@@ -263,6 +263,15 @@ Deno.serve(async (req) => {
 
       const tokenData = await tokenResponse.json();
       const accessToken = tokenData.access_token;
+      // Shopify now issues expiring offline access tokens. When token rotation
+      // is enabled for the app, the token response includes `expires_in`
+      // (seconds) and a `refresh_token` that must be used to obtain a new
+      // access token before the current one expires.
+      const refreshToken: string | null = tokenData.refresh_token ?? null;
+      const expiresIn: number | null = typeof tokenData.expires_in === "number" ? tokenData.expires_in : null;
+      const tokenExpiresAt: string | null = expiresIn
+        ? new Date(Date.now() + expiresIn * 1000).toISOString()
+        : null;
 
       if (!accessToken) {
         console.error("[SHOPIFY-OAUTH] No access token in response");
@@ -271,6 +280,7 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
 
       // Create a Storefront API token
       const storefrontResponse = await fetch(
