@@ -93,8 +93,47 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     }
   }, [user, requireShopify, location.pathname]);
 
+  // Subscription gate — runs after Shopify is confirmed connected, on dashboard-style routes
+  useEffect(() => {
+    const SUB_EXEMPT = ['/connect-shopify', '/settings', '/shopify-setup'];
+    const exempt = SUB_EXEMPT.includes(location.pathname);
+
+    const checkSub = async () => {
+      if (!user || !requireShopify || exempt || hasShopify !== true) {
+        setCheckingSub(false);
+        return;
+      }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setHasSub(false);
+          return;
+        }
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-subscription`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        );
+        const result = await res.json();
+        setHasSub(!!result?.subscribed);
+      } catch (err) {
+        console.error('Error checking subscription:', err);
+        setHasSub(false);
+      } finally {
+        setCheckingSub(false);
+      }
+    };
+
+    if (checkingShopify) return;
+    if (exempt || !requireShopify || hasShopify !== true) {
+      setCheckingSub(false);
+      return;
+    }
+    setCheckingSub(true);
+    checkSub();
+  }, [user, requireShopify, location.pathname, hasShopify, checkingShopify]);
+
   // Show loading while checking auth state
-  if (loading || checkingShopify || (isEmbedded && checkingEmbedded)) {
+  if (loading || checkingShopify || checkingSub || (isEmbedded && checkingEmbedded)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -133,6 +172,17 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
   // Redirect to connect-shopify if Shopify is required but not connected
   if (requireShopify && hasShopify === false && location.pathname !== '/connect-shopify') {
     return <Navigate to="/connect-shopify" replace />;
+  }
+
+  // Redirect to plan selection if no active subscription
+  const SUB_EXEMPT = ['/connect-shopify', '/settings', '/shopify-setup'];
+  if (
+    requireShopify &&
+    hasShopify === true &&
+    hasSub === false &&
+    !SUB_EXEMPT.includes(location.pathname)
+  ) {
+    return <Navigate to="/auth?view=select-plan" replace />;
   }
 
   return <>{children}</>;
