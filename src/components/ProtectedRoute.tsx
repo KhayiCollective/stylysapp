@@ -100,23 +100,34 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
 
     const checkSub = async () => {
       if (!user || !requireShopify || exempt || hasShopify !== true) {
+        console.log('[ProtectedRoute] Skipping subscription check', {
+          hasUser: !!user, requireShopify, exempt, hasShopify, path: location.pathname,
+        });
         setCheckingSub(false);
         return;
       }
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
+          console.log('[ProtectedRoute] No session — treating as unsubscribed');
           setHasSub(false);
           return;
         }
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-subscription`,
-          { headers: { Authorization: `Bearer ${session.access_token}` } }
-        );
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-subscription`;
+        console.log('[ProtectedRoute] Calling check-subscription', { url, path: location.pathname });
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
         const result = await res.json();
+        console.log('[ProtectedRoute] check-subscription response', {
+          status: res.status,
+          ok: res.ok,
+          result,
+          subscribed: !!result?.subscribed,
+        });
         setHasSub(!!result?.subscribed);
       } catch (err) {
-        console.error('Error checking subscription:', err);
+        console.error('[ProtectedRoute] Error checking subscription:', err);
         setHasSub(false);
       } finally {
         setCheckingSub(false);
@@ -131,6 +142,7 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     setCheckingSub(true);
     checkSub();
   }, [user, requireShopify, location.pathname, hasShopify, checkingShopify]);
+
 
   // Show loading while checking auth state
   if (loading || checkingShopify || checkingSub || (isEmbedded && checkingEmbedded)) {
