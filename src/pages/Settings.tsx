@@ -75,7 +75,7 @@ export default function Settings() {
           if (profileData.brand_id) {
             const { data: brandData } = await supabase
               .from('brands')
-              .select('id, name, slug, logo_url')
+              .select('id, name, slug, logo_url, shopify_store_domain')
               .eq('id', profileData.brand_id)
               .single();
             if (brandData) {
@@ -84,6 +84,7 @@ export default function Settings() {
                 name: brandData.name || '',
                 slug: brandData.slug || '',
                 logoUrl: brandData.logo_url || '',
+                shopifyDomain: brandData.shopify_store_domain || '',
               });
             }
           }
