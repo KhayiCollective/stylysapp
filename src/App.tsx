@@ -42,10 +42,12 @@ function CartSyncProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Redirect authenticated users away from auth page
+// Redirect authenticated users away from auth page (unless selecting a plan)
 function AuthRoute() {
   const { user, loading } = useAuth();
-  
+  const allowAuthed = typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('view') === 'select-plan';
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -54,7 +56,7 @@ function AuthRoute() {
     );
   }
   
-  if (user) {
+  if (user && !allowAuthed) {
     return <Navigate to="/dashboard" replace />;
   }
   
