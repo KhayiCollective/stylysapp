@@ -214,10 +214,10 @@ export default function Settings() {
                   {isTrialing && <Badge variant="secondary">Trial</Badge>}
                 </div>
                 {isTrialing && trialEnd && (
-                  <p className="text-sm text-muted-foreground">Trial ends {new Date(trialEnd).toLocaleDateString()}</p>
+                  <p className="text-sm text-muted-foreground">Trial ends {new Date(trialEnd).toLocaleDateString()} — first charge on this date.</p>
                 )}
                 {!isTrialing && subscriptionEnd && (
-                  <p className="text-sm text-muted-foreground">Renews {new Date(subscriptionEnd).toLocaleDateString()}</p>
+                  <p className="text-sm text-muted-foreground">Next billing date: {new Date(subscriptionEnd).toLocaleDateString()}</p>
                 )}
 
                 {/* Tier Features Summary */}
@@ -265,7 +265,7 @@ export default function Settings() {
                   });
                   if (!error && data?.url) window.open(data.url, '_blank');
                 }}>
-                  Manage Subscription
+                  Manage Plan
                 </Button>
               </div>
             ) : (

@@ -74,7 +74,7 @@ export default function Auth() {
   if (view === 'select-plan') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-5xl">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
               <CheckCircle className="h-8 w-8 text-primary" />
@@ -85,7 +85,7 @@ export default function Auth() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             {(Object.entries(TIERS) as [TierKey, typeof TIERS[TierKey]][]).map(([key, tier]) => (
               <Card
                 key={key}
@@ -123,6 +123,41 @@ export default function Auth() {
                 </CardContent>
               </Card>
             ))}
+
+            {/* Enterprise — Contact Sales */}
+            <Card
+              className="relative cursor-pointer transition-all hover:border-primary/50 hover:shadow-lg"
+              onClick={() => {
+                window.location.href = 'mailto:support@stylysapp.com?subject=Enterprise%20Plan%20Inquiry';
+              }}
+            >
+              <CardContent className="pt-6">
+                <h3 className="text-xl font-display font-semibold">Enterprise</h3>
+                <div className="mt-2 mb-4">
+                  <span className="text-3xl font-display font-bold">Custom</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">Unlimited products</p>
+                <ul className="space-y-2 mb-6">
+                  {[
+                    'All Professional features',
+                    'Custom AI training',
+                    'White-label options',
+                    'Dedicated account manager',
+                    'Custom integrations',
+                    '24/7 premium support',
+                  ].map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="w-4 h-4 text-primary shrink-0" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button className="w-full" variant="outline">
+                  Contact Sales
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </CardContent>
+            </Card>
           </div>
 
           <p className="text-center text-xs text-muted-foreground mt-6">
