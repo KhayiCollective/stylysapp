@@ -215,7 +215,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const saveProfile = async (section: "style" | "sizing") => {
+  const saveProfile = async (section: "style" | "sizing" | "budget") => {
     const token = getCustomerToken();
     if (!token) return;
     setSaving(true);
@@ -227,8 +227,10 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
       body.avoided_colors = avoidedColors;
       body.body_shape = bodyShape;
       body.occasions = occasions;
-    } else {
+    } else if (section === "sizing") {
       body.size_info = sizeInfo;
+    } else {
+      body.budget_range = budgetRange;
     }
 
     try {
