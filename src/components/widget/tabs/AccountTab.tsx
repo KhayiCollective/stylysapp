@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera } from "lucide-react";
+import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera, Wallet } from "lucide-react";
 import { getCustomerToken, setCustomerToken, clearCustomerToken } from "@/lib/widgetAuth";
 
 interface AccountTabProps {
