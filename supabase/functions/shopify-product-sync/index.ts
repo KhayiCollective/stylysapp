@@ -489,6 +489,42 @@ Deno.serve(async (req) => {
 
     console.log(`[PRODUCT-SYNC] Got ${products.length} products from Shopify`);
 
+    // Enforce plan product limits (Starter = 500 max)
+    let planLimitNotice: string | null = null;
+    let tierName: string | null = null;
+    try {
+      const subResp = await fetch(
+        `https://${brand.shopify_store_domain}/admin/api/2025-01/graphql.json`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": brand.shopify_access_token,
+          },
+          body: JSON.stringify({
+            query: `{ currentAppInstallation { activeSubscriptions { name status } } }`,
+          }),
+        }
+      );
+      const subJson = await subResp.json();
+      const subs = subJson?.data?.currentAppInstallation?.activeSubscriptions || [];
+      const planName = (subs[0]?.name || "").toLowerCase();
+      if (planName.includes("professional") || planName.includes("pro")) tierName = "professional";
+      else if (planName.includes("starter")) tierName = "starter";
+    } catch (e) {
+      console.warn("[PRODUCT-SYNC] Could not determine tier, defaulting to starter limit:", e);
+      tierName = "starter";
+    }
+
+    const STARTER_LIMIT = 500;
+    const PROFESSIONAL_LIMIT = 1000;
+    const limit = tierName === "professional" ? PROFESSIONAL_LIMIT : STARTER_LIMIT;
+    if (products.length > limit) {
+      planLimitNotice = `Your ${tierName || "Starter"} plan allows up to ${limit} products. ${products.length - limit} product(s) were skipped. Upgrade your plan to sync more.`;
+      console.warn(`[PRODUCT-SYNC] ${planLimitNotice}`);
+      products = products.slice(0, limit);
+    }
+
     // Fetch collections map (best-effort; failures don't block sync)
     const collectionsMap = await fetchProductCollectionsMap(
       brand.shopify_store_domain,
