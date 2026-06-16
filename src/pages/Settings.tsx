@@ -269,32 +269,33 @@ export default function Settings() {
                   </ul>
                 </div>
 
-                <Button variant="outline" onClick={async () => {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  if (!session) return;
-                  const { data, error } = await supabase.functions.invoke('customer-portal', {
-                    headers: { Authorization: `Bearer ${session.access_token}` },
-                  });
-                  if (!error && data?.url) window.open(data.url, '_blank');
-                }}>
+                <Button
+                  variant="outline"
+                  disabled={!managedPricingUrl}
+                  onClick={() => {
+                    if (!managedPricingUrl) {
+                      toast({ title: 'Shopify store not connected', description: 'Connect your Shopify store to manage your plan.', variant: 'destructive' });
+                      return;
+                    }
+                    window.open(managedPricingUrl, '_blank', 'noopener,noreferrer');
+                  }}
+                >
                   Manage Plan
                 </Button>
               </div>
             ) : (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">You don't have an active subscription. Choose a plan via Shopify to get started.</p>
-                <Button onClick={async () => {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  if (!session) return;
-                  const { data, error } = await supabase.functions.invoke('create-checkout', {
-                    headers: { Authorization: `Bearer ${session.access_token}` },
-                  });
-                  if (error || data?.error) {
-                    toast({ title: 'Subscription Error', description: data?.error || 'Failed to open billing page. Please try again.', variant: 'destructive' });
-                    return;
-                  }
-                  if (data?.url) window.open(data.url, '_blank');
-                }}>
+                <Button
+                  disabled={!managedPricingUrl}
+                  onClick={() => {
+                    if (!managedPricingUrl) {
+                      toast({ title: 'Shopify store not connected', description: 'Connect your Shopify store to choose a plan.', variant: 'destructive' });
+                      return;
+                    }
+                    window.open(managedPricingUrl, '_blank', 'noopener,noreferrer');
+                  }}
+                >
                   <Crown className="h-4 w-4 mr-2" />
                   Choose a Plan on Shopify
                 </Button>
