@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Store, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,7 +11,7 @@ export function EmbeddedConnectionRequired({ shopDomain, autoInitiate }: Embedde
   const [initiating, setInitiating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const initiateOAuth = async () => {
+  const initiateOAuth = useCallback(async () => {
     if (!shopDomain) {
       setError("No shop domain available. Please open this app from Shopify Admin.");
       return;
@@ -21,23 +21,41 @@ export function EmbeddedConnectionRequired({ shopDomain, autoInitiate }: Embedde
     setError(null);
 
     try {
-      // Ensure domain format
       let shop = shopDomain;
       if (!shop.includes('.myshopify.com')) {
         shop = `${shop}.myshopify.com`;
       }
 
-      // Call the embedded-authorize endpoint (auto-creates brand, no auth needed)
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=embedded-authorize&shop=${encodeURIComponent(shop)}`,
-        { method: 'GET' }
-      );
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=embedded-authorize&shop=${encodeURIComponent(shop)}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[EmbeddedConnectionRequired] HTTP error:', response.status, text);
+        setError(`Failed to start authorization (${response.status})`);
+        setInitiating(false);
+        return;
+      }
 
       const result = await response.json();
 
       if (result.authUrl) {
-        // Redirect the top-level window (break out of Shopify Admin iframe)
-        window.top.location.href = result.authUrl;
+        // Break out of Shopify Admin iframe. Fall back to current window if top is blocked.
+        try {
+          if (window.top) {
+            window.top.location.href = result.authUrl;
+          } else {
+            window.location.href = result.authUrl;
+          }
+        } catch {
+          window.location.href = result.authUrl;
+        }
       } else {
         setError(result.error || "Failed to start authorization");
         setInitiating(false);
@@ -47,13 +65,16 @@ export function EmbeddedConnectionRequired({ shopDomain, autoInitiate }: Embedde
       setError("Failed to connect. Please try again.");
       setInitiating(false);
     }
-  };
+  }, [shopDomain]);
 
-  // Auto-initiate if requested (triggered by EmbeddedApp when shop is known)
-  if (autoInitiate && shopDomain && !initiating && !error) {
-    // Use setTimeout to avoid calling setState during render
-    setTimeout(() => initiateOAuth(), 0);
-  }
+  useEffect(() => {
+    if (autoInitiate && shopDomain && !initiating && !error) {
+      initiateOAuth();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoInitiate, shopDomain]);
+
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
