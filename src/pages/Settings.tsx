@@ -41,7 +41,18 @@ export default function Settings() {
     name: '',
     slug: '',
     logoUrl: '',
+    shopifyDomain: '',
   });
+
+  // Shopify Managed Pricing app handle (from Partner Dashboard → App URL handle)
+  const SHOPIFY_APP_HANDLE = 'ai-stylist-platform';
+
+  const managedPricingUrl = (() => {
+    if (!brand.shopifyDomain) return null;
+    const shopHandle = brand.shopifyDomain.replace(/\.myshopify\.com$/i, '');
+    return `https://admin.shopify.com/store/${shopHandle}/charges/${SHOPIFY_APP_HANDLE}/pricing_plans`;
+  })();
+
 
   const tierLimits = getTierLimits(tierName);
 
