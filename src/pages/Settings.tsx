@@ -265,7 +265,7 @@ export default function Settings() {
                   });
                   if (!error && data?.url) window.open(data.url, '_blank');
                 }}>
-                  Manage Subscription
+                  Manage Plan
                 </Button>
               </div>
             ) : (
