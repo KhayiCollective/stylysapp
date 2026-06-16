@@ -25,7 +25,16 @@ const SIZE_OPTIONS = {
   shoes: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "11", "12"],
 };
 
-type SubView = "home" | "style" | "sizing";
+const BUDGET_OPTIONS: { label: string; min: number; max: number }[] = [
+  { label: "Under $50", min: 0, max: 50 },
+  { label: "$50 – $100", min: 50, max: 100 },
+  { label: "$100 – $250", min: 100, max: 250 },
+  { label: "$250 – $500", min: 250, max: 500 },
+  { label: "Over $500", min: 500, max: 100000 },
+  { label: "No limit", min: 0, max: 100000 },
+];
+
+type SubView = "home" | "style" | "sizing" | "budget";
 
 interface StyleProfile {
   style_preferences?: string[];
