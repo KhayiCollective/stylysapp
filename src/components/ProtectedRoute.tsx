@@ -188,14 +188,23 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
 
   // Redirect to plan selection if no active subscription
   const SUB_EXEMPT = ['/connect-shopify', '/settings', '/shopify-setup'];
-  if (
+  const shouldRedirectToPlans =
     requireShopify &&
     hasShopify === true &&
     hasSub === false &&
-    !SUB_EXEMPT.includes(location.pathname)
-  ) {
+    !SUB_EXEMPT.includes(location.pathname);
+  console.log('[ProtectedRoute] Render decision', {
+    path: location.pathname,
+    hasUser: !!user,
+    hasShopify,
+    hasSub,
+    shouldRedirectToPlans,
+  });
+  if (shouldRedirectToPlans) {
+    console.log('[ProtectedRoute] Redirecting to /auth?view=select-plan');
     return <Navigate to="/auth?view=select-plan" replace />;
   }
+
 
   return <>{children}</>;
 }
