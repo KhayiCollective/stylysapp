@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera } from "lucide-react";
+import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera, Wallet } from "lucide-react";
 import { getCustomerToken, setCustomerToken, clearCustomerToken } from "@/lib/widgetAuth";
 
 interface AccountTabProps {
@@ -25,7 +25,16 @@ const SIZE_OPTIONS = {
   shoes: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "11", "12"],
 };
 
-type SubView = "home" | "style" | "sizing";
+const BUDGET_OPTIONS: { label: string; min: number; max: number }[] = [
+  { label: "Under $50", min: 0, max: 50 },
+  { label: "$50 – $100", min: 50, max: 100 },
+  { label: "$100 – $250", min: 100, max: 250 },
+  { label: "$250 – $500", min: 250, max: 500 },
+  { label: "Over $500", min: 500, max: 100000 },
+  { label: "No limit", min: 0, max: 100000 },
+];
+
+type SubView = "home" | "style" | "sizing" | "budget";
 
 interface StyleProfile {
   style_preferences?: string[];
@@ -77,6 +86,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [bodyShape, setBodyShape] = useState("");
   const [occasions, setOccasions] = useState<string[]>([]);
   const [sizeInfo, setSizeInfo] = useState<Record<string, string>>({ tops: "", bottoms: "", shoes: "" });
+  const [budgetRange, setBudgetRange] = useState<{ min: number; max: number } | null>(null);
 
   useEffect(() => {
     const token = getCustomerToken();
@@ -110,6 +120,9 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     if (profile.body_shape) setBodyShape(profile.body_shape);
     if (profile.occasions && Array.isArray(profile.occasions)) setOccasions(profile.occasions);
     if (profile.size_info && typeof profile.size_info === "object") setSizeInfo({ tops: "", bottoms: "", shoes: "", ...profile.size_info });
+    if (profile.budget_range && typeof profile.budget_range === "object" && "min" in profile.budget_range && "max" in profile.budget_range) {
+      setBudgetRange({ min: Number(profile.budget_range.min) || 0, max: Number(profile.budget_range.max) || 0 });
+    }
   };
 
   const handleAuth = async () => {
@@ -202,7 +215,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const saveProfile = async (section: "style" | "sizing") => {
+  const saveProfile = async (section: "style" | "sizing" | "budget") => {
     const token = getCustomerToken();
     if (!token) return;
     setSaving(true);
@@ -214,8 +227,10 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
       body.avoided_colors = avoidedColors;
       body.body_shape = bodyShape;
       body.occasions = occasions;
-    } else {
+    } else if (section === "sizing") {
       body.size_info = sizeInfo;
+    } else {
+      body.budget_range = budgetRange;
     }
 
     try {
@@ -453,9 +468,51 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     );
   }
 
+  // --- BUDGET SUB-VIEW ---
+  if (subView === "budget") {
+    const isSelected = (opt: { min: number; max: number }) =>
+      budgetRange !== null && budgetRange.min === opt.min && budgetRange.max === opt.max;
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSubView("home")} className="h-8 w-8 rounded-full hover:bg-muted flex items-center justify-center">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h3 className="font-semibold text-base">Budget Preference</h3>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Pick your typical per-item budget. We'll prioritize outfits that fit it.
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          {BUDGET_OPTIONS.map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => setBudgetRange({ min: opt.min, max: opt.max })}
+              className={`p-2.5 rounded-lg border text-xs text-left transition-colors ${isSelected(opt) ? "border-primary bg-primary/5 font-medium" : "border-border hover:border-primary/40"}`}
+            >
+              {isSelected(opt) && <Check className="h-3 w-3 inline mr-1" />}{opt.label}
+            </button>
+          ))}
+        </div>
+
+        <Button className="w-full gap-2" size="sm" onClick={() => saveProfile("budget")} disabled={saving || !budgetRange}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Save Budget
+        </Button>
+      </div>
+    );
+  }
+
   // --- HOME (logged in) ---
   const hasStyleProfile = selectedStyles.length > 0 || bodyShape;
   const hasSizing = sizeInfo.tops || sizeInfo.bottoms || sizeInfo.shoes;
+  const hasBudget = budgetRange !== null;
+  const budgetLabel = hasBudget
+    ? (BUDGET_OPTIONS.find(o => o.min === budgetRange!.min && o.max === budgetRange!.max)?.label
+        || `$${budgetRange!.min} – $${budgetRange!.max}`)
+    : null;
 
   return (
     <div className="p-4 space-y-5">
@@ -515,6 +572,21 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
           </div>
           {hasSizing && <Check className="h-4 w-4 text-primary" />}
         </button>
+
+        <button
+          onClick={() => setSubView("budget")}
+          className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors text-left border border-border"
+        >
+          <Wallet className="h-4 w-4 text-muted-foreground" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Budget Preference</p>
+            <p className="text-xs text-muted-foreground">
+              {hasBudget ? budgetLabel : "Set your typical per-item budget"}
+            </p>
+          </div>
+          {hasBudget && <Check className="h-4 w-4 text-primary" />}
+        </button>
+
 
         {!hasStyleProfile && (
           <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">

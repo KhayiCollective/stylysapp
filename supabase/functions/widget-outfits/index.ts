@@ -126,7 +126,14 @@ serve(async (req) => {
         if (nums.length === 1) return { min: 0, max: nums[0] };
         return null;
       };
-      const budgetRange = parseBudget(quiz_session?.budget);
+      let budgetRange = parseBudget(quiz_session?.budget);
+      // Fallback to saved customer profile budget when no quiz budget supplied
+      if (!budgetRange && customer_profile?.budget_range && typeof customer_profile.budget_range === "object") {
+        const br = customer_profile.budget_range as { min?: number; max?: number };
+        const min = Number(br.min) || 0;
+        const max = Number(br.max);
+        if (max && max > 0 && max < 100000) budgetRange = { min, max };
+      }
 
       // ---- Customer sizes for variant availability filtering ----
       const customerSizes = new Set<string>();
