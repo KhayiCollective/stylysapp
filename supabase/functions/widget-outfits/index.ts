@@ -87,14 +87,17 @@ serve(async (req) => {
         .maybeSingle();
       const inStockOnly = inStockRule?.enabled !== false; // default ON if rule missing
 
-      // Fetch products for this brand (richer columns for smarter matching)
+      // Fetch products for this brand (richer columns for smarter matching).
+      // When "In-Stock Only" is ON, exclude products explicitly marked out_of_stock.
+      // When OFF, include them and flag available=false in the output so the widget
+      // can render the Sold Out badge + Notify Me button.
       let productsQuery = supabase
         .from("products")
         .select("id, name, price, image_url, category, color, fit, shopify_variant_id, shopify_product_id, product_type, tags, collections, variants_json, images_json, inventory_status")
         .eq("brand_id", brand_id)
         .limit(200);
       if (inStockOnly) {
-        productsQuery = productsQuery.eq("inventory_status", "in_stock");
+        productsQuery = productsQuery.neq("inventory_status", "out_of_stock");
       }
       const { data: rawProducts, error: prodErr } = await productsQuery;
 
@@ -324,8 +327,8 @@ Variation seed: ${crypto.randomUUID()}`;
             // Items in /generate come from the in_stock filter + size availability check.
             // `available` (preferred) and `in_stock` (back-compat) both reflect whether
             // a buyable variant exists in Shopify for this product right now.
-            in_stock: p._sizeAvailable !== false && p.inventory_status === "in_stock",
-            available: p._sizeAvailable !== false && p.inventory_status === "in_stock",
+            in_stock: p._sizeAvailable !== false && p.inventory_status !== "out_of_stock",
+            available: p._sizeAvailable !== false && p.inventory_status !== "out_of_stock",
           }));
         return {
           id: crypto.randomUUID(),
