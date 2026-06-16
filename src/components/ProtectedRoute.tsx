@@ -17,6 +17,8 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
   const [hasShopify, setHasShopify] = useState<boolean | null>(null);
   const [embeddedBrandVerified, setEmbeddedBrandVerified] = useState(false);
   const [checkingEmbedded, setCheckingEmbedded] = useState(true);
+  const [checkingSub, setCheckingSub] = useState(requireShopify);
+  const [hasSub, setHasSub] = useState<boolean | null>(null);
 
   // Handle embedded mode - verify shop exists in our system (via edge function to bypass RLS)
   useEffect(() => {
