@@ -459,10 +459,129 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Refresh an expiring offline access token using the stored refresh_token.
+    // Callers pass { brand_id } and we rotate access_token / refresh_token in
+    // the brands table. Safe to call before expiry; Shopify will issue a new
+    // refresh_token each time.
+    if (action === "refresh-token") {
+      if (req.method !== "POST") {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.INVALID_ACTION }),
+          { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      let brandId: string | undefined;
+      try {
+        const body = await req.json();
+        brandId = body?.brand_id;
+      } catch {
+        /* ignore */
+      }
+
+      if (!brandId) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.MISSING_PARAMS }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.CONFIG_ERROR }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { data: brand, error: brandError } = await supabase
+        .from("brands")
+        .select("shopify_store_domain, shopify_refresh_token, shopify_access_token, shopify_token_expires_at")
+        .eq("id", brandId)
+        .maybeSingle();
+
+      if (brandError || !brand?.shopify_store_domain) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.SAVE_FAILED }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Legacy permanent tokens have no refresh_token. Surface a clear signal
+      // so callers know the merchant must re-authorize once to upgrade to the
+      // expiring-token model.
+      if (!brand.shopify_refresh_token) {
+        return new Response(
+          JSON.stringify({ error: "reauth_required", reason: "legacy_offline_token" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const refreshResponse = await fetch(
+        `https://${brand.shopify_store_domain}/admin/oauth/access_token`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: SHOPIFY_CLIENT_ID,
+            client_secret: SHOPIFY_CLIENT_SECRET,
+            refresh_token: brand.shopify_refresh_token,
+            grant_type: "refresh_token",
+          }),
+        }
+      );
+
+      if (!refreshResponse.ok) {
+        const errorBody = await refreshResponse.text();
+        console.error(`[SHOPIFY-OAUTH] Refresh failed status ${refreshResponse.status}: ${errorBody}`);
+        return new Response(
+          JSON.stringify({ error: "reauth_required", reason: "refresh_failed" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const refreshData = await refreshResponse.json();
+      const newAccessToken = refreshData.access_token;
+      const newRefreshToken: string | null = refreshData.refresh_token ?? brand.shopify_refresh_token;
+      const newExpiresIn: number | null = typeof refreshData.expires_in === "number" ? refreshData.expires_in : null;
+      const newExpiresAt = newExpiresIn ? new Date(Date.now() + newExpiresIn * 1000).toISOString() : null;
+
+      if (!newAccessToken) {
+        return new Response(
+          JSON.stringify({ error: "reauth_required", reason: "no_access_token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { error: updErr } = await supabase
+        .from("brands")
+        .update({
+          shopify_access_token: newAccessToken,
+          shopify_refresh_token: newRefreshToken,
+          shopify_token_expires_at: newExpiresAt,
+        })
+        .eq("id", brandId);
+
+      if (updErr) {
+        console.error("[SHOPIFY-OAUTH] Failed to persist refreshed token:", updErr.message);
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.SAVE_FAILED }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log("[SHOPIFY-OAUTH] Access token refreshed");
+      return new Response(
+        JSON.stringify({ success: true, expires_at: newExpiresAt }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: CLIENT_ERRORS.INVALID_ACTION }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error) {
     console.error("[SHOPIFY-OAUTH] Unexpected error:", error instanceof Error ? error.message : "Unknown");
     return new Response(
