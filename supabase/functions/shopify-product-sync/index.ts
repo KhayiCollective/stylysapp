@@ -645,7 +645,7 @@ Deno.serve(async (req) => {
     console.log(`[PRODUCT-SYNC] Sync complete: ${created} created, ${updated} updated, ${deleted} deleted, ${errors.length} errors`);
 
     return new Response(
-      JSON.stringify({ success: true, created, updated, deleted, total: products.length, errors: errors.slice(0, 10) }),
+      JSON.stringify({ success: true, created, updated, deleted, total: products.length, errors: errors.slice(0, 10), planLimitNotice, tier: tierName }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
