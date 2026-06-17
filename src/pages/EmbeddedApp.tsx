@@ -20,6 +20,10 @@ export default function EmbeddedApp() {
   const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;
 
   useEffect(() => {
+    console.log('[EmbeddedApp] shop param:', shop);
+    console.log('[EmbeddedApp] host param:', host);
+    console.log('[EmbeddedApp] searchParams:', Object.fromEntries(searchParams));
+
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
