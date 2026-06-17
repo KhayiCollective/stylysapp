@@ -108,12 +108,31 @@ serve(async (req) => {
     );
 
     const shopifyData = await shopifyResp.json();
-    logStep("Shopify response received");
+    logStep("Shopify response received", {
+      httpStatus: shopifyResp.status,
+      hasErrors: !!shopifyData.errors,
+      errors: shopifyData.errors ?? null,
+      rawData: shopifyData.data ?? null,
+    });
 
     const subscriptions = shopifyData.data?.currentAppInstallation?.activeSubscriptions || [];
-    
+    logStep("Active subscriptions parsed", {
+      count: subscriptions.length,
+      subscriptions: subscriptions.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        status: s.status,
+        test: s.test,
+        trialDays: s.trialDays,
+        currentPeriodEnd: s.currentPeriodEnd,
+      })),
+    });
+
     if (subscriptions.length === 0) {
-      logStep("No active subscriptions");
+      logStep("No active subscriptions — returning subscribed:false", {
+        shopDomain: brand.shopify_store_domain,
+        hint: "Merchant may not have completed Shopify Managed Pricing approval, or subscription is in PENDING/DECLINED/EXPIRED state (only ACTIVE shows in activeSubscriptions).",
+      });
       return new Response(JSON.stringify({ subscribed: false }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
