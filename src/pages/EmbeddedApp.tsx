@@ -28,7 +28,7 @@ export default function EmbeddedApp() {
         setVerifying(false);
         return;
       }
-      console.warn('[EmbeddedApp] Verification timed out after 5s, falling back to connection screen');
+      console.warn('[EmbeddedApp] Verification timed out after 3s, falling back to connection screen');
       cancelled = true;
       setNeedsConnection(true);
       setVerifying(false);
