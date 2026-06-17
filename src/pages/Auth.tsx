@@ -69,8 +69,16 @@ export default function Auth() {
     }
   };
   const handleSelectPlan = (plan: TierKey) => {
+    const target = `/connect-shopify?plan=${plan}`;
+    console.log('[Auth] Start Free Trial clicked', {
+      plan,
+      target,
+      fullTargetUrl: `${window.location.origin}${target}`,
+      origin: window.location.origin,
+      currentHref: window.location.href,
+    });
     sessionStorage.setItem('selectedPlan', plan);
-    navigate(`/connect-shopify?plan=${plan}`);
+    navigate(target);
   };
 
   // Plan selection screen
