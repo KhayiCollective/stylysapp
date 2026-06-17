@@ -150,7 +150,7 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
   }, [user, loading, requireShopify, location.pathname, isEmbedded, config?.shop]);
 
   // Show loading while auth is resolving or before startup checks finish (or time out).
-  if (loading || !startupDone) {
+  if ((!isEmbedded && loading) || !startupDone) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
