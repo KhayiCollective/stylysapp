@@ -1,7 +1,17 @@
 import { ReactNode, useEffect, useState } from "react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedTestModeBanner } from "@/components/embedded/EmbeddedTestModeBanner";
 import { supabase } from "@/integrations/supabase/client";
+import { LayoutDashboard, Package, Settings2, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const NAV_ITEMS = [
+  { label: "Dashboard", path: "/embedded", icon: LayoutDashboard },
+  { label: "Catalog", path: "/embedded/catalog", icon: Package },
+  { label: "Rules", path: "/embedded/rules", icon: Settings2 },
+  { label: "Settings", path: "/embedded/settings", icon: Settings },
+];
 
 interface EmbeddedDashboardProps {
   children: ReactNode;
@@ -17,10 +27,24 @@ interface BrandInfo {
 
 export function EmbeddedDashboard({ children, testMode = false, shopDomain }: EmbeddedDashboardProps) {
   const { config, showToast } = useEmbeddedApp();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [brand, setBrand] = useState<BrandInfo | null>(null);
   const [loading, setLoading] = useState(false);
 
   const shop = shopDomain || config?.shop;
+
+  // Preserve shop/host params when navigating between embedded sub-routes.
+  const navigateTo = (path: string) => {
+    const qs = searchParams.toString();
+    navigate(qs ? `${path}?${qs}` : path);
+  };
+
+  const isActive = (path: string) =>
+    path === "/embedded"
+      ? location.pathname === "/embedded" || location.pathname === "/embedded/"
+      : location.pathname.startsWith(path);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,27 +121,42 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
   }, [shop, showToast, testMode]);
 
 
-  // Embedded layout - minimal chrome since Shopify provides navigation
   return (
     <div className="min-h-screen bg-background">
-      {/* Test mode banner */}
       {testMode && <EmbeddedTestModeBanner shopDomain={shop} />}
-      
+
       <div className="border-b bg-card/50 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold">STYLYS</h1>
-            {brand && (
-              <span className="text-sm text-muted-foreground">
-                {brand.name}
-              </span>
-            )}
-          </div>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold">STYLYS</h1>
+          {brand && (
+            <span className="text-sm text-muted-foreground">{brand.name}</span>
+          )}
         </div>
       </div>
-      <main className="p-4">
-        {children}
-      </main>
+
+      {/* Tab navigation — uses useNavigate on buttons (no href) so Shopify App Bridge
+          cannot intercept clicks and trigger a full-page top-frame navigation. */}
+      <nav className="border-b bg-background px-4">
+        <div className="flex">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => navigateTo(item.path)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
+                isActive(item.path)
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              )}
+            >
+              <item.icon className="w-4 h-4" />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="p-4">{children}</main>
     </div>
   );
 }

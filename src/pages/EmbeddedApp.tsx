@@ -1,24 +1,19 @@
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
 import { EmbeddedConnectionRequired } from "@/components/embedded/EmbeddedConnectionRequired";
 import Dashboard from "./Dashboard";
-
-console.log('[EmbeddedApp] v2 loaded');
+import Catalog from "./Catalog";
+import Rules from "./Rules";
+import Settings from "./Settings";
 
 export default function EmbeddedApp() {
-  console.log('[EmbeddedApp] mount, URL:', window.location.href);
   const [searchParams] = useSearchParams();
   const { config } = useEmbeddedApp();
+  const location = useLocation();
 
   const shop = searchParams.get("shop") || config?.shop;
-  const host = searchParams.get("host");
-  // Test mode is only allowed in non-production builds to prevent shop-verification bypass.
   const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;
-
-  console.log('[EmbeddedApp] shop param:', shop);
-  console.log('[EmbeddedApp] host param:', host);
-  console.log('[EmbeddedApp] searchParams:', Object.fromEntries(searchParams));
 
   // Write synchronously during render (not in a useEffect) so the flag is present
   // in sessionStorage before any ProtectedRoute renders on subsequent navigation.
@@ -26,16 +21,26 @@ export default function EmbeddedApp() {
     try { sessionStorage.setItem('stylys:embedded-session', '1'); } catch { /* ignore */ }
   }
 
-  // When shop param is absent (not launched from Shopify admin), prompt connection.
-  // When present, trust the Shopify admin iframe context — the signed host param and
-  // Shopify's own embed security are sufficient; data is protected by Supabase RLS.
   if (!isTestMode && !shop) {
     return <EmbeddedConnectionRequired shopDomain={null} autoInitiate={false} />;
   }
 
+  // Sub-route within /embedded/* so all navigation stays inside the iframe.
+  // EmbeddedDashboard's nav uses useNavigate (not anchor tags) to avoid Shopify
+  // App Bridge intercepting clicks and triggering a top-frame page reload.
+  const subPath = location.pathname.replace(/^\/embedded\/?/, "");
+  const renderPage = () => {
+    switch (subPath) {
+      case "catalog": return <Catalog />;
+      case "rules": return <Rules />;
+      case "settings": return <Settings />;
+      default: return <Dashboard />;
+    }
+  };
+
   return (
     <EmbeddedDashboard testMode={isTestMode} shopDomain={shop}>
-      <Dashboard />
+      {renderPage()}
     </EmbeddedDashboard>
   );
 }

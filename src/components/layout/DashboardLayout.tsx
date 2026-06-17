@@ -15,6 +15,17 @@ interface DashboardLayoutProps {
   description?: string;
 }
 
+// When running inside the Shopify admin iframe, EmbeddedDashboard provides the layout
+// chrome and navigation. DashboardLayout renders transparent so its sidebar doesn't
+// create a double-layout inside the embedded context.
+function isEmbeddedSession(): boolean {
+  try {
+    return window.self !== window.top && sessionStorage.getItem('stylys:embedded-session') === '1';
+  } catch {
+    return false;
+  }
+}
+
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Catalog", href: "/catalog", icon: Package },
@@ -27,11 +38,11 @@ const navigation = [
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
 export function DashboardLayout({ children, title, description }: DashboardLayoutProps) {
+  // Hooks must be called unconditionally before any early return (React rules of hooks).
   const location = useLocation();
   const { tierName } = useSubscription();
   const hasChatbot = hasFeature(tierName, "styling_chatbot");
 
-  // Chatbot state
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -42,6 +53,12 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Inside the Shopify admin iframe, EmbeddedDashboard owns the layout chrome.
+  // Return children only so the sidebar and header don't create a double-layout.
+  if (isEmbeddedSession()) {
+    return <>{children}</>;
+  }
 
   const sendMessage = async () => {
     if (!input.trim() || chatLoading) return;
