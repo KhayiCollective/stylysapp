@@ -47,11 +47,15 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
 
   // Embedded shop verification + subscription/Shopify checks run in parallel with a 3s startup cap.
   useEffect(() => {
-    if (loading) return;
+    if (!isEmbedded && loading) return;
 
     let cancelled = false;
     timeoutFired.current = false;
-    setStartupDone(false);
+    if (isEmbedded && config?.shop) {
+      setStartupDone(true);
+    } else {
+      setStartupDone(false);
+    }
 
     const SUB_EXEMPT = ['/connect-shopify', '/settings', '/shopify-setup'];
     const exempt = SUB_EXEMPT.includes(location.pathname);
