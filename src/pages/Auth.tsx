@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Sparkles, ArrowRight, Mail, Lock, User, Store, CheckCircle, Crown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TIERS, TierKey } from '@/lib/tiers';
+import { supabase } from '@/integrations/supabase/client';
 
 type AuthView = 'login' | 'signup' | 'forgot' | 'select-plan';
 
