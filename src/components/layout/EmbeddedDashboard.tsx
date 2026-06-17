@@ -18,7 +18,7 @@ interface BrandInfo {
 export function EmbeddedDashboard({ children, testMode = false, shopDomain }: EmbeddedDashboardProps) {
   const { config, showToast } = useEmbeddedApp();
   const [brand, setBrand] = useState<BrandInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const shop = shopDomain || config?.shop;
 
@@ -96,17 +96,6 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
     };
   }, [shop, showToast, testMode]);
 
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Loading STYLYS...</p>
-        </div>
-      </div>
-    );
-  }
 
   // Embedded layout - minimal chrome since Shopify provides navigation
   return (

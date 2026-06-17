@@ -68,13 +68,10 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
 
   const embedded = isRunningEmbedded();
 
-  // If running embedded in Shopify admin, render immediately — no auth or subscription checks.
-  if (embedded) {
-    return <>{children}</>;
-  }
-
-  // Standalone auth flow
+  // Standalone auth flow — hooks must be called before any early return (React rules).
+  // The effect body exits immediately when running embedded.
   useEffect(() => {
+    if (embedded) return;
     if (loading) return;
 
     let cancelled = false;
@@ -153,7 +150,12 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
       cancelled = true;
       window.clearTimeout(startupTimer);
     };
-  }, [user, loading, requireShopify, location.pathname]);
+  }, [embedded, user, loading, requireShopify, location.pathname]);
+
+  // Render immediately when running inside the Shopify admin iframe.
+  if (embedded) {
+    return <>{children}</>;
+  }
 
   // Show loading while auth is resolving or before startup checks finish (or time out).
   if (loading || !startupDone) {

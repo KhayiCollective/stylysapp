@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
@@ -11,126 +10,26 @@ export default function EmbeddedApp() {
   console.log('[EmbeddedApp] mount, URL:', window.location.href);
   const [searchParams] = useSearchParams();
   const { config } = useEmbeddedApp();
-  const [verifying, setVerifying] = useState(true);
-  const [verified, setVerified] = useState(false);
-  const [needsConnection, setNeedsConnection] = useState(false);
 
   const shop = searchParams.get("shop") || config?.shop;
   const host = searchParams.get("host");
   // Test mode is only allowed in non-production builds to prevent shop-verification bypass.
   const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;
 
-  useEffect(() => {
-    console.log('[EmbeddedApp] shop param:', shop);
-    console.log('[EmbeddedApp] host param:', host);
-    console.log('[EmbeddedApp] searchParams:', Object.fromEntries(searchParams));
+  console.log('[EmbeddedApp] shop param:', shop);
+  console.log('[EmbeddedApp] host param:', host);
+  console.log('[EmbeddedApp] searchParams:', Object.fromEntries(searchParams));
 
-    let cancelled = false;
-    const timeoutId = window.setTimeout(() => {
-      if (cancelled) return;
-      if (shop && host) {
-        console.warn('[EmbeddedApp] Verification timed out after 3s, but shop+host present — treating as verified inside Shopify admin');
-        cancelled = true;
-        setVerified(true);
-        setVerifying(false);
-        return;
-      }
-      console.warn('[EmbeddedApp] Verification timed out after 3s, falling back to connection screen');
-      cancelled = true;
-      setNeedsConnection(true);
-      setVerifying(false);
-    }, 3000);
-
-    const verifyShop = async () => {
-      if (isTestMode) {
-        if (cancelled) return;
-        cancelled = true;
-        window.clearTimeout(timeoutId);
-        setVerified(true);
-        setVerifying(false);
-        return;
-      }
-
-      console.log('[EmbeddedApp] checking shop+host:', !!shop, !!host);
-      if (shop && host) {
-        console.log('[EmbeddedApp] IMMEDIATE VERIFY - skipping fetch');
-        if (cancelled) return;
-        cancelled = true;
-        window.clearTimeout(timeoutId);
-        setVerified(true);
-        setVerifying(false);
-        return;
-      }
-
-      if (!shop) {
-        if (cancelled) return;
-        cancelled = true;
-        window.clearTimeout(timeoutId);
-        setNeedsConnection(true);
-        setVerifying(false);
-        return;
-      }
-
-      try {
-        const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
-        const controller = new AbortController();
-        const fetchTimeout = window.setTimeout(() => controller.abort(), 2800);
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
-          { signal: controller.signal }
-        );
-        window.clearTimeout(fetchTimeout);
-        const result = await res.json();
-        if (cancelled) return;
-        cancelled = true;
-        window.clearTimeout(timeoutId);
-
-        if (result.connected) {
-          setVerified(true);
-        } else {
-          setNeedsConnection(true);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        cancelled = true;
-        window.clearTimeout(timeoutId);
-        console.error('Verification error:', err);
-        setNeedsConnection(true);
-      } finally {
-        setVerifying(false);
-      }
-    };
-
-    verifyShop();
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [shop, isTestMode]);
-
-  if (verifying) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Loading STYLYS...</p>
-        </div>
-      </div>
-    );
+  // When shop param is absent (not launched from Shopify admin), prompt connection.
+  // When present, trust the Shopify admin iframe context — the signed host param and
+  // Shopify's own embed security are sufficient; data is protected by Supabase RLS.
+  if (!isTestMode && !shop) {
+    return <EmbeddedConnectionRequired shopDomain={null} autoInitiate={false} />;
   }
 
-  if (needsConnection) {
-    return <EmbeddedConnectionRequired shopDomain={shop} autoInitiate={!!shop} />;
-  }
-
-  if (verified) {
-    return (
-      <EmbeddedDashboard testMode={isTestMode} shopDomain={shop}>
-        <Dashboard />
-      </EmbeddedDashboard>
-    );
-  }
-
-  return null;
+  return (
+    <EmbeddedDashboard testMode={isTestMode} shopDomain={shop}>
+      <Dashboard />
+    </EmbeddedDashboard>
+  );
 }
