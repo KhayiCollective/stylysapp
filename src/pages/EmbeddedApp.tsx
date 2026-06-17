@@ -44,6 +44,15 @@ export default function EmbeddedApp() {
         return;
       }
 
+      if (shop && host) {
+        if (cancelled) return;
+        cancelled = true;
+        window.clearTimeout(timeoutId);
+        setVerified(true);
+        setVerifying(false);
+        return;
+      }
+
       if (!shop) {
         if (cancelled) return;
         cancelled = true;
