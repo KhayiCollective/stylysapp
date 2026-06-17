@@ -22,17 +22,17 @@ export default function EmbeddedApp() {
     const timeoutId = window.setTimeout(() => {
       if (cancelled) return;
       if (shop && host) {
-        console.warn('[EmbeddedApp] Verification timed out after 5s, but shop+host present — treating as verified inside Shopify admin');
+        console.warn('[EmbeddedApp] Verification timed out after 3s, but shop+host present — treating as verified inside Shopify admin');
         cancelled = true;
         setVerified(true);
         setVerifying(false);
         return;
       }
-      console.warn('[EmbeddedApp] Verification timed out after 5s, falling back to connection screen');
+      console.warn('[EmbeddedApp] Verification timed out after 3s, falling back to connection screen');
       cancelled = true;
       setNeedsConnection(true);
       setVerifying(false);
-    }, 5000);
+    }, 3000);
 
     const verifyShop = async () => {
       if (isTestMode) {
@@ -56,7 +56,7 @@ export default function EmbeddedApp() {
       try {
         const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
         const controller = new AbortController();
-        const fetchTimeout = window.setTimeout(() => controller.abort(), 4500);
+        const fetchTimeout = window.setTimeout(() => controller.abort(), 2800);
         const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
           { signal: controller.signal }
