@@ -8,6 +8,7 @@ import Dashboard from "./Dashboard";
 console.log('[EmbeddedApp] v2 loaded');
 
 export default function EmbeddedApp() {
+  console.log('[EmbeddedApp] mount, URL:', window.location.href);
   const [searchParams] = useSearchParams();
   const { config } = useEmbeddedApp();
   const [verifying, setVerifying] = useState(true);
