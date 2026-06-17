@@ -13,6 +13,8 @@ const NAV_ITEMS = [
   { label: "Settings", path: "/embedded/settings", icon: Settings },
 ];
 
+const BRAND_FETCH_TIMEOUT_MS = 3000;
+
 interface EmbeddedDashboardProps {
   children: ReactNode;
   testMode?: boolean;
@@ -26,12 +28,11 @@ interface BrandInfo {
 }
 
 export function EmbeddedDashboard({ children, testMode = false, shopDomain }: EmbeddedDashboardProps) {
-  const { config, showToast } = useEmbeddedApp();
+  const { config } = useEmbeddedApp();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [brand, setBrand] = useState<BrandInfo | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const shop = shopDomain || config?.shop;
 
@@ -51,77 +52,56 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
   useEffect(() => {
     let cancelled = false;
 
-    console.log('[EmbeddedDashboard] mount, shop:', shop, 'testMode:', testMode);
+    if (testMode && !shop) {
+      setBrand({ id: 'test-brand', name: 'Test Store', shopify_store_domain: 'test-store.myshopify.com' });
+      return;
+    }
 
-    // Safety timeout: never spin longer than 4s, regardless of network state.
-    const safetyTimer = setTimeout(() => {
-      if (cancelled) return;
-      console.warn('[EmbeddedDashboard] safety timeout reached - releasing spinner');
-      setLoading(false);
-    }, 4000);
+    if (!shop) return;
 
-    const fetchBrandByShop = async () => {
-      // In test mode with no real shop, use mock data
-      if (testMode && !shop) {
-        setBrand({
-          id: 'test-brand',
-          name: 'Test Store',
-          shopify_store_domain: 'test-store.myshopify.com'
-        });
-        setLoading(false);
-        return;
-      }
+    // Brand name is cosmetic — never block the UI waiting for it.
+    // Race the Supabase query against a 3-second timeout; whichever resolves
+    // first wins. If the query hangs (e.g. RLS with no auth session), the
+    // timeout resolves with null and the app loads with no brand name shown.
+    const shopDomainClean = shop.replace('.myshopify.com', '');
 
-      if (!shop) {
-        console.log('[EmbeddedDashboard] no shop - releasing spinner');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const shopDomainClean = shop.replace('.myshopify.com', '');
-        console.log('[EmbeddedDashboard] fetching brand for shop:', shop);
-        const { data, error } = await supabase
-          .from('brands')
-          .select('id, name, shopify_store_domain')
-          .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomainClean}%`)
-          .maybeSingle();
-
-        if (cancelled) return;
-
+    const fetchPromise = supabase
+      .from('brands')
+      .select('id, name, shopify_store_domain')
+      .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomainClean}%`)
+      .maybeSingle()
+      .then(({ data, error }) => {
         if (error) {
-          console.error('[EmbeddedDashboard] Error fetching brand:', error);
-          if (!testMode) {
-            showToast('Could not load store data', true);
-          }
-          if (testMode) {
-            setBrand({
-              id: 'test-brand',
-              name: shop.replace('.myshopify.com', ''),
-              shopify_store_domain: shop
-            });
-          }
-        } else if (data) {
-          console.log('[EmbeddedDashboard] brand loaded:', data.id);
-          setBrand(data);
-        } else {
-          console.warn('[EmbeddedDashboard] no brand row matched shop:', shop);
+          console.warn('[EmbeddedDashboard] brand fetch error:', error.message);
+          return null;
         }
-      } catch (err) {
-        console.error('[EmbeddedDashboard] Error in fetchBrandByShop:', err);
-      } finally {
-        if (!cancelled) setLoading(false);
+        return data as BrandInfo | null;
+      })
+      .catch((err) => {
+        console.warn('[EmbeddedDashboard] brand fetch threw:', err);
+        return null;
+      });
+
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => {
+        console.warn('[EmbeddedDashboard] brand fetch exceeded 3s — continuing without brand name');
+        resolve(null);
+      }, BRAND_FETCH_TIMEOUT_MS)
+    );
+
+    console.log('[EmbeddedDashboard] fetching brand for shop:', shop);
+
+    Promise.race([fetchPromise, timeoutPromise]).then((result) => {
+      if (cancelled) return;
+      if (result) {
+        console.log('[EmbeddedDashboard] brand loaded:', result.name);
+        setBrand(result);
       }
-    };
+      // null result (timeout or no match) → brand stays null, UI already rendered
+    });
 
-    fetchBrandByShop();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(safetyTimer);
-    };
-  }, [shop, showToast, testMode]);
-
+    return () => { cancelled = true; };
+  }, [shop, testMode]);
 
   return (
     <div className="min-h-screen bg-background">
