@@ -5,6 +5,8 @@ import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
 import { EmbeddedConnectionRequired } from "@/components/embedded/EmbeddedConnectionRequired";
 import Dashboard from "./Dashboard";
 
+console.log('[EmbeddedApp] v2 loaded');
+
 export default function EmbeddedApp() {
   const [searchParams] = useSearchParams();
   const { config } = useEmbeddedApp();
