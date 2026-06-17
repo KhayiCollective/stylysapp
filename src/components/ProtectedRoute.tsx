@@ -32,10 +32,26 @@ function writeSubCache(userId: string, subscribed: boolean) {
   }
 }
 
+const EMBEDDED_FLAG_KEY = 'stylys:embedded-session';
+
 function isRunningEmbedded(): boolean {
   try {
-    const shopParam = new URLSearchParams(window.location.search).get('shop');
-    return window.self !== window.top && !!shopParam;
+    const params = new URLSearchParams(window.location.search);
+    const shopParam = params.get('shop');
+    const inIframe = window.self !== window.top;
+
+    // Persist embedded flag for the session once detected so client-side
+    // navigation (which drops the shop query param) still counts as embedded.
+    if (inIframe && (shopParam || window.location.pathname.startsWith('/embedded'))) {
+      try { sessionStorage.setItem(EMBEDDED_FLAG_KEY, '1'); } catch { /* ignore */ }
+      return true;
+    }
+
+    try {
+      if (sessionStorage.getItem(EMBEDDED_FLAG_KEY) === '1' && inIframe) return true;
+    } catch { /* ignore */ }
+
+    return false;
   } catch {
     return false;
   }
