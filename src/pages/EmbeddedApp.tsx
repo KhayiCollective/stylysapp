@@ -50,7 +50,9 @@ export default function EmbeddedApp() {
         return;
       }
 
+      console.log('[EmbeddedApp] checking shop+host:', !!shop, !!host);
       if (shop && host) {
+        console.log('[EmbeddedApp] IMMEDIATE VERIFY - skipping fetch');
         if (cancelled) return;
         cancelled = true;
         window.clearTimeout(timeoutId);
