@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
@@ -21,13 +20,11 @@ export default function EmbeddedApp() {
   console.log('[EmbeddedApp] host param:', host);
   console.log('[EmbeddedApp] searchParams:', Object.fromEntries(searchParams));
 
-  // Write the embedded-session flag so ProtectedRoute's isRunningEmbedded() returns
-  // true after client-side navigation drops the shop param from the URL.
-  useEffect(() => {
-    if (shop) {
-      try { sessionStorage.setItem('stylys:embedded-session', '1'); } catch { /* ignore */ }
-    }
-  }, [shop]);
+  // Write synchronously during render (not in a useEffect) so the flag is present
+  // in sessionStorage before any ProtectedRoute renders on subsequent navigation.
+  if (shop) {
+    try { sessionStorage.setItem('stylys:embedded-session', '1'); } catch { /* ignore */ }
+  }
 
   // When shop param is absent (not launched from Shopify admin), prompt connection.
   // When present, trust the Shopify admin iframe context — the signed host param and
