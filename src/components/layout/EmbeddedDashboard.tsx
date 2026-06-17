@@ -23,6 +23,17 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
   const shop = shopDomain || config?.shop;
 
   useEffect(() => {
+    let cancelled = false;
+
+    console.log('[EmbeddedDashboard] mount, shop:', shop, 'testMode:', testMode);
+
+    // Safety timeout: never spin longer than 4s, regardless of network state.
+    const safetyTimer = setTimeout(() => {
+      if (cancelled) return;
+      console.warn('[EmbeddedDashboard] safety timeout reached - releasing spinner');
+      setLoading(false);
+    }, 4000);
+
     const fetchBrandByShop = async () => {
       // In test mode with no real shop, use mock data
       if (testMode && !shop) {
@@ -36,25 +47,27 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
       }
 
       if (!shop) {
+        console.log('[EmbeddedDashboard] no shop - releasing spinner');
         setLoading(false);
         return;
       }
 
       try {
-        // Look up brand by shop domain
         const shopDomainClean = shop.replace('.myshopify.com', '');
+        console.log('[EmbeddedDashboard] fetching brand for shop:', shop);
         const { data, error } = await supabase
           .from('brands')
           .select('id, name, shopify_store_domain')
           .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomainClean}%`)
-          .single();
+          .maybeSingle();
+
+        if (cancelled) return;
 
         if (error) {
-          console.error('Error fetching brand:', error);
+          console.error('[EmbeddedDashboard] Error fetching brand:', error);
           if (!testMode) {
             showToast('Could not load store data', true);
           }
-          // In test mode, fall back to mock
           if (testMode) {
             setBrand({
               id: 'test-brand',
@@ -62,18 +75,27 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
               shopify_store_domain: shop
             });
           }
-        } else {
+        } else if (data) {
+          console.log('[EmbeddedDashboard] brand loaded:', data.id);
           setBrand(data);
+        } else {
+          console.warn('[EmbeddedDashboard] no brand row matched shop:', shop);
         }
       } catch (err) {
-        console.error('Error in fetchBrandByShop:', err);
+        console.error('[EmbeddedDashboard] Error in fetchBrandByShop:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchBrandByShop();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(safetyTimer);
+    };
   }, [shop, showToast, testMode]);
+
 
   if (loading) {
     return (
