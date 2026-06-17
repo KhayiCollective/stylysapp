@@ -7,10 +7,14 @@ import Catalog from "./Catalog";
 import Rules from "./Rules";
 import Settings from "./Settings";
 
+console.log('[EmbeddedApp] module loaded, href:', window.location.href);
+
 export default function EmbeddedApp() {
   const [searchParams] = useSearchParams();
   const { config } = useEmbeddedApp();
   const location = useLocation();
+
+  console.log('[EmbeddedApp] render — pathname:', location.pathname, 'search:', location.search, 'config.shop:', config?.shop);
 
   const shop = searchParams.get("shop") || config?.shop;
   const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;

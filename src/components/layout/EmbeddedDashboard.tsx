@@ -38,7 +38,9 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
   // Preserve shop/host params when navigating between embedded sub-routes.
   const navigateTo = (path: string) => {
     const qs = searchParams.toString();
-    navigate(qs ? `${path}?${qs}` : path);
+    const target = qs ? `${path}?${qs}` : path;
+    console.log('[EmbeddedDashboard] nav click — target:', target, 'current:', location.pathname);
+    navigate(target);
   };
 
   const isActive = (path: string) =>
