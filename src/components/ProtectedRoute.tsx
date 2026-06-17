@@ -58,6 +58,7 @@ function isRunningEmbedded(): boolean {
 }
 
 export function ProtectedRoute({ children, requireShopify = true }: ProtectedRouteProps) {
+  console.log('[ProtectedRoute] isEmbedded:', isRunningEmbedded(), 'sessionStorage flag:', sessionStorage.getItem('stylys:embedded-session'), 'path:', window.location.pathname);
   const { user, loading } = useAuth();
   const location = useLocation();
 
