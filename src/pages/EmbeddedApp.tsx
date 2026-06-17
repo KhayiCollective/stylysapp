@@ -17,26 +17,48 @@ export default function EmbeddedApp() {
   const isTestMode = searchParams.get("test") === "true" && import.meta.env.DEV;
 
   useEffect(() => {
+    let cancelled = false;
+    // Hard cap: never hang in the Shopify admin iframe more than 5s.
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      console.warn('[EmbeddedApp] Verification timed out after 5s, falling back to connection screen');
+      cancelled = true;
+      setNeedsConnection(true);
+      setVerifying(false);
+    }, 5000);
+
     const verifyShop = async () => {
       if (isTestMode) {
+        if (cancelled) return;
+        cancelled = true;
+        window.clearTimeout(timeoutId);
         setVerified(true);
         setVerifying(false);
         return;
       }
 
       if (!shop) {
+        if (cancelled) return;
+        cancelled = true;
+        window.clearTimeout(timeoutId);
         setNeedsConnection(true);
         setVerifying(false);
         return;
       }
 
       try {
-        // Use edge function to verify (bypasses RLS, works without auth)
         const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
+        const controller = new AbortController();
+        const fetchTimeout = window.setTimeout(() => controller.abort(), 4500);
         const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
+          { signal: controller.signal }
         );
+        window.clearTimeout(fetchTimeout);
         const result = await res.json();
+        if (cancelled) return;
+        cancelled = true;
+        window.clearTimeout(timeoutId);
 
         if (result.connected) {
           setVerified(true);
@@ -44,6 +66,9 @@ export default function EmbeddedApp() {
           setNeedsConnection(true);
         }
       } catch (err) {
+        if (cancelled) return;
+        cancelled = true;
+        window.clearTimeout(timeoutId);
         console.error('Verification error:', err);
         setNeedsConnection(true);
       } finally {
@@ -52,6 +77,11 @@ export default function EmbeddedApp() {
     };
 
     verifyShop();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [shop, isTestMode]);
 
   if (verifying) {
