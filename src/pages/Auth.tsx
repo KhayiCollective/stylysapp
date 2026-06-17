@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Sparkles, ArrowRight, Mail, Lock, User, Store, CheckCircle, Crown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TIERS, TierKey } from '@/lib/tiers';
+import { supabase } from '@/integrations/supabase/client';
 
 type AuthView = 'login' | 'signup' | 'forgot' | 'select-plan';
 
@@ -68,17 +69,52 @@ export default function Auth() {
       setLoading(false);
     }
   };
-  const handleSelectPlan = (plan: TierKey) => {
-    const target = `/connect-shopify?plan=${plan}`;
-    console.log('[Auth] Start Free Trial clicked', {
-      plan,
-      target,
-      fullTargetUrl: `${window.location.origin}${target}`,
-      origin: window.location.origin,
-      currentHref: window.location.href,
-    });
+  const handleSelectPlan = async (plan: TierKey) => {
+    console.log('[Auth] Start Free Trial clicked', { plan });
     sessionStorage.setItem('selectedPlan', plan);
-    navigate(target);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: 'Please sign in', description: 'You need to be signed in to start a trial.', variant: 'destructive' });
+        setView('login');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('brand_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!profile?.brand_id) {
+        toast({ title: 'Setup incomplete', description: 'Brand not found. Please complete onboarding first.', variant: 'destructive' });
+        navigate('/connect-shopify');
+        return;
+      }
+
+      const { data: brand } = await supabase
+        .from('brands')
+        .select('shopify_store_domain')
+        .eq('id', profile.brand_id)
+        .maybeSingle();
+
+      const shopDomain: string | undefined = brand?.shopify_store_domain;
+      if (!shopDomain) {
+        toast({ title: 'Connect Shopify first', description: 'Please connect your Shopify store to start a subscription.' });
+        navigate('/connect-shopify');
+        return;
+      }
+
+      // Extract shop handle from "<handle>.myshopify.com"
+      const shopHandle = shopDomain.replace(/\.myshopify\.com$/i, '');
+      const pricingUrl = `https://admin.shopify.com/store/${shopHandle}/charges/ai-stylist-platform/pricing_plans`;
+      console.log('[Auth] Redirecting to Shopify Managed Pricing', { shopHandle, pricingUrl });
+      window.top ? (window.top.location.href = pricingUrl) : (window.location.href = pricingUrl);
+    } catch (err) {
+      console.error('[Auth] handleSelectPlan error', err);
+      toast({ title: 'Error', description: 'Could not start subscription. Please try again.', variant: 'destructive' });
+    }
   };
 
   // Plan selection screen
