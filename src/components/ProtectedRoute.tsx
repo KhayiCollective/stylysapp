@@ -2,7 +2,6 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,7 +10,6 @@ interface ProtectedRouteProps {
 
 const SUB_CACHE_KEY = 'stylys:sub-status';
 const SUB_CACHE_TTL_MS = 5 * 60 * 1000;
-const STARTUP_TIMEOUT_MS = 3000;
 
 function readSubCache(userId: string): boolean | null {
   try {
@@ -34,28 +32,38 @@ function writeSubCache(userId: string, subscribed: boolean) {
   }
 }
 
+function isRunningEmbedded(): boolean {
+  try {
+    const shopParam = new URLSearchParams(window.location.search).get('shop');
+    return window.self !== window.top && !!shopParam;
+  } catch {
+    return false;
+  }
+}
+
 export function ProtectedRoute({ children, requireShopify = true }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
-  const { isEmbedded, config } = useEmbeddedApp();
   const location = useLocation();
 
-  const [startupDone, setStartupDone] = useState(false);
   const [hasShopify, setHasShopify] = useState<boolean | null>(null);
   const [hasSub, setHasSub] = useState<boolean | null>(null);
-  const [embeddedBrandVerified, setEmbeddedBrandVerified] = useState<boolean | null>(null);
+  const [startupDone, setStartupDone] = useState(false);
   const timeoutFired = useRef(false);
 
-  // Embedded shop verification + subscription/Shopify checks run in parallel with a 3s startup cap.
+  const embedded = isRunningEmbedded();
+
+  // If running embedded in Shopify admin, render immediately — no auth or subscription checks.
+  if (embedded) {
+    return <>{children}</>;
+  }
+
+  // Standalone auth flow
   useEffect(() => {
-    if (!isEmbedded && loading) return;
+    if (loading) return;
 
     let cancelled = false;
     timeoutFired.current = false;
-    if (isEmbedded && config?.shop) {
-      setStartupDone(true);
-    } else {
-      setStartupDone(false);
-    }
+    setStartupDone(false);
 
     const SUB_EXEMPT = ['/connect-shopify', '/settings', '/shopify-setup'];
     const exempt = SUB_EXEMPT.includes(location.pathname);
@@ -72,22 +80,7 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
       timeoutFired.current = true;
       console.warn('[ProtectedRoute] Startup checks exceeded 3s — rendering dashboard, continuing in background');
       setStartupDone(true);
-    }, STARTUP_TIMEOUT_MS);
-
-    const verifyEmbedded = async () => {
-      if (!isEmbedded || !config?.shop) return;
-      try {
-        const shopDomain = config.shop.includes('.myshopify.com') ? config.shop : `${config.shop}.myshopify.com`;
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
-        );
-        const result = await res.json();
-        if (!cancelled) setEmbeddedBrandVerified(!!result.connected);
-      } catch (err) {
-        console.error('[ProtectedRoute] verify-shop error:', err);
-        if (!cancelled) setEmbeddedBrandVerified(false);
-      }
-    };
+    }, 3000);
 
     const checkShopify = async (): Promise<boolean | null> => {
       if (!user || !requireShopify) return null;
@@ -112,8 +105,6 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     };
 
     const checkSub = async (): Promise<boolean | null> => {
-      // Skip subscription check entirely in embedded Shopify admin — gate is only enforced standalone.
-      if (isEmbedded) return null;
       if (!user || !requireShopify || exempt) return null;
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -131,8 +122,7 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
       }
     };
 
-    // Run all startup calls in parallel.
-    Promise.all([verifyEmbedded(), checkShopify(), checkSub()]).then(([, shopifyResult, subResult]) => {
+    Promise.all([checkShopify(), checkSub()]).then(([shopifyResult, subResult]) => {
       if (cancelled) return;
       if (shopifyResult !== null) setHasShopify(shopifyResult);
       if (subResult !== null) {
@@ -147,10 +137,10 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
       cancelled = true;
       window.clearTimeout(startupTimer);
     };
-  }, [user, loading, requireShopify, location.pathname, isEmbedded, config?.shop]);
+  }, [user, loading, requireShopify, location.pathname]);
 
   // Show loading while auth is resolving or before startup checks finish (or time out).
-  if ((!isEmbedded && loading) || !startupDone) {
+  if (loading || !startupDone) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -161,24 +151,6 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     );
   }
 
-  // Embedded path: if verification hasn't completed yet (timeout fired), optimistically render.
-  if (isEmbedded && config?.shop) {
-    if (embeddedBrandVerified === false) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="text-center p-8">
-            <h2 className="text-xl font-semibold mb-2">Store Not Connected</h2>
-            <p className="text-muted-foreground">
-              This Shopify store is not connected to STYLYS yet.
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return <>{children}</>;
-  }
-
-  // Standalone auth flow
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
