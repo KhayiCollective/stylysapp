@@ -108,6 +108,8 @@ export function ProtectedRoute({ children, requireShopify = true }: ProtectedRou
     };
 
     const checkSub = async (): Promise<boolean | null> => {
+      // Skip subscription check entirely in embedded Shopify admin — gate is only enforced standalone.
+      if (isEmbedded) return null;
       if (!user || !requireShopify || exempt) return null;
       try {
         const { data: { session } } = await supabase.auth.getSession();
