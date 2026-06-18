@@ -77,8 +77,10 @@ export type Database = {
           name: string
           shopify_access_token: string | null
           shopify_connected_at: string | null
+          shopify_refresh_token: string | null
           shopify_store_domain: string | null
           shopify_storefront_token: string | null
+          shopify_token_expires_at: string | null
           slug: string
           updated_at: string
           widget_script_tag_id: string | null
@@ -94,8 +96,10 @@ export type Database = {
           name: string
           shopify_access_token?: string | null
           shopify_connected_at?: string | null
+          shopify_refresh_token?: string | null
           shopify_store_domain?: string | null
           shopify_storefront_token?: string | null
+          shopify_token_expires_at?: string | null
           slug: string
           updated_at?: string
           widget_script_tag_id?: string | null
@@ -111,8 +115,10 @@ export type Database = {
           name?: string
           shopify_access_token?: string | null
           shopify_connected_at?: string | null
+          shopify_refresh_token?: string | null
           shopify_store_domain?: string | null
           shopify_storefront_token?: string | null
+          shopify_token_expires_at?: string | null
           slug?: string
           updated_at?: string
           widget_script_tag_id?: string | null
