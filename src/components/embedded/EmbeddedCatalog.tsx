@@ -45,9 +45,13 @@ export function EmbeddedCatalog({ shop }: EmbeddedCatalogProps) {
     (async () => {
       try {
         console.log("[EmbeddedCatalog] invoking embedded-data", { shop, host, hmac, resource: "products" });
-        const { data, error } = await supabase.functions.invoke("embedded-data", {
-          body: { shop, host, hmac, resource: "products" },
-        });
+        const result = await Promise.race([
+          supabase.functions.invoke("embedded-data", { body: { shop, host, hmac, resource: "products" } }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (cancelled) return;
+        if (result === null) { setStatus("empty"); return; }
+        const { data, error } = result;
         console.log("[EmbeddedCatalog] invoke response — data:", data, "error:", error);
         console.log("[EmbeddedCatalog] invoke returned", { hasData: !!data, hasError: !!error, brand: data?.brand?.id ?? null, productCount: data?.products?.length ?? 0 });
         if (cancelled) return;

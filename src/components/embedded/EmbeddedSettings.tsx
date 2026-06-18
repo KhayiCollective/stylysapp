@@ -34,9 +34,13 @@ export function EmbeddedSettings({ shop }: EmbeddedSettingsProps) {
     (async () => {
       try {
         console.log("[EmbeddedSettings] invoking embedded-data", { shop, host, hmac, resource: "settings" });
-        const { data, error } = await supabase.functions.invoke("embedded-data", {
-          body: { shop, host, hmac, resource: "settings" },
-        });
+        const result = await Promise.race([
+          supabase.functions.invoke("embedded-data", { body: { shop, host, hmac, resource: "settings" } }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (cancelled) return;
+        if (result === null) { setStatus("empty"); return; }
+        const { data, error } = result;
         console.log("[EmbeddedSettings] invoke returned", { hasData: !!data, hasError: !!error, brand: data?.brand?.id ?? null, productCount: data?.productCount ?? null });
         if (cancelled) return;
         if (error) {

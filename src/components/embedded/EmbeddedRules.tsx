@@ -57,9 +57,13 @@ export function EmbeddedRules({ shop }: EmbeddedRulesProps) {
     (async () => {
       try {
         console.log("[EmbeddedRules] invoking embedded-data", { shop, host, hmac, resource: "rules" });
-        const { data, error } = await supabase.functions.invoke("embedded-data", {
-          body: { shop, host, hmac, resource: "rules" },
-        });
+        const result = await Promise.race([
+          supabase.functions.invoke("embedded-data", { body: { shop, host, hmac, resource: "rules" } }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (cancelled) return;
+        if (result === null) { setStatus("empty"); return; }
+        const { data, error } = result;
         console.log("[EmbeddedRules] invoke returned", { hasData: !!data, hasError: !!error, brand: data?.brand?.id ?? null, ruleCount: data?.rules?.length ?? 0 });
         if (cancelled) return;
         if (error) {
