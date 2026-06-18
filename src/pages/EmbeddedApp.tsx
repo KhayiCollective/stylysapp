@@ -3,9 +3,9 @@ import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
 import { EmbeddedConnectionRequired } from "@/components/embedded/EmbeddedConnectionRequired";
 import Dashboard from "./Dashboard";
-import Rules from "./Rules";
-import Settings from "./Settings";
 import { EmbeddedCatalog } from "@/components/embedded/EmbeddedCatalog";
+import { EmbeddedRules } from "@/components/embedded/EmbeddedRules";
+import { EmbeddedSettings } from "@/components/embedded/EmbeddedSettings";
 
 console.log('[EmbeddedApp] module loaded, href:', window.location.href);
 
@@ -36,8 +36,8 @@ export default function EmbeddedApp() {
   const renderPage = () => {
     switch (subPath) {
       case "catalog":  return <EmbeddedCatalog shop={shop} />;
-      case "rules":    return <Rules />;
-      case "settings": return <Settings />;
+      case "rules":    return <EmbeddedRules shop={shop} />;
+      case "settings": return <EmbeddedSettings shop={shop} />;
       default:         return <Dashboard />;
     }
   };
