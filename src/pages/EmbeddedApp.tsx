@@ -3,9 +3,6 @@ import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
 import { EmbeddedConnectionRequired } from "@/components/embedded/EmbeddedConnectionRequired";
 import Dashboard from "./Dashboard";
-import { EmbeddedCatalog } from "@/components/embedded/EmbeddedCatalog";
-import { EmbeddedRules } from "@/components/embedded/EmbeddedRules";
-import { EmbeddedSettings } from "@/components/embedded/EmbeddedSettings";
 
 console.log('[EmbeddedApp] module loaded, href:', window.location.href);
 
@@ -35,10 +32,26 @@ export default function EmbeddedApp() {
   const subPath = location.pathname.replace(/^\/embedded\/?/, "");
   const renderPage = () => {
     switch (subPath) {
-      case "catalog":  return <EmbeddedCatalog shop={shop} />;
-      case "rules":    return <EmbeddedRules shop={shop} />;
-      case "settings": return <EmbeddedSettings shop={shop} />;
-      default:         return <Dashboard />;
+      case "catalog":
+        return (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Catalog — coming soon
+          </div>
+        );
+      case "rules":
+        return (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Rules — coming soon
+          </div>
+        );
+      case "settings":
+        return (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Settings — coming soon
+          </div>
+        );
+      default:
+        return <Dashboard />;
     }
   };
 
