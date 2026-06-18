@@ -4,7 +4,7 @@
 
 client_id = "e1bde8232afcab4c37b12a9b29c3dde1"
 name = "STYLYS APP"
-application_url = "https://stylysapp.lovable.app"
+application_url = "https://venerable-heliotrope-826d1c.netlify.app/embedded"
 embedded = true
 
 [access_scopes]
@@ -13,7 +13,7 @@ scopes = "read_products,read_product_listings,unauthenticated_read_product_listi
 [auth]
 redirect_urls = [
   "https://stylysapp.com/connect-shopify",
-  "https://stylysapp.lovable.app/connect-shopify"
+  "https://venerable-heliotrope-826d1c.netlify.app/connect-shopify"
 ]
 
 [webhooks]
