@@ -194,7 +194,7 @@ async function callAI(apiKey: string, contentParts: any[], model: string) {
   if (model.includes("image-preview") || model.includes("flash-image")) {
     body.modalities = ["image", "text"];
   }
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -220,9 +220,9 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      console.error("OPENAI_API_KEY not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      console.error("LOVABLE_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -275,7 +275,7 @@ serve(async (req) => {
 
     for (const model of models) {
       console.log(`Trying model: ${model}`);
-      response = await callAI(OPENAI_API_KEY, contentParts, model);
+      response = await callAI(LOVABLE_API_KEY, contentParts, model);
       if (response.ok) break;
       const errorText = await response.text();
       console.error(`AI gateway error (${model}):`, response.status, errorText);
@@ -326,7 +326,7 @@ serve(async (req) => {
 
       const retryModel = "google/gemini-3.1-flash-image-preview";
       console.log(`Retry with model: ${retryModel}`);
-      const retryResponse = await callAI(OPENAI_API_KEY, retryParts, retryModel);
+      const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, retryModel);
       if (retryResponse.ok) {
         const retryData = await retryResponse.json();
         generatedImage = retryData.choices?.[0]?.message?.images?.[0]?.image_url?.url;

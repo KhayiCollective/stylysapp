@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, ReactNode, useEffect, useState } from "react";
 import { useShopifyAppBridge, AppBridgeConfig } from "@/hooks/useShopifyAppBridge";
 
 interface EmbeddedAppContextValue {
@@ -17,7 +17,25 @@ interface EmbeddedAppProviderProps {
 
 export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
   const { config, isEmbedded, showToast, setAppLoading, getSessionToken } = useShopifyAppBridge();
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
+  useEffect(() => {
+    // Only load App Bridge script if we detect embedded context
+    const params = new URLSearchParams(window.location.search);
+    const embedded = window.self !== window.top && params.has("shop");
+
+    if (embedded && !scriptLoaded) {
+      const script = document.createElement("script");
+      script.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
+      script.async = true;
+      script.onload = () => setScriptLoaded(true);
+      document.head.appendChild(script);
+
+      return () => {
+        document.head.removeChild(script);
+      };
+    }
+  }, [scriptLoaded]);
 
   const contextValue: EmbeddedAppContextValue = {
     isEmbedded,

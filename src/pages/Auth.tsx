@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAccountBootstrap } from '@/hooks/useAccountBootstrap';
 import { Button } from '@/components/ui/button';
@@ -9,15 +9,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Sparkles, ArrowRight, Mail, Lock, User, Store, CheckCircle, Crown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TIERS, TierKey } from '@/lib/tiers';
-import { supabase } from '@/integrations/supabase/client';
 
 type AuthView = 'login' | 'signup' | 'forgot' | 'select-plan';
 
 export default function Auth() {
-  const [searchParams] = useSearchParams();
-  const [view, setView] = useState<AuthView>(
-    searchParams.get('view') === 'select-plan' ? 'select-plan' : 'login'
-  );
+  const [view, setView] = useState<AuthView>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -69,59 +65,16 @@ export default function Auth() {
       setLoading(false);
     }
   };
-  const handleSelectPlan = async (plan: TierKey) => {
-    console.log('[Auth] Start Free Trial clicked', { plan });
+  const handleSelectPlan = (plan: TierKey) => {
     sessionStorage.setItem('selectedPlan', plan);
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({ title: 'Please sign in', description: 'You need to be signed in to start a trial.', variant: 'destructive' });
-        setView('login');
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('brand_id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (!profile?.brand_id) {
-        toast({ title: 'Setup incomplete', description: 'Brand not found. Please complete onboarding first.', variant: 'destructive' });
-        navigate('/connect-shopify');
-        return;
-      }
-
-      const { data: brand } = await supabase
-        .from('brands')
-        .select('shopify_store_domain')
-        .eq('id', profile.brand_id)
-        .maybeSingle();
-
-      const shopDomain: string | undefined = brand?.shopify_store_domain;
-      if (!shopDomain) {
-        toast({ title: 'Connect Shopify first', description: 'Please connect your Shopify store to start a subscription.' });
-        navigate('/connect-shopify');
-        return;
-      }
-
-      // Extract shop handle from "<handle>.myshopify.com"
-      const shopHandle = shopDomain.replace(/\.myshopify\.com$/i, '');
-      const pricingUrl = `https://admin.shopify.com/store/${shopHandle}/charges/ai-stylist-platform/pricing_plans`;
-      console.log('[Auth] Redirecting to Shopify Managed Pricing', { shopHandle, pricingUrl });
-      window.top ? (window.top.location.href = pricingUrl) : (window.location.href = pricingUrl);
-    } catch (err) {
-      console.error('[Auth] handleSelectPlan error', err);
-      toast({ title: 'Error', description: 'Could not start subscription. Please try again.', variant: 'destructive' });
-    }
+    navigate(`/connect-shopify?plan=${plan}`);
   };
 
   // Plan selection screen
   if (view === 'select-plan') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-5xl">
+        <div className="w-full max-w-2xl">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
               <CheckCircle className="h-8 w-8 text-primary" />
@@ -132,7 +85,7 @@ export default function Auth() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 gap-6">
             {(Object.entries(TIERS) as [TierKey, typeof TIERS[TierKey]][]).map(([key, tier]) => (
               <Card
                 key={key}
@@ -170,41 +123,6 @@ export default function Auth() {
                 </CardContent>
               </Card>
             ))}
-
-            {/* Enterprise — Contact Sales */}
-            <Card
-              className="relative cursor-pointer transition-all hover:border-primary/50 hover:shadow-lg"
-              onClick={() => {
-                window.location.href = 'mailto:support@stylysapp.com?subject=Enterprise%20Plan%20Inquiry';
-              }}
-            >
-              <CardContent className="pt-6">
-                <h3 className="text-xl font-display font-semibold">Enterprise</h3>
-                <div className="mt-2 mb-4">
-                  <span className="text-3xl font-display font-bold">Custom</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">Unlimited products</p>
-                <ul className="space-y-2 mb-6">
-                  {[
-                    'All Professional features',
-                    'Custom AI training',
-                    'White-label options',
-                    'Dedicated account manager',
-                    'Custom integrations',
-                    '24/7 premium support',
-                  ].map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="w-4 h-4 text-primary shrink-0" />
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button className="w-full" variant="outline">
-                  Contact Sales
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </CardContent>
-            </Card>
           </div>
 
           <p className="text-center text-xs text-muted-foreground mt-6">

@@ -215,13 +215,6 @@ export default function ShopifyConnect() {
 
           if (brand?.shopify_connected_at) {
             setConnected(true);
-            console.log('[ShopifyConnect] Already connected to Shopify', {
-              shopDomain: brand.shopify_store_domain,
-              connectedAt: brand.shopify_connected_at,
-              isEmbeddedFlow,
-              planQueryParam: searchParams.get('plan'),
-              nextAction: isEmbeddedFlow ? 'redirect to Shopify admin app' : 'navigate /dashboard (ProtectedRoute will then run check-subscription)',
-            });
             // If embedded flow and already connected, go back to embedded
             if (isEmbeddedFlow && brand.shopify_store_domain) {
               const shopName = brand.shopify_store_domain.replace('.myshopify.com', '');

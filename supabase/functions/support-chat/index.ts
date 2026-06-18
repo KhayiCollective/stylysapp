@@ -12,10 +12,10 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     const systemPrompt = `You are STYLYS Support Assistant, a helpful and knowledgeable customer support AI for the STYLYS platform — an AI-powered outfit builder for e-commerce stores.
@@ -24,7 +24,7 @@ Your role is to help merchants (brand owners) with:
 
 1. **Platform Usage**: How to use the dashboard, catalog management, outfit generation, rules configuration, and widget customization.
 2. **Integrations**: Shopify and WooCommerce connection setup, product syncing, webhook configuration.
-3. **Billing**: Subscription plans (Starter at $19.99/mo with 500 products, Professional at $49.99/mo with 1,000 products, Enterprise custom pricing), billing management via the Settings page, upgrading/downgrading plans.
+3. **Billing**: Subscription plans (Starter at $14.99/mo with 500 products, Professional at $29.99/mo with 1,000 products), billing management via the Settings page, upgrading/downgrading plans.
 4. **Widget Setup**: How to embed the STYLYS widget on their store, customization options, and troubleshooting.
 5. **AI Features**: How the outfit builder AI works, virtual try-on feature, styling chatbot (Professional only).
 6. **Troubleshooting**: Common issues with product sync, widget display, authentication, etc.
@@ -35,25 +35,35 @@ Guidelines:
 - Never share internal technical details about the infrastructure.
 - Always prioritize helping the merchant solve their issue quickly.`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages,
+        ],
+        stream: true,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
+      console.error("AI gateway error:", response.status, errorText);
 
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
           status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Service temporarily unavailable. Please try again later." }), {
+          status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -64,11 +74,8 @@ Guidelines:
       });
     }
 
-    const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
-
-    return new Response(JSON.stringify({ content }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(response.body, {
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (error) {
     console.error("Support chat error:", error);

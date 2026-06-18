@@ -134,7 +134,7 @@ const Index = () => {
             <PricingCard
               title="Starter"
               subtitle="Perfect for growing brands"
-              price="$19.99"
+              price="$14.99"
               planParam="starter"
               features={[
               "Up to 500 products",
@@ -149,7 +149,7 @@ const Index = () => {
             <PricingCard
               title="Professional"
               subtitle="For established brands"
-              price="$49.99"
+              price="$29.99"
               planParam="pro"
               featured
               features={[

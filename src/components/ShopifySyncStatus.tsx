@@ -94,14 +94,6 @@ export function ShopifySyncStatus() {
         description: `Created ${data.created} products, updated ${data.updated}`,
       });
 
-      if (data?.planLimitNotice) {
-        toast({
-          title: 'Plan limit reached',
-          description: data.planLimitNotice,
-          variant: 'destructive',
-        });
-      }
-
       // Refresh status
       await fetchStatus();
     } catch (error) {

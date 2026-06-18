@@ -2,14 +2,14 @@ export const TIERS = {
   starter: {
     plan: "starter",
     name: "Starter",
-    price: "$19.99",
+    price: "$14.99",
     maxProducts: 500,
     features: ["ai_outfits", "virtual_tryon", "basic_analytics"] as const,
   },
   professional: {
     plan: "professional",
     name: "Professional",
-    price: "$49.99",
+    price: "$29.99",
     maxProducts: 1000,
     features: [
       "ai_outfits",
