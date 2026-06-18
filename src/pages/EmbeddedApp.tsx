@@ -3,6 +3,9 @@ import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { EmbeddedDashboard } from "@/components/layout/EmbeddedDashboard";
 import { EmbeddedConnectionRequired } from "@/components/embedded/EmbeddedConnectionRequired";
 import Dashboard from "./Dashboard";
+import Catalog from "./Catalog";
+import Rules from "./Rules";
+import Settings from "./Settings";
 
 console.log('[EmbeddedApp] module loaded, href:', window.location.href);
 
@@ -33,23 +36,11 @@ export default function EmbeddedApp() {
   const renderPage = () => {
     switch (subPath) {
       case "catalog":
-        return (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            Catalog — coming soon
-          </div>
-        );
+        return <Catalog />;
       case "rules":
-        return (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            Rules — coming soon
-          </div>
-        );
+        return <Rules />;
       case "settings":
-        return (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            Settings — coming soon
-          </div>
-        );
+        return <Settings />;
       default:
         return <Dashboard />;
     }
