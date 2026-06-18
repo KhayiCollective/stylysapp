@@ -38,9 +38,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
+      console.error("ANTHROPIC_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -57,8 +57,8 @@ serve(async (req) => {
       );
     }
 
-    const anchorProduct = anchorProductId 
-      ? products.find(p => p.id === anchorProductId) 
+    const anchorProduct = anchorProductId
+      ? products.find(p => p.id === anchorProductId)
       : null;
 
     const productCatalog = products.map(p => ({
@@ -70,15 +70,13 @@ serve(async (req) => {
       fit: p.fit || "regular"
     }));
 
-    // Build composition rules section for the prompt
     const minItems = rules?.minItems ?? 3;
     const maxItems = rules?.maxItems ?? 5;
     const required = rules?.requiredCategories ?? ["tops", "bottoms"];
     const optional = rules?.optionalCategories ?? ["shoes", "bags", "accessories", "hats", "sunglasses", "jewelry"];
 
-    // Check which optional categories actually exist in the catalog
     const catalogCategories = [...new Set(products.map(p => p.category.toLowerCase()))];
-    const availableOptional = optional.filter(cat => 
+    const availableOptional = optional.filter(cat =>
       catalogCategories.some(cc => cc.includes(cat) || cat.includes(cc))
     );
 
@@ -128,40 +126,34 @@ ${colorPreferences?.length ? `PREFERRED COLORS: ${colorPreferences.join(", ")}` 
 
 Create 3 distinct outfit combinations that would look great together.`;
 
-    console.log("Calling Lovable AI for outfit generation...");
+    console.log("Calling Anthropic API for outfit generation...");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
+        model: "claude-sonnet-4-6",
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      
+      console.error("Anthropic API error:", response.status, errorText);
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits depleted. Please add credits to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
+
       return new Response(
         JSON.stringify({ error: "AI service temporarily unavailable" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -169,7 +161,7 @@ Create 3 distinct outfit combinations that would look great together.`;
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
+    const content = aiResponse.content?.[0]?.text;
 
     if (!content) {
       console.error("No content in AI response");
@@ -203,7 +195,7 @@ Create 3 distinct outfit combinations that would look great together.`;
       const outfitProducts = outfit.productIds
         .map((id: string) => products.find(p => p.id === id))
         .filter(Boolean);
-      
+
       const totalPrice = outfitProducts.reduce((sum: number, p: Product) => sum + Number(p.price), 0);
 
       return {

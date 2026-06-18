@@ -187,20 +187,31 @@ function buildRetryPrompt(outfitItems: OutfitItem[]): string {
 }
 
 async function callAI(apiKey: string, contentParts: any[], model: string) {
-  const body: any = {
-    model,
-    messages: [{ role: "user", content: contentParts }],
-  };
-  if (model.includes("image-preview") || model.includes("flash-image")) {
-    body.modalities = ["image", "text"];
-  }
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const anthropicParts = contentParts.map((part: any) => {
+    if (part.type === "text") return { type: "text", text: part.text };
+    if (part.type === "image_url") {
+      const url: string = part.image_url?.url || "";
+      if (url.startsWith("data:")) {
+        const [header, data] = url.split(",");
+        const mediaType = header.split(":")[1].split(";")[0];
+        return { type: "image", source: { type: "base64", media_type: mediaType, data } };
+      }
+      return { type: "image", source: { type: "url", url } };
+    }
+    return part;
+  });
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: anthropicParts }],
+    }),
   });
   return response;
 }
@@ -220,9 +231,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
+      console.error("ANTHROPIC_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -275,7 +286,7 @@ serve(async (req) => {
 
     for (const model of models) {
       console.log(`Trying model: ${model}`);
-      response = await callAI(LOVABLE_API_KEY, contentParts, model);
+      response = await callAI(ANTHROPIC_API_KEY, contentParts, model);
       if (response.ok) break;
       const errorText = await response.text();
       console.error(`AI gateway error (${model}):`, response.status, errorText);
@@ -302,10 +313,12 @@ serve(async (req) => {
     }
 
     let aiResponse = await response.json();
-    console.log("AI response keys:", JSON.stringify(Object.keys(aiResponse.choices?.[0]?.message || {})));
+    console.log("AI response type:", aiResponse.type, "content blocks:", aiResponse.content?.length);
 
-    let generatedImage = aiResponse.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    let textResponse = aiResponse.choices?.[0]?.message?.content;
+    // Anthropic does not generate images — generatedImage will always be null here.
+    // Virtual try-on image generation requires a model that supports image output.
+    let generatedImage: string | null = null;
+    let textResponse: string | null = aiResponse.content?.[0]?.text ?? null;
 
     console.log("AI text response:", textResponse?.substring(0, 500));
 
@@ -326,12 +339,12 @@ serve(async (req) => {
 
       const retryModel = "google/gemini-3.1-flash-image-preview";
       console.log(`Retry with model: ${retryModel}`);
-      const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, retryModel);
+      const retryResponse = await callAI(ANTHROPIC_API_KEY, retryParts, retryModel);
       if (retryResponse.ok) {
         const retryData = await retryResponse.json();
-        generatedImage = retryData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-        const retryText = retryData.choices?.[0]?.message?.content;
-        console.log("Retry response keys:", JSON.stringify(Object.keys(retryData.choices?.[0]?.message || {})));
+        generatedImage = null; // Anthropic does not generate images
+        const retryText = retryData.content?.[0]?.text ?? null;
+        console.log("Retry content blocks:", retryData.content?.length);
         if (!generatedImage) textResponse = retryText || textResponse;
       } else {
         const retryErr = await retryResponse.text();
