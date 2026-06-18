@@ -42,12 +42,14 @@ export function EmbeddedCatalog({ shop }: EmbeddedCatalogProps) {
 
     (async () => {
       try {
+        console.log("[EmbeddedCatalog] invoking embedded-data", { shop, host: !!host, hmac: !!hmac, resource: "products" });
         const { data, error } = await supabase.functions.invoke("embedded-data", {
           body: { shop, host, hmac, resource: "products" },
         });
+        console.log("[EmbeddedCatalog] invoke returned", { hasData: !!data, hasError: !!error, brand: data?.brand?.id ?? null, productCount: data?.products?.length ?? 0 });
         if (cancelled) return;
         if (error) {
-          console.warn("[EmbeddedCatalog] edge fn error:", error.message);
+          console.error("[EmbeddedCatalog] edge fn error:", error.message, error);
           setStatus("error");
         } else if (!data?.brand) {
           setStatus("empty");
@@ -57,7 +59,7 @@ export function EmbeddedCatalog({ shop }: EmbeddedCatalogProps) {
           setStatus(rows.length === 0 ? "empty" : "ok");
         }
       } catch (err) {
-        if (!cancelled) { console.warn("[EmbeddedCatalog] threw:", err); setStatus("error"); }
+        if (!cancelled) { console.error("[EmbeddedCatalog] threw:", err); setStatus("error"); }
       } finally {
         if (!cancelled) setLoading(false);
       }
