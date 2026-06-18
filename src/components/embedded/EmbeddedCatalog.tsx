@@ -46,6 +46,7 @@ export function EmbeddedCatalog({ shop }: EmbeddedCatalogProps) {
         const { data, error } = await supabase.functions.invoke("embedded-data", {
           body: { shop, host, hmac, resource: "products" },
         });
+        console.log("[EmbeddedCatalog] invoke response — data:", data, "error:", error);
         console.log("[EmbeddedCatalog] invoke returned", { hasData: !!data, hasError: !!error, brand: data?.brand?.id ?? null, productCount: data?.products?.length ?? 0 });
         if (cancelled) return;
         if (error) {
