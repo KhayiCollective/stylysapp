@@ -56,12 +56,14 @@ export function EmbeddedRules({ shop }: EmbeddedRulesProps) {
 
     (async () => {
       try {
+        console.log("[EmbeddedRules] invoking embedded-data", { shop, host: !!host, hmac: !!hmac, resource: "rules" });
         const { data, error } = await supabase.functions.invoke("embedded-data", {
           body: { shop, host, hmac, resource: "rules" },
         });
+        console.log("[EmbeddedRules] invoke returned", { hasData: !!data, hasError: !!error, brand: data?.brand?.id ?? null, ruleCount: data?.rules?.length ?? 0 });
         if (cancelled) return;
         if (error) {
-          console.warn("[EmbeddedRules] edge fn error:", error.message);
+          console.error("[EmbeddedRules] edge fn error:", error.message, error);
           setStatus("error");
         } else if (!data?.brand) {
           setStatus("empty");
@@ -71,7 +73,7 @@ export function EmbeddedRules({ shop }: EmbeddedRulesProps) {
           setStatus(rows.length === 0 ? "empty" : "ok");
         }
       } catch (err) {
-        if (!cancelled) { console.warn("[EmbeddedRules] threw:", err); setStatus("error"); }
+        if (!cancelled) { console.error("[EmbeddedRules] threw:", err); setStatus("error"); }
       } finally {
         if (!cancelled) setLoading(false);
       }

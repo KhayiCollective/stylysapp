@@ -33,12 +33,14 @@ export function EmbeddedSettings({ shop }: EmbeddedSettingsProps) {
 
     (async () => {
       try {
+        console.log("[EmbeddedSettings] invoking embedded-data", { shop, host: !!host, hmac: !!hmac, resource: "settings" });
         const { data, error } = await supabase.functions.invoke("embedded-data", {
           body: { shop, host, hmac, resource: "settings" },
         });
+        console.log("[EmbeddedSettings] invoke returned", { hasData: !!data, hasError: !!error, brand: data?.brand?.id ?? null, productCount: data?.productCount ?? null });
         if (cancelled) return;
         if (error) {
-          console.warn("[EmbeddedSettings] edge fn error:", error.message);
+          console.error("[EmbeddedSettings] edge fn error:", error.message, error);
           setStatus("error");
         } else if (!data?.brand) {
           setStatus("empty");
@@ -48,7 +50,7 @@ export function EmbeddedSettings({ shop }: EmbeddedSettingsProps) {
           setStatus("ok");
         }
       } catch (err) {
-        if (!cancelled) { console.warn("[EmbeddedSettings] threw:", err); setStatus("error"); }
+        if (!cancelled) { console.error("[EmbeddedSettings] threw:", err); setStatus("error"); }
       } finally {
         if (!cancelled) setLoading(false);
       }
