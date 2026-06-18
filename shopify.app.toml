@@ -27,7 +27,7 @@ api_version = "2025-10"
     "inventory_levels/update",
     "app/uninstalled"
   ]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+  uri = "https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/shopify-webhooks"
 
   # GDPR mandatory webhooks (customers/data_request, customers/redact, shop/redact)
   # must be configured in the Shopify Partners dashboard under Privacy webhooks,
