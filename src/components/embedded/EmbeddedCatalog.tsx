@@ -1,3 +1,4 @@
+// build: embedded-catalog v3 (2026-06-18) — cache-bust
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ export function EmbeddedCatalog({ shop }: EmbeddedCatalogProps) {
   const [status, setStatus]     = useState<"loading" | "empty" | "ok" | "error">("loading");
 
   useEffect(() => {
+    console.log("[EmbeddedCatalog] useEffect fired, shop:", shop);
     if (!shop) { setLoading(false); setStatus("empty"); return; }
 
     let cancelled = false;
