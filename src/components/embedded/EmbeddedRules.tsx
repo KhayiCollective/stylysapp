@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Palette, Scale, DollarSign, Package, Layers, Settings2 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DbRule {
@@ -40,14 +41,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   composition: "Outfit Composition",
 };
 
-function race<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
-  ]);
-}
-
 export function EmbeddedRules({ shop }: EmbeddedRulesProps) {
+  const [searchParams] = useSearchParams();
   const [rules, setRules]   = useState<DbRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus]   = useState<"loading" | "empty" | "ok" | "error">("loading");
@@ -56,59 +51,34 @@ export function EmbeddedRules({ shop }: EmbeddedRulesProps) {
     if (!shop) { setLoading(false); setStatus("empty"); return; }
 
     let cancelled = false;
+    const host = searchParams.get("host") ?? "";
+    const hmac = searchParams.get("hmac") ?? "";
 
-    const run = async () => {
+    (async () => {
       try {
-        const shopClean = shop.replace(".myshopify.com", "");
-
-        // Look up brand_id from shop domain
-        const brand = await race(
-          supabase
-            .from("brands")
-            .select("id")
-            .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopClean}%`)
-            .maybeSingle()
-            .then(({ data, error }) => {
-              if (error) { console.warn("[EmbeddedRules] brand lookup error:", error.message); return null; }
-              return data as { id: string } | null;
-            })
-            .catch((err) => { console.warn("[EmbeddedRules] brand lookup threw:", err); return null; }),
-          3000,
-          null
-        );
-
+        const { data, error } = await supabase.functions.invoke("embedded-data", {
+          body: { shop, host, hmac, resource: "rules" },
+        });
         if (cancelled) return;
-        if (!brand) { setStatus("empty"); setLoading(false); return; }
-
-        const rows = await race(
-          supabase
-            .from("rules")
-            .select("id, name, description, enabled, category")
-            .eq("brand_id", brand.id)
-            .order("category")
-            .then(({ data, error }) => {
-              if (error) { console.warn("[EmbeddedRules] rules fetch error:", error.message); return null; }
-              return (data ?? []) as DbRule[];
-            })
-            .catch((err) => { console.warn("[EmbeddedRules] rules fetch threw:", err); return null; }),
-          5000,
-          null
-        );
-
-        if (cancelled) return;
-
-        if (rows === null) { setStatus("error"); }
-        else { setRules(rows); setStatus(rows.length === 0 ? "empty" : "ok"); }
+        if (error) {
+          console.warn("[EmbeddedRules] edge fn error:", error.message);
+          setStatus("error");
+        } else if (!data?.brand) {
+          setStatus("empty");
+        } else {
+          const rows = (data.rules ?? []) as DbRule[];
+          setRules(rows);
+          setStatus(rows.length === 0 ? "empty" : "ok");
+        }
       } catch (err) {
-        if (!cancelled) { console.warn("[EmbeddedRules] unexpected error:", err); setStatus("error"); }
+        if (!cancelled) { console.warn("[EmbeddedRules] threw:", err); setStatus("error"); }
       } finally {
         if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    run();
     return () => { cancelled = true; };
-  }, [shop]);
+  }, [shop, searchParams]);
 
   if (loading) {
     return (
@@ -132,7 +102,6 @@ export function EmbeddedRules({ shop }: EmbeddedRulesProps) {
     );
   }
 
-  // Group rules by category in display order
   const categoryOrder = ["composition", "styling", "inventory", "pricing"];
   const grouped = categoryOrder.reduce<Record<string, DbRule[]>>((acc, cat) => {
     const items = rules.filter((r) => r.category === cat);
