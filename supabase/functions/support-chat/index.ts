@@ -12,10 +12,10 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not configured");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not configured");
     }
 
     const systemPrompt = `You are STYLYS Support Assistant, a helpful and knowledgeable customer support AI for the STYLYS platform — an AI-powered outfit builder for e-commerce stores.
@@ -35,18 +35,15 @@ Guidelines:
 - Never share internal technical details about the infrastructure.
 - Always prioritize helping the merchant solve their issue quickly.`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages,
+        model: "gpt-4o",
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
       }),
     });
 
@@ -68,7 +65,7 @@ Guidelines:
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.content?.[0]?.text;
+    const content = aiResponse.choices?.[0]?.message?.content;
 
     return new Response(JSON.stringify({ content }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

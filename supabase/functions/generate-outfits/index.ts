@@ -38,9 +38,9 @@ serve(async (req) => {
   }
 
   try {
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      console.error("ANTHROPIC_API_KEY not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -128,18 +128,18 @@ Create 3 distinct outfit combinations that would look great together.`;
 
     console.log("Calling Anthropic API for outfit generation...");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
       }),
     });
 
@@ -161,7 +161,7 @@ Create 3 distinct outfit combinations that would look great together.`;
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.content?.[0]?.text;
+    const content = aiResponse.choices?.[0]?.message?.content;
 
     if (!content) {
       console.error("No content in AI response");
