@@ -33,7 +33,7 @@ export function EmbeddedSettings({ shop }: EmbeddedSettingsProps) {
 
     (async () => {
       try {
-        console.log("[EmbeddedSettings] invoking embedded-data", { shop, host: !!host, hmac: !!hmac, resource: "settings" });
+        console.log("[EmbeddedSettings] invoking embedded-data", { shop, host, hmac, resource: "settings" });
         const { data, error } = await supabase.functions.invoke("embedded-data", {
           body: { shop, host, hmac, resource: "settings" },
         });

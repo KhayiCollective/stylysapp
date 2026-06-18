@@ -42,7 +42,7 @@ export function EmbeddedCatalog({ shop }: EmbeddedCatalogProps) {
 
     (async () => {
       try {
-        console.log("[EmbeddedCatalog] invoking embedded-data", { shop, host: !!host, hmac: !!hmac, resource: "products" });
+        console.log("[EmbeddedCatalog] invoking embedded-data", { shop, host, hmac, resource: "products" });
         const { data, error } = await supabase.functions.invoke("embedded-data", {
           body: { shop, host, hmac, resource: "products" },
         });
