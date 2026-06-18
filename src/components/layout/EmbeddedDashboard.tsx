@@ -65,11 +65,13 @@ export function EmbeddedDashboard({ children, testMode = false, shopDomain }: Em
     // timeout resolves with null and the app loads with no brand name shown.
     const shopDomainClean = shop.replace('.myshopify.com', '');
 
-    const fetchPromise = supabase
-      .from('brands')
-      .select('id, name, shopify_store_domain')
-      .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomainClean}%`)
-      .maybeSingle()
+    const fetchPromise = Promise.resolve(
+      supabase
+        .from('brands')
+        .select('id, name, shopify_store_domain')
+        .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomainClean}%`)
+        .maybeSingle()
+    )
       .then(({ data, error }) => {
         if (error) {
           console.warn('[EmbeddedDashboard] brand fetch error:', error.message);
