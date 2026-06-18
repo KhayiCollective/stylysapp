@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ImagePlus, Package } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Product {
@@ -20,13 +21,6 @@ interface EmbeddedCatalogProps {
   shop: string | null | undefined;
 }
 
-function race<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
-  ]);
-}
-
 const STATUS_COLORS: Record<string, string> = {
   in_stock:     "bg-success/10 text-success border-success/20",
   low_stock:    "bg-warning/10 text-warning border-warning/20",
@@ -34,81 +28,43 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function EmbeddedCatalog({ shop }: EmbeddedCatalogProps) {
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading]   = useState(true);
   const [status, setStatus]     = useState<"loading" | "empty" | "ok" | "error">("loading");
 
   useEffect(() => {
-    if (!shop) {
-      setLoading(false);
-      setStatus("empty");
-      return;
-    }
+    if (!shop) { setLoading(false); setStatus("empty"); return; }
 
     let cancelled = false;
+    const host = searchParams.get("host") ?? "";
+    const hmac = searchParams.get("hmac") ?? "";
 
-    const run = async () => {
+    (async () => {
       try {
-        // Step 1 — resolve brand_id from shop domain (3 s cap)
-        const shopClean = shop.replace(".myshopify.com", "");
-        const brandResult = await race(
-          supabase
-            .from("brands")
-            .select("id")
-            .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopClean}%`)
-            .maybeSingle()
-            .then(({ data, error }) => {
-              if (error) { console.warn("[EmbeddedCatalog] brand lookup error:", error.message); return null; }
-              return data as { id: string } | null;
-            })
-            .catch((err) => { console.warn("[EmbeddedCatalog] brand lookup threw:", err); return null; }),
-          3000,
-          null
-        );
-
+        const { data, error } = await supabase.functions.invoke("embedded-data", {
+          body: { shop, host, hmac, resource: "products" },
+        });
         if (cancelled) return;
-
-        if (!brandResult) {
-          console.warn("[EmbeddedCatalog] no brand found for shop:", shop);
-          setStatus("empty");
-          setLoading(false);
-          return;
-        }
-
-        // Step 2 — fetch products by brand_id (5 s cap)
-        const rows = await race(
-          supabase
-            .from("products")
-            .select("id, name, image_url, category, color, fit, price, inventory_status, tags")
-            .eq("brand_id", brandResult.id)
-            .order("created_at", { ascending: false })
-            .then(({ data, error }) => {
-              if (error) { console.warn("[EmbeddedCatalog] products fetch error:", error.message); return null; }
-              return (data ?? []) as Product[];
-            })
-            .catch((err) => { console.warn("[EmbeddedCatalog] products fetch threw:", err); return null; }),
-          5000,
-          null
-        );
-
-        if (cancelled) return;
-
-        if (rows === null) {
+        if (error) {
+          console.warn("[EmbeddedCatalog] edge fn error:", error.message);
           setStatus("error");
+        } else if (!data?.brand) {
+          setStatus("empty");
         } else {
+          const rows = (data.products ?? []) as Product[];
           setProducts(rows);
           setStatus(rows.length === 0 ? "empty" : "ok");
         }
       } catch (err) {
-        if (!cancelled) { console.warn("[EmbeddedCatalog] unexpected error:", err); setStatus("error"); }
+        if (!cancelled) { console.warn("[EmbeddedCatalog] threw:", err); setStatus("error"); }
       } finally {
         if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    run();
     return () => { cancelled = true; };
-  }, [shop]);
+  }, [shop, searchParams]);
 
   if (loading) {
     return (
