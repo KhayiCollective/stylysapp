@@ -56,7 +56,7 @@ export function EmbeddedRules({ shop }: EmbeddedRulesProps) {
 
     (async () => {
       try {
-        console.log("[EmbeddedRules] invoking embedded-data", { shop, host: !!host, hmac: !!hmac, resource: "rules" });
+        console.log("[EmbeddedRules] invoking embedded-data", { shop, host, hmac, resource: "rules" });
         const { data, error } = await supabase.functions.invoke("embedded-data", {
           body: { shop, host, hmac, resource: "rules" },
         });
