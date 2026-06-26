@@ -8,3 +8,4 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </StrictMode>
 );
+// netlify rebuild trigger Fri Jun 26 10:28:23 PDT 2026
