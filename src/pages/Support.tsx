@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { ArrowLeft, Send, BookOpen, MessageCircle, Mail, Bot, Loader2, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,13 @@ export default function Support() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { tierName } = useSubscription();
+  const { isEmbedded } = useEmbeddedApp();
+  const [searchParams] = useSearchParams();
+
+  const qs = searchParams.toString();
+  const backLink = isEmbedded
+    ? `/dashboard${qs ? `?${qs}` : ""}`
+    : user ? "/dashboard" : "/";
   const hasPrioritySupport = hasFeature(tierName, "priority_support");
 
   // Live chat state
@@ -162,10 +170,10 @@ export default function Support() {
       {/* Header */}
       <header className="border-b border-border">
         <div className="container mx-auto px-4 py-4">
-         <Link to={user ? "/dashboard" : "/"}>
+         <Link to={backLink}>
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
-              {user ? "Back to Dashboard" : "Back to Home"}
+              {isEmbedded || user ? "Back to Dashboard" : "Back to Home"}
             </Button>
           </Link>
         </div>
