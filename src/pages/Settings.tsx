@@ -31,12 +31,6 @@ export default function Settings() {
   const { subscribed, loading: subLoading, tierName, isTrialing, trialEnd, subscriptionEnd, checkSubscription } = useSubscription();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [embeddedSub, setEmbeddedSub] = useState<{
-    checked: boolean;
-    subscribed: boolean;
-    planName: string | null;
-    tierName: string | null;
-  }>({ checked: false, subscribed: false, planName: null, tierName: null });
   
   const [profile, setProfile] = useState({
     fullName: '',
@@ -103,23 +97,6 @@ export default function Settings() {
     };
     fetchData();
   }, [user, isEmbedded, embeddedBrandId]);
-
-  useEffect(() => {
-    if (!isEmbedded || !config?.shop) return;
-    supabase.functions
-      .invoke('check-subscription-by-shop', {
-        body: { shop_domain: config.shop },
-      })
-      .then(({ data }) => {
-        setEmbeddedSub({
-          checked: true,
-          subscribed: data?.subscribed ?? false,
-          planName: data?.plan_name ?? null,
-          tierName: data?.tier_name ?? null,
-        });
-      })
-      .catch(() => setEmbeddedSub(prev => ({ ...prev, checked: true })));
-  }, [isEmbedded, config?.shop]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
@@ -236,43 +213,11 @@ export default function Settings() {
             <CardDescription>Manage your subscription plan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isEmbedded ? (() => {
-              const pricingUrl = `https://${config?.shop ?? ''}/admin/app/billing`;
-              if (!embeddedSub.checked) {
-                return (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Checking subscription...
-                  </div>
-                );
-              }
-              if (embeddedSub.subscribed) {
-                return (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <Crown className="h-5 w-5 text-amber-500" />
-                      <span className="font-semibold text-lg capitalize">
-                        {embeddedSub.planName ?? embeddedSub.tierName ?? 'Active'} Plan
-                      </span>
-                    </div>
-                    <Button variant="outline" onClick={() => window.open(pricingUrl, '_blank')}>
-                      Manage Plan
-                    </Button>
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    You don't have an active subscription. Choose a plan to get started.
-                  </p>
-                  <Button onClick={() => window.open(pricingUrl, '_blank')}>
-                    <Crown className="h-4 w-4 mr-2" />
-                    Choose a Plan
-                  </Button>
-                </div>
-              );
-            })() : subLoading ? (
+            {isEmbedded ? (
+              <p className="text-sm text-muted-foreground">
+                Plan selection will be available once STYLYS is published to the Shopify App Store. For now, you have full access to all features during development.
+              </p>
+            ) : subLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Checking subscription...
