@@ -3,7 +3,7 @@
 # Then run: shopify app deploy
 
 client_id = "e1bde8232afcab4c37b12a9b29c3dde1"
-name = "AI Stylist Platform"
+name = "STYLYS APP"
 application_url = "https://stylysapp.vercel.app/embedded"
 embedded = true
 
