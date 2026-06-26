@@ -153,6 +153,7 @@ const Rules = () => {
   };
 
   useEffect(() => {
+    console.log("[Rules demoEffect] isEmbedded:", isEmbedded, "embeddedBrandId:", embeddedBrandId, "user:", user?.id ?? null, "demoLoaded:", demoLoaded);
     if (!demoLoaded && (user || (isEmbedded && embeddedBrandId))) loadDemoProducts();
   }, [user, isEmbedded, embeddedBrandId]);
 
