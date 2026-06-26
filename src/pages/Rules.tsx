@@ -82,14 +82,21 @@ const Rules = () => {
   const [demoLoaded, setDemoLoaded] = useState(false);
 
   useEffect(() => {
-    if (user) fetchRules();
-  }, [user]);
+    if (isEmbedded) {
+      if (embeddedBrandId) fetchRules(embeddedBrandId);
+    } else {
+      if (user) fetchRules(null);
+    }
+  }, [user, isEmbedded, embeddedBrandId]);
 
-  const fetchRules = async () => {
+  const fetchRules = async (overrideBrandId: string | null) => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("rules")
       .select("id, name, description, enabled, category, config");
+    if (overrideBrandId) query = query.eq("brand_id", overrideBrandId);
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Failed to fetch rules:", error);
