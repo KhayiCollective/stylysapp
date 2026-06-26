@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ interface SyncStatus {
 
 export function ShopifySyncStatus() {
   const { user } = useAuth();
+  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -41,26 +43,33 @@ export function ShopifySyncStatus() {
 
   useEffect(() => {
     const fetchBrandId = async () => {
-      if (!user) return;
-
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('brand_id')
-          .eq('id', user.id)
-          .single();
+        let resolvedBrandId: string | null = null;
 
-        if (profile?.brand_id) {
-          setBrandId(profile.brand_id);
+        if (isEmbedded) {
+          resolvedBrandId = embeddedBrandId;
+        } else {
+          if (!user) return;
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('brand_id')
+            .eq('id', user.id)
+            .single();
+          resolvedBrandId = profile?.brand_id ?? null;
+        }
 
-          // Check if Shopify is connected before calling the edge function
+        if (resolvedBrandId) {
+          setBrandId(resolvedBrandId);
+
+          // shopify_access_token is revoked from anon; use shopify_connected_at
+          // to determine connection status in embedded mode.
           const { data: brand } = await supabase
             .from('brands')
-            .select('shopify_store_domain, shopify_access_token')
-            .eq('id', profile.brand_id)
+            .select('shopify_store_domain, shopify_connected_at')
+            .eq('id', resolvedBrandId)
             .single();
 
-          setIsConnected(!!brand?.shopify_store_domain && !!brand?.shopify_access_token);
+          setIsConnected(!!brand?.shopify_store_domain && !!brand?.shopify_connected_at);
         }
       } catch (error) {
         console.error('Error fetching brand:', error);
@@ -70,7 +79,7 @@ export function ShopifySyncStatus() {
     };
 
     fetchBrandId();
-  }, [user]);
+  }, [user, isEmbedded, embeddedBrandId]);
 
   useEffect(() => {
     if (brandId && isConnected) {

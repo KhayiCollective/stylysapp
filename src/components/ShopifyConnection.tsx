@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,7 @@ interface ShopifyConnectionProps {
 
 export function ShopifyConnection({ className }: ShopifyConnectionProps) {
   const { user } = useAuth();
+  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [shopifyData, setShopifyData] = useState<{
@@ -22,20 +24,26 @@ export function ShopifyConnection({ className }: ShopifyConnectionProps) {
 
   useEffect(() => {
     const fetchShopifyStatus = async () => {
-      if (!user) return;
-
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('brand_id')
-          .eq('id', user.id)
-          .single();
+        let resolvedBrandId: string | null = null;
 
-        if (profile?.brand_id) {
+        if (isEmbedded) {
+          resolvedBrandId = embeddedBrandId;
+        } else {
+          if (!user) return;
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('brand_id')
+            .eq('id', user.id)
+            .single();
+          resolvedBrandId = profile?.brand_id ?? null;
+        }
+
+        if (resolvedBrandId) {
           const { data: brand } = await supabase
             .from('brands')
             .select('shopify_store_domain, shopify_connected_at')
-            .eq('id', profile.brand_id)
+            .eq('id', resolvedBrandId)
             .single();
 
           setShopifyData({
@@ -51,7 +59,7 @@ export function ShopifyConnection({ className }: ShopifyConnectionProps) {
     };
 
     fetchShopifyStatus();
-  }, [user]);
+  }, [user, isEmbedded, embeddedBrandId]);
 
   const handleReconnect = () => {
     window.location.href = '/connect-shopify';

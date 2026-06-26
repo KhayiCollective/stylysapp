@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
-  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
+  const { isEmbedded, embeddedBrandId, config } = useEmbeddedApp();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isDevUser } = useUserRole();
@@ -56,6 +56,7 @@ export default function Settings() {
           // No Supabase auth session in embedded mode — use brand_id from context
           // and skip the profiles query (which requires auth.uid()).
           resolvedBrandId = embeddedBrandId;
+          if (config?.shop) setProfile(prev => ({ ...prev, email: config.shop }));
         } else {
           if (!user) return;
           const { data: profileData } = await supabase
@@ -212,7 +213,15 @@ export default function Settings() {
             <CardDescription>Manage your subscription plan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {subLoading ? (
+            {isEmbedded ? (
+              <p className="text-sm text-muted-foreground">
+                Billing is managed through your Stylys account. Sign in at{' '}
+                <a href="https://stylysapp.com/settings" target="_blank" rel="noopener noreferrer" className="underline">
+                  stylysapp.com
+                </a>{' '}
+                to manage your subscription.
+              </p>
+            ) : subLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Checking subscription...
