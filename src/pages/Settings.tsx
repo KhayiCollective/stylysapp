@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
 import { ShopifyConnection } from '@/components/ShopifyConnection';
 import { WidgetStatus } from '@/components/settings/WidgetStatus';
 import { ShopifyTestMode } from '@/components/ShopifyTestMode';
@@ -23,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
+  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isDevUser } = useUserRole();
@@ -47,34 +49,43 @@ export default function Settings() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
       try {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('full_name, email, avatar_url, brand_id')
-          .eq('id', user.id)
-          .single();
+        let resolvedBrandId: string | null = null;
 
-        if (profileData) {
-          setProfile({
-            fullName: profileData.full_name || '',
-            email: profileData.email || '',
-            avatarUrl: profileData.avatar_url || '',
-          });
-          if (profileData.brand_id) {
-            const { data: brandData } = await supabase
-              .from('brands')
-              .select('id, name, slug, logo_url')
-              .eq('id', profileData.brand_id)
-              .single();
-            if (brandData) {
-              setBrand({
-                id: brandData.id,
-                name: brandData.name || '',
-                slug: brandData.slug || '',
-                logoUrl: brandData.logo_url || '',
-              });
-            }
+        if (isEmbedded) {
+          // No Supabase auth session in embedded mode — use brand_id from context
+          // and skip the profiles query (which requires auth.uid()).
+          resolvedBrandId = embeddedBrandId;
+        } else {
+          if (!user) return;
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name, email, avatar_url, brand_id')
+            .eq('id', user.id)
+            .single();
+          if (profileData) {
+            setProfile({
+              fullName: profileData.full_name || '',
+              email: profileData.email || '',
+              avatarUrl: profileData.avatar_url || '',
+            });
+            resolvedBrandId = profileData.brand_id ?? null;
+          }
+        }
+
+        if (resolvedBrandId) {
+          const { data: brandData } = await supabase
+            .from('brands')
+            .select('id, name, slug, logo_url')
+            .eq('id', resolvedBrandId)
+            .single();
+          if (brandData) {
+            setBrand({
+              id: brandData.id,
+              name: brandData.name || '',
+              slug: brandData.slug || '',
+              logoUrl: brandData.logo_url || '',
+            });
           }
         }
       } catch (error) {
@@ -84,7 +95,7 @@ export default function Settings() {
       }
     };
     fetchData();
-  }, [user]);
+  }, [user, isEmbedded, embeddedBrandId]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
