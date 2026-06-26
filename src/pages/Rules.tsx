@@ -131,15 +131,17 @@ const Rules = () => {
         .single();
       resolvedBrandId = profile?.brand_id ?? null;
     }
+    console.log("[loadDemoProducts] embeddedBrandId:", embeddedBrandId, "resolvedBrandId:", resolvedBrandId);
     if (!resolvedBrandId) return;
     // shadow with a const so the .eq() call below still compiles cleanly
     const brandId = resolvedBrandId;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("products")
       .select("id, name, image_url, price, category")
       .eq("brand_id", brandId)
       .eq("inventory_status", "in_stock")
       .limit(20);
+    console.log("[loadDemoProducts] query result — rows:", data?.length ?? 0, "error:", error);
     const mapped = (data || []).map(p => ({
       id: p.id, name: p.name,
       imageUrl: p.image_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=800&fit=crop",
