@@ -8,7 +8,7 @@ application_url = "https://stylysapp.vercel.app/embedded"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,read_product_listings,unauthenticated_read_product_listings,unauthenticated_read_product_tags"
+scopes = "read_products,read_product_listings,read_inventory,unauthenticated_read_product_listings,unauthenticated_read_product_tags"
 
 [auth]
 redirect_urls = [
@@ -30,14 +30,3 @@ api_version = "2025-10"
   ]
   uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
 
-  [[webhooks.subscriptions]]
-  topics = ["customers/data_request"]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/customers-data-request"
-
-  [[webhooks.subscriptions]]
-  topics = ["customers/redact"]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/customers-redact"
-
-  [[webhooks.subscriptions]]
-  topics = ["shop/redact"]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shop-redact"
