@@ -237,8 +237,7 @@ export default function Settings() {
           </CardHeader>
           <CardContent className="space-y-4">
             {isEmbedded ? (() => {
-              const shopHandle = config?.shop?.replace('.myshopify.com', '') ?? '';
-              const pricingUrl = `https://admin.shopify.com/store/${shopHandle}/charges/stylys-app/pricing_plans`;
+              const pricingUrl = `https://${config?.shop ?? ''}/admin/app/billing`;
               if (!embeddedSub.checked) {
                 return (
                   <div className="flex items-center gap-2 text-muted-foreground">
