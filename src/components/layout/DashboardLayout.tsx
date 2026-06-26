@@ -1,6 +1,6 @@
 import { ReactNode, useState, useRef, useEffect } from "react";
 import stylysIcon from "@/assets/stylys-icon.png";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { LayoutDashboard, Package, Settings2, Menu, Settings, BookOpen, HelpCircle, MessageCircle, X, Send, Loader2, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { useSubscription } from "@/hooks/useSubscription";
 import { hasFeature } from "@/lib/tiers";
+import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -28,7 +29,15 @@ type ChatMsg = { role: "user" | "assistant"; content: string };
 
 export function DashboardLayout({ children, title, description }: DashboardLayoutProps) {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { isEmbedded } = useEmbeddedApp();
   const { tierName } = useSubscription();
+
+  // In embedded mode, preserve ?shop=&host= across client-side navigations.
+  const navTo = (href: string) => {
+    const qs = searchParams.toString();
+    return isEmbedded && qs ? `${href}?${qs}` : href;
+  };
   const hasChatbot = hasFeature(tierName, "styling_chatbot");
 
   // Chatbot state
@@ -129,7 +138,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
               return (
                 <li key={item.name}>
                   <Link
-                    to={item.href}
+                    to={navTo(item.href)}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
                       isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent/50"
@@ -178,7 +187,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
                     return (
                       <li key={item.name}>
                         <Link
-                          to={item.href}
+                          to={navTo(item.href)}
                           className={cn(
                             "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
                             isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50"
@@ -290,7 +299,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
               <p className="text-xs text-muted-foreground mb-3">
                 Upgrade to Professional to unlock the AI styling chatbot for your dashboard and your customers' widget.
               </p>
-              <Link to="/settings">
+              <Link to={navTo("/settings")}>
                 <Button size="sm" className="w-full text-xs">Upgrade to Professional</Button>
               </Link>
             </div>
