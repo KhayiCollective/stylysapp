@@ -3,4 +3,5 @@ api_version = "2025-07"
 [[extensions]]
 name = "STYLYS Personal Stylist"
 handle = "stylys-widget"
+uid = "1a56a68b-be49-a278-21b2-9e86191a1e00624a4835"
 type = "theme"
