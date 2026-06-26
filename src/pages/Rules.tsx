@@ -151,8 +151,8 @@ const Rules = () => {
   };
 
   useEffect(() => {
-    if (user && !demoLoaded) loadDemoProducts();
-  }, [user]);
+    if (!demoLoaded && (user || (isEmbedded && embeddedBrandId))) loadDemoProducts();
+  }, [user, isEmbedded, embeddedBrandId]);
 
   const generateDemoOutfits = async () => {
     if (!demoAnchor || demoProducts.length < 2) return;
