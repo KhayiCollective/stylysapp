@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { useSubscription } from "@/hooks/useSubscription";
 import { hasFeature } from "@/lib/tiers";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -30,8 +32,36 @@ type ChatMsg = { role: "user" | "assistant"; content: string };
 export function DashboardLayout({ children, title, description }: DashboardLayoutProps) {
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { isEmbedded } = useEmbeddedApp();
+  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
+  const { user } = useAuth();
   const { tierName } = useSubscription();
+  const [brandName, setBrandName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isEmbedded && embeddedBrandId) {
+      supabase
+        .from("brands")
+        .select("name")
+        .eq("id", embeddedBrandId)
+        .maybeSingle()
+        .then(({ data }) => { if (data?.name) setBrandName(data.name); });
+    } else if (!isEmbedded && user) {
+      supabase
+        .from("profiles")
+        .select("brand_id")
+        .eq("id", user.id)
+        .maybeSingle()
+        .then(({ data: profile }) => {
+          if (!profile?.brand_id) return;
+          supabase
+            .from("brands")
+            .select("name")
+            .eq("id", profile.brand_id)
+            .maybeSingle()
+            .then(({ data }) => { if (data?.name) setBrandName(data.name); });
+        });
+    }
+  }, [isEmbedded, embeddedBrandId, user]);
 
   // In embedded mode, preserve ?shop=&host= across client-side navigations.
   const navTo = (href: string) => {
@@ -155,7 +185,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
         <div className="p-4 border-t border-sidebar-border">
           <div className="px-3 py-2">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Brand</p>
-            <p className="text-sm font-medium">Demo Store</p>
+            <p className="text-sm font-medium">{brandName ?? "—"}</p>
           </div>
         </div>
       </aside>
