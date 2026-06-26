@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 
 const iconMap: Record<string, React.ElementType> = {
   "Color Harmony": Palette,
@@ -70,6 +71,7 @@ const Rules = () => {
   const [compositionRuleId, setCompositionRuleId] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
 
   // Widget demo state
   const [demoProducts, setDemoProducts] = useState<WidgetProduct[]>([]);
@@ -111,16 +113,24 @@ const Rules = () => {
 
   // Load demo products
   const loadDemoProducts = async () => {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("brand_id")
-      .eq("id", user?.id ?? "")
-      .single();
-    if (!profile?.brand_id) return;
+    let resolvedBrandId: string | null = null;
+    if (isEmbedded) {
+      resolvedBrandId = embeddedBrandId;
+    } else {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("brand_id")
+        .eq("id", user?.id ?? "")
+        .single();
+      resolvedBrandId = profile?.brand_id ?? null;
+    }
+    if (!resolvedBrandId) return;
+    // shadow with a const so the .eq() call below still compiles cleanly
+    const brandId = resolvedBrandId;
     const { data } = await supabase
       .from("products")
       .select("id, name, image_url, price, category")
-      .eq("brand_id", profile.brand_id)
+      .eq("brand_id", brandId)
       .eq("inventory_status", "in_stock")
       .limit(20);
     const mapped = (data || []).map(p => ({

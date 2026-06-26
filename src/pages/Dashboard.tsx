@@ -11,11 +11,13 @@ import { ShopifyConnection } from "@/components/ShopifyConnection";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useToast } from "@/hooks/use-toast";
+import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 
 const Dashboard = () => {
   const { showOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
 
   // Handle billing=success redirect from Shopify
   useEffect(() => {
@@ -77,17 +79,22 @@ const Dashboard = () => {
   });
 
   const { data: savedOutfits } = useQuery({
-    queryKey: ["saved-outfits-dashboard"],
+    queryKey: ["saved-outfits-dashboard", embeddedBrandId],
+    enabled: !isEmbedded || !!embeddedBrandId,
     queryFn: async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("brand_id")
-        .single();
-      if (!profile?.brand_id) return [];
+      let brandId: string | null = embeddedBrandId;
+      if (!isEmbedded) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("brand_id")
+          .single();
+        brandId = profile?.brand_id ?? null;
+      }
+      if (!brandId) return [];
       const { data, error } = await supabase
         .from("saved_outfits")
         .select("*")
-        .eq("brand_id", profile.brand_id)
+        .eq("brand_id", brandId)
         .order("created_at", { ascending: false })
         .limit(6);
       if (error) throw error;

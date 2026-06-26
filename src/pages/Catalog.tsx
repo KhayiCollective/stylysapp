@@ -18,6 +18,7 @@ import { ImportProductsDialog } from "@/components/catalog/ImportProductsDialog"
 import { useSubscription } from "@/hooks/useSubscription";
 import { getTierLimits } from "@/lib/tiers";
 import { Link } from "react-router-dom";
+import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 
 interface VariantInfo {
   variant_id: string;
@@ -47,6 +48,7 @@ const Catalog = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { tierName } = useSubscription();
+  const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -71,26 +73,33 @@ const Catalog = () => {
 
   useEffect(() => {
     const fetchBrandAndProducts = async () => {
-      if (!user) return;
-
       try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("brand_id")
-          .eq("id", user.id)
-          .single();
+        let resolvedBrandId: string | null = null;
 
-        if (profile?.brand_id) {
-          setBrandId(profile.brand_id);
-          
+        if (isEmbedded) {
+          // No Supabase auth session in embedded mode — use brand_id from context.
+          resolvedBrandId = embeddedBrandId;
+        } else {
+          if (!user) return;
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("brand_id")
+            .eq("id", user.id)
+            .single();
+          resolvedBrandId = profile?.brand_id ?? null;
+        }
+
+        if (resolvedBrandId) {
+          setBrandId(resolvedBrandId);
+
           const { data: brand } = await supabase
             .from("brands")
             .select("shopify_store_domain")
-            .eq("id", profile.brand_id)
+            .eq("id", resolvedBrandId)
             .single();
           setShopifyConnected(!!brand?.shopify_store_domain);
-          
-          await fetchProducts(profile.brand_id);
+
+          await fetchProducts(resolvedBrandId);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -100,7 +109,7 @@ const Catalog = () => {
     };
 
     fetchBrandAndProducts();
-  }, [user]);
+  }, [user, isEmbedded, embeddedBrandId]);
 
   const fetchProducts = async (bid: string) => {
     const { data, error } = await supabase

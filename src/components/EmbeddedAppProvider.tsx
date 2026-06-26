@@ -1,5 +1,6 @@
 import { createContext, useContext, ReactNode, useEffect, useState } from "react";
 import { useShopifyAppBridge, AppBridgeConfig } from "@/hooks/useShopifyAppBridge";
+import { supabase } from "@/integrations/supabase/client";
 
 interface EmbeddedAppContextValue {
   isEmbedded: boolean;
@@ -7,6 +8,7 @@ interface EmbeddedAppContextValue {
   showToast: (message: string, isError?: boolean) => void;
   setLoading: (isLoading: boolean) => void;
   getSessionToken: () => Promise<string | null>;
+  embeddedBrandId: string | null;
 }
 
 const EmbeddedAppContext = createContext<EmbeddedAppContextValue | null>(null);
@@ -18,6 +20,7 @@ interface EmbeddedAppProviderProps {
 export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
   const { config, isEmbedded, showToast, setAppLoading, getSessionToken } = useShopifyAppBridge();
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [embeddedBrandId, setEmbeddedBrandId] = useState<string | null>(null);
 
   useEffect(() => {
     // Only load App Bridge script if we detect embedded context
@@ -37,12 +40,29 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
     }
   }, [scriptLoaded]);
 
+  // Look up brand_id by shop domain so embedded pages can skip the profiles query
+  // (which requires auth.uid() and fails without a Supabase session).
+  useEffect(() => {
+    const shop = config?.shop;
+    if (!isEmbedded || !shop) return;
+    const shopDomainClean = shop.replace('.myshopify.com', '');
+    supabase
+      .from('brands')
+      .select('id')
+      .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomainClean}%`)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.id) setEmbeddedBrandId(data.id);
+      });
+  }, [isEmbedded, config?.shop]);
+
   const contextValue: EmbeddedAppContextValue = {
     isEmbedded,
     config,
     showToast,
     setLoading: setAppLoading,
     getSessionToken,
+    embeddedBrandId,
   };
 
   return (
