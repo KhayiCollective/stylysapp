@@ -36,7 +36,7 @@ export default function ShopifyConnect() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const redirectUri = `https://stylysapp.com/connect-shopify`;
+  const redirectUri = `https://stylysapp.vercel.app/connect-shopify`;
   const callbackProcessed = useRef(false);
   const [oauthClientId, setOauthClientId] = useState<string | null>(null);
 
@@ -295,7 +295,7 @@ export default function ShopifyConnect() {
         statePayload.embedded = true;
       }
       const state = btoa(JSON.stringify(statePayload));
-      const redirectUri = `https://stylysapp.com/connect-shopify`;
+      const redirectUri = `https://stylysapp.vercel.app/connect-shopify`;
 
       console.log('[ShopifyConnect] Initiating OAuth flow:', { shopDomain, redirectUri, brandId: profile.brand_id });
 
