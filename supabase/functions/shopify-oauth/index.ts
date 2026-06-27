@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       }
 
       const statePayload = btoa(JSON.stringify({ brand_id: brandId, embedded: true, shop }));
-      const redirectUri = `https://stylysapp.com/connect-shopify`;
+      const redirectUri = `https://stylysapp.vercel.app/connect-shopify`;
 
       const authUrl = `https://${shop}/admin/oauth/authorize?` +
         `client_id=${SHOPIFY_CLIENT_ID}&` +
