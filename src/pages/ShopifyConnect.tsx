@@ -102,11 +102,6 @@ export default function ShopifyConnect() {
   // Check if already connected or handle OAuth callback
   useEffect(() => {
     const checkConnection = async () => {
-      if (!user) {
-        setChecking(false);
-        return;
-      }
-
       // Handle OAuth callback
       const code = searchParams.get('code');
       const shopParam = searchParams.get('shop');
@@ -195,7 +190,12 @@ export default function ShopifyConnect() {
         return;
       }
 
-      // Not a callback; stop blocking UI while we check in background
+      // Not a callback; require user session for the "already connected" check
+      if (!user) {
+        setChecking(false);
+        return;
+      }
+
       setChecking(false);
 
       // Check if already connected
