@@ -108,8 +108,8 @@ serve(async (req) => {
         return json({ error: "No products available" }, 404);
       }
 
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) return json({ error: "AI service not configured" }, 500);
+      const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+      if (!OPENAI_API_KEY) return json({ error: "AI service not configured" }, 500);
 
       // ---- Parse budget from quiz (e.g. "Under $100", "$100–$250", "No limit") ----
       const parseBudget = (b?: string): { min: number; max: number } | null => {
@@ -273,28 +273,21 @@ ${occasion ? `\nOCCASION OVERRIDE: ${occasion}` : ""}${style ? `\nSTYLE OVERRIDE
 Variation seed: ${crypto.randomUUID()}`;
 
       const aiMessages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
-      const models = ["google/gemini-2.5-flash", "openai/gpt-5-nano", "google/gemini-2.5-flash-lite"];
-      let aiData: any = null;
 
-      for (const model of models) {
-        const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model, messages: aiMessages, temperature: 1.1 }),
-        });
+      const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "gpt-4o-mini", messages: aiMessages, temperature: 1.1 }),
+      });
 
-        if (aiResp.ok) {
-          aiData = await aiResp.json();
-          break;
-        }
-
+      if (!aiResp.ok) {
         const errBody = await aiResp.text();
-        console.error(`AI error (${model}):`, aiResp.status, errBody);
-      }
-
-      if (!aiData) {
+        console.error("AI error:", aiResp.status, errBody);
         return json({ error: "AI service temporarily unavailable" }, 500);
       }
+
+      const aiData = await aiResp.json();
+
       let content = aiData.choices?.[0]?.message?.content?.trim() || "";
       if (content.startsWith("```json")) content = content.slice(7);
       else if (content.startsWith("```")) content = content.slice(3);
