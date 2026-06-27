@@ -237,6 +237,8 @@ const Rules = () => {
   const pricingRules = rules.filter(r => r.category === "pricing");
   const compositionRule = rules.find(r => r.category === "composition");
 
+  console.log("[Rules render] isEmbedded:", isEmbedded, "embeddedBrandId:", embeddedBrandId, "demoProducts.length:", demoProducts.length, "demoLoaded:", demoLoaded);
+
   if (loading) {
     return (
       <DashboardLayout title="Styling Rules" description="Configure the rules that govern outfit generation">
