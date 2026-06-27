@@ -65,6 +65,7 @@ const defaultComposition: CompositionConfig = {
 const ALL_CATEGORIES = ["tops", "bottoms", "dresses", "outerwear", "shoes", "bags", "accessories", "hats", "sunglasses", "jewelry", "scarves"];
 
 const Rules = () => {
+  console.log("RULES COMPONENT MOUNTED");
   const [rules, setRules] = useState<DbRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [compositionConfig, setCompositionConfig] = useState<CompositionConfig>(defaultComposition);
