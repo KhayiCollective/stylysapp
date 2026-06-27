@@ -21,6 +21,7 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
   const { config, isEmbedded, showToast, setAppLoading, getSessionToken } = useShopifyAppBridge();
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [embeddedBrandId, setEmbeddedBrandId] = useState<string | null>(null);
+  const [connectionChecked, setConnectionChecked] = useState(false);
 
   useEffect(() => {
     // Only load App Bridge script if we detect embedded context
@@ -40,21 +41,52 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
     }
   }, [scriptLoaded]);
 
-  // Look up brand_id by shop domain so embedded pages can skip the profiles query
-  // (which requires auth.uid() and fails without a Supabase session).
+  // Look up brand_id by shop domain. Only counts as connected if shopify_connected_at is set.
   useEffect(() => {
     const shop = config?.shop;
     if (!isEmbedded || !shop) return;
     const shopDomainClean = shop.replace('.myshopify.com', '');
     supabase
       .from('brands')
-      .select('id')
+      .select('id, shopify_connected_at')
       .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopDomainClean}%`)
       .maybeSingle()
       .then(({ data }) => {
-        if (data?.id) setEmbeddedBrandId(data.id);
-      });
+        if (data?.id && data.shopify_connected_at) setEmbeddedBrandId(data.id);
+      })
+      .finally(() => setConnectionChecked(true));
   }, [isEmbedded, config?.shop]);
+
+  // Fallback: if no connected brand found, attempt token exchange using App Bridge session token.
+  useEffect(() => {
+    if (!scriptLoaded || !connectionChecked || embeddedBrandId || !isEmbedded || !config?.shop) return;
+
+    const attemptTokenExchange = async () => {
+      const sessionToken = await getSessionToken();
+      if (!sessionToken) return;
+
+      try {
+        const resp = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=token-exchange`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_token: sessionToken, shop: config.shop }),
+          }
+        );
+        const result = await resp.json();
+        if (resp.ok && result.brand_id) {
+          setEmbeddedBrandId(result.brand_id);
+        } else {
+          console.error("[EmbeddedAppProvider] Token exchange failed:", result.error);
+        }
+      } catch (err) {
+        console.error("[EmbeddedAppProvider] Token exchange error:", err);
+      }
+    };
+
+    attemptTokenExchange();
+  }, [scriptLoaded, connectionChecked, embeddedBrandId, isEmbedded, config?.shop]);
 
   const contextValue: EmbeddedAppContextValue = {
     isEmbedded,
