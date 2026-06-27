@@ -173,6 +173,132 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "token-exchange" && req.method === "POST") {
+      let session_token: string;
+      let shop: string;
+
+      try {
+        const body = await req.json();
+        session_token = body.session_token;
+        shop = body.shop;
+      } catch {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.MISSING_PARAMS }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!session_token || !shop) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.MISSING_PARAMS }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+      if (!shopRegex.test(shop)) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.INVALID_SHOP }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.CONFIG_ERROR }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const tokenParams = new URLSearchParams({
+        client_id: SHOPIFY_CLIENT_ID,
+        client_secret: SHOPIFY_CLIENT_SECRET,
+        grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+        subject_token: session_token,
+        subject_token_type: "urn:ietf:params:oauth:token-type:id_token",
+        requested_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
+        expiring: "1",
+      });
+
+      const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: tokenParams.toString(),
+      });
+
+      if (!tokenResponse.ok) {
+        const errText = await tokenResponse.text();
+        console.error("[SHOPIFY-OAUTH] Token exchange failed:", tokenResponse.status, errText);
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.AUTH_FAILED }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
+
+      if (!accessToken) {
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.AUTH_FAILED }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const shopName = shop.replace(".myshopify.com", "");
+
+      const { data: existingBrand } = await supabase
+        .from("brands")
+        .select("id")
+        .or(`shopify_store_domain.eq.${shop},shopify_store_domain.ilike.%${shopName}%`)
+        .maybeSingle();
+
+      let brandId: string;
+
+      if (existingBrand) {
+        brandId = existingBrand.id;
+      } else {
+        const { data: newBrand, error: createError } = await supabase
+          .from("brands")
+          .insert({ name: shopName, slug: `shop-${shopName}`, shopify_store_domain: shop })
+          .select("id")
+          .single();
+
+        if (createError || !newBrand) {
+          return new Response(
+            JSON.stringify({ error: CLIENT_ERRORS.SAVE_FAILED }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        brandId = newBrand.id;
+      }
+
+      const { error: updateError } = await supabase
+        .from("brands")
+        .update({
+          shopify_access_token: accessToken,
+          shopify_store_domain: shop,
+          shopify_connected_at: new Date().toISOString(),
+        })
+        .eq("id", brandId);
+
+      if (updateError) {
+        console.error("[SHOPIFY-OAUTH] Failed to store access token:", updateError.message);
+        return new Response(
+          JSON.stringify({ error: CLIENT_ERRORS.SAVE_FAILED }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log("[SHOPIFY-OAUTH] Token exchange successful for brand:", brandId);
+
+      return new Response(
+        JSON.stringify({ success: true, brand_id: brandId }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "authorize") {
       const shop = url.searchParams.get("shop");
       const redirectUri = url.searchParams.get("redirect_uri");
