@@ -4,6 +4,7 @@
 
 client_id = "e1bde8232afcab4c37b12a9b29c3dde1"
 name = "STYLYS APP"
+handle = "stylys-app"
 application_url = "https://stylysapp.vercel.app/embedded"
 embedded = true
 

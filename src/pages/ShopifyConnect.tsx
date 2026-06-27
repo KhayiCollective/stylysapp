@@ -160,7 +160,7 @@ export default function ShopifyConnect() {
             // Always redirect back to Shopify Admin with the app open
             sessionStorage.removeItem('selectedPlan');
             const shopName = shopParam.replace('.myshopify.com', '');
-            const adminUrl = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
+            const adminUrl = `https://admin.shopify.com/store/${shopName}/apps/stylys-app`;
             setTimeout(() => {
               if (window.top && window.top !== window.self) {
                 window.top.location.href = adminUrl;
@@ -218,7 +218,7 @@ export default function ShopifyConnect() {
             // If embedded flow and already connected, go back to embedded
             if (isEmbeddedFlow && brand.shopify_store_domain) {
               const shopName = brand.shopify_store_domain.replace('.myshopify.com', '');
-              window.location.href = `https://${shopName}.myshopify.com/admin/apps/e1bde8232afcab4c37b12a9b29c3dde1`;
+              window.location.href = `https://admin.shopify.com/store/${shopName}/apps/stylys-app`;
             } else {
               navigate('/dashboard');
             }
