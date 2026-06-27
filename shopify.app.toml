@@ -13,8 +13,6 @@ scopes = "read_products,read_product_listings,read_inventory,unauthenticated_rea
 
 [auth]
 redirect_urls = [
-  "https://stylysapp.com/connect-shopify",
-  "https://stylysapp.lovable.app/connect-shopify",
   "https://stylysapp.vercel.app/connect-shopify"
 ]
 
