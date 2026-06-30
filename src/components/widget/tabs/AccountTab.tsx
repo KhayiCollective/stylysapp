@@ -12,6 +12,8 @@ interface AccountTabProps {
   onCustomerLogin?: (photoUrl: string | null, token: string, styleProfile?: { body_shape?: string; size_info?: Record<string, string> }) => void;
 }
 
+const WIDGET_API_BASE = "https://stylysapp.com/api/widget";
+
 const STYLE_OPTIONS = ["Minimalist", "Bohemian", "Classic", "Streetwear", "Romantic", "Edgy", "Preppy", "Athleisure"];
 const COLOR_OPTIONS = ["Black", "White", "Navy", "Beige", "Red", "Green", "Pink", "Brown", "Blue", "Gray"];
 const BODY_SHAPES = ["Hourglass", "Pear", "Apple", "Rectangle", "Triangle", "Inverted Triangle"];
@@ -81,7 +83,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     if (token) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      fetch(`/api/widget/me`, {
+      fetch(`${WIDGET_API_BASE}/me`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       })
@@ -123,7 +125,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
 
     const endpoint = isSignUp ? "signup" : "login";
     try {
-      const resp = await fetch(`/api/widget/${endpoint}`, {
+      const resp = await fetch(`${WIDGET_API_BASE}/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, brand_id: brandId, shop: shopParam, name: name || undefined }),
@@ -150,7 +152,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     setLoading(true);
     setError("");
     try {
-      await fetch(`/api/widget/forgot-password`, {
+      await fetch(`${WIDGET_API_BASE}/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, brand_id: brandId, shop: shopParam }),
@@ -186,7 +188,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64 = reader.result as string;
-        const resp = await fetch(`/api/widget/photo`, {
+        const resp = await fetch(`${WIDGET_API_BASE}/photo`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ photoBase64: base64 }),
@@ -223,7 +225,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     }
 
     try {
-      const resp = await fetch(`/api/widget/profile`, {
+      const resp = await fetch(`${WIDGET_API_BASE}/profile`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
