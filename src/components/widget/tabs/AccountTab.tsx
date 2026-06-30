@@ -81,8 +81,11 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   useEffect(() => {
     const token = getCustomerToken();
     if (token) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       })
         .then(r => r.json())
         .then(data => {
@@ -96,7 +99,10 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
           }
         })
         .catch(() => clearCustomerToken())
-        .finally(() => setCheckingSession(false));
+        .finally(() => {
+          clearTimeout(timeoutId);
+          setCheckingSession(false);
+        });
     } else {
       setCheckingSession(false);
     }

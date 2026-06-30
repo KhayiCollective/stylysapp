@@ -5,8 +5,9 @@
 // must ALWAYS be resolved fresh from the current shop domain on every widget
 // load — never cached and never derived from the token storage key.
 
-const TOKEN_KEY = "stylys_customer_token";
-const LEGACY_PREFIX = "stylys_customer_token_";
+const TOKEN_KEY = "stylys_customer_token_agvobtjeizdoppzkvyyu";
+// LEGACY_PREFIX intentionally broad — catches old generic key AND old brand-scoped keys
+const LEGACY_PREFIX = "stylys_customer_token";
 
 let migrated = false;
 
@@ -17,17 +18,11 @@ function migrateLegacyKeys() {
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(LEGACY_PREFIX)) keys.push(k);
+      // Exclude the current key so we never accidentally delete our own token
+      if (k && k.startsWith(LEGACY_PREFIX) && k !== TOKEN_KEY) keys.push(k);
     }
-    // If a generic token already exists, just clean up legacy ones.
-    const hasGeneric = !!localStorage.getItem(TOKEN_KEY);
-    if (!hasGeneric && keys.length > 0) {
-      // Promote the first legacy token to the generic key as a best-effort
-      // migration so signed-in users stay signed in. Backend `/me` will
-      // re-validate the token against the current brand on next call.
-      const promoted = localStorage.getItem(keys[0]);
-      if (promoted) localStorage.setItem(TOKEN_KEY, promoted);
-    }
+    // Don't promote old tokens — they were issued by a different Supabase project
+    // and would fail auth. Users will simply be asked to log in again.
     keys.forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
