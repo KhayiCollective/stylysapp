@@ -57,8 +57,6 @@ export function PhotoUpload({
   const [isSaved, setIsSaved] = useState(!!savedPhotoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
   // Show saved photo as preview if present
   const displayImage = preview || savedPhotoUrl;
   const showingSaved = !preview && !!savedPhotoUrl;
@@ -130,7 +128,7 @@ export function PhotoUpload({
     if (!customerToken || !preview) return;
     setSaving(true);
     try {
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/photo`, {
+      const resp = await fetch(`/api/widget/photo`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

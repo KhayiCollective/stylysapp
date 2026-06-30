@@ -73,7 +73,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     const token = getToken(brandId);
     if (!token) return null;
     try {
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/me`, {
+      const resp = await fetch(`/api/widget/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await resp.json();

@@ -6,8 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Check, AlertCircle } from "lucide-react";
 import stylysIcon from "@/assets/stylys-icon.png";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
 export default function WidgetResetPassword() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -25,7 +23,7 @@ export default function WidgetResetPassword() {
       setValid(false);
       return;
     }
-    fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/verify-reset-token`, {
+    fetch(`/api/widget/verify-reset-token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
@@ -43,7 +41,7 @@ export default function WidgetResetPassword() {
     if (password !== confirm) return setError("Passwords do not match.");
     setLoading(true);
     try {
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/reset-password`, {
+      const resp = await fetch(`/api/widget/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
