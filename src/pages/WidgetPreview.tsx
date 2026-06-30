@@ -11,11 +11,10 @@ const WidgetPreview = () => {
   const [searchParams] = useSearchParams();
   const queryBrandId = searchParams.get("brand_id") || undefined;
   const shop = searchParams.get("shop") || undefined;
-  // When a shop domain is present, ALWAYS resolve brand_id fresh from the
-  // backend so we never use a cached/stale brand_id. Only fall back to the
-  // query brand_id when there is no shop (e.g. merchant dashboard preview).
-  const [brandId, setBrandId] = useState<string | undefined>(shop ? undefined : queryBrandId);
-  const [resolving, setResolving] = useState(!!shop);
+  // Use brand_id from URL directly if present — skip the verify-shop fetch.
+  // Only fall back to verify-shop when brand_id is absent (e.g. old script tag installs).
+  const [brandId, setBrandId] = useState<string | undefined>(queryBrandId || undefined);
+  const [resolving, setResolving] = useState(!queryBrandId && !!shop);
   const [isIframe, setIsIframe] = useState(false);
 
   useEffect(() => {
@@ -26,20 +25,30 @@ const WidgetPreview = () => {
     }
   }, []);
 
-  // Auto-resolve brand from shop domain on every load (no caching).
+  // Auto-resolve brand from shop domain only when brand_id is not in the URL.
   useEffect(() => {
-    if (!shop) return;
+    console.log("[WidgetPreview] effect fired, shop:", shop, "queryBrandId:", queryBrandId);
+    if (!shop || queryBrandId) return;
     setResolving(true);
     const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    console.log("[WidgetPreview] about to fetch verify-shop");
     fetch(
-      `${SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`
+      `${SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
+      { signal: controller.signal }
     )
-      .then((r) => r.json())
+      .then((r) => { console.log("[WidgetPreview] fetch resolved, status:", r.status); return r.json(); })
       .then((data) => {
+        console.log("[WidgetPreview] data:", data);
         if (data?.brandId) setBrandId(data.brandId);
       })
-      .catch(() => {})
-      .finally(() => setResolving(false));
+      .catch((err) => { console.log("[WidgetPreview] fetch error:", err); })
+      .finally(() => {
+        console.log("[WidgetPreview] finally, clearing resolving");
+        clearTimeout(timeoutId);
+        setResolving(false);
+      });
   }, [shop]);
 
   if (resolving) {
