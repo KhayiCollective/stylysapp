@@ -111,7 +111,7 @@ api_version = "2024-10"
     "inventory_levels/update",
     "app/uninstalled"
   ]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"
+  uri = "https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/shopify-webhooks"
 
   [[webhooks.subscriptions]]
   compliance_topics = [
@@ -119,7 +119,7 @@ api_version = "2024-10"
     "customers/redact",
     "shop/redact"
   ]
-  uri = "https://mggxvtfgakplzzpcclte.supabase.co/functions/v1/shopify-webhooks"`;
+  uri = "https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/shopify-webhooks"`;
 
   // Role-based access guard — must be after all hooks
   if (roleLoading) {
