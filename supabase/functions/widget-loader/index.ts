@@ -29,13 +29,17 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  let brandId = url.searchParams.get("brand_id") || "";
   const shopParam = url.searchParams.get("shop") || "";
 
-  // Auto-detect brand from shop domain (preferred path for theme app embed)
-  if (!brandId && shopParam) {
+  // Always resolve brand_id from shop domain when shopParam is present — never trust
+  // the URL brand_id param, which may be stale from a previous Supabase project.
+  // Fall back to the URL param only when there is no shop to resolve from.
+  let brandId = "";
+  if (shopParam) {
     const resolved = await resolveBrandIdByShop(shopParam);
     if (resolved) brandId = resolved;
+  } else {
+    brandId = url.searchParams.get("brand_id") || "";
   }
 
   const widgetJs = `
