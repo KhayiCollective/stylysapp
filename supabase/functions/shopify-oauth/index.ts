@@ -14,7 +14,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Required scopes for storefront access, checkout, and webhooks
-const SCOPES = "read_inventory,read_product_listings,read_products,unauthenticated_read_product_listings,unauthenticated_read_product_tags";
+const SCOPES = "read_inventory,read_product_listings,read_products,unauthenticated_read_product_listings,unauthenticated_read_product_tags,write_script_tags";
 
 // Webhook topics to register
 const WEBHOOK_TOPICS = [
@@ -440,6 +440,8 @@ Deno.serve(async (req) => {
       // Save tokens to database
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+      console.log("[SHOPIFY-OAUTH] authorize: token exchange succeeded, shop:", shop, "brandId from state:", brandId, "accessToken present:", !!accessToken);
+
       // If another brand already owns this shop domain, prefer it (it likely has
       // products/widget config from a previous install). Re-bind to that brand
       // and drop the orphan placeholder created by embedded-authorize.
@@ -448,6 +450,8 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("shopify_store_domain", shop)
         .maybeSingle();
+
+      console.log("[SHOPIFY-OAUTH] existingForShop lookup:", existingForShop ? `found id=${existingForShop.id}` : "not found");
 
       if (existingForShop && existingForShop.id !== brandId) {
         // Delete the orphan brand created by embedded-authorize that has no token yet
@@ -459,9 +463,11 @@ Deno.serve(async (req) => {
         if (orphan && !orphan.shopify_connected_at) {
           await supabase.from("brands").delete().eq("id", brandId);
         }
+        console.log("[SHOPIFY-OAUTH] rebinding brandId from", brandId, "to", existingForShop.id);
         brandId = existingForShop.id;
       }
 
+      console.log("[SHOPIFY-OAUTH] running UPDATE on brand id:", brandId);
 
       const updateData = {
         shopify_store_domain: shop,
@@ -470,11 +476,13 @@ Deno.serve(async (req) => {
         shopify_connected_at: new Date().toISOString(),
       };
 
-      const { error: updateError } = await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from("brands")
         .update(updateData)
         .eq("id", brandId)
         .select();
+
+      console.log("[SHOPIFY-OAUTH] UPDATE result — data:", JSON.stringify(updateResult), "error:", updateError ? JSON.stringify(updateError) : "null");
 
       if (updateError) {
         console.error("[SHOPIFY-OAUTH] Database update failed:", updateError.message, updateError.code);

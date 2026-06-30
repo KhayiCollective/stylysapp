@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
 
   const widgetJs = `
 (function() {
-  if (window.__stylysWidgetLoaded) return;
-  window.__stylysWidgetLoaded = true;
+  if (window.__stylysWidget_agvobtjeizdoppzkvyyu) return;
+  window.__stylysWidget_agvobtjeizdoppzkvyyu = true;
 
   // Resolve brand_id at load time. Priority:
   // 1. Injected by edge function (theme app embed passes ?shop=)
