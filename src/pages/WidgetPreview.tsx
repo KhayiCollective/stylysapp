@@ -6,15 +6,14 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const WidgetPreview = () => {
   const [searchParams] = useSearchParams();
   const queryBrandId = searchParams.get("brand_id") || undefined;
   const shop = searchParams.get("shop") || undefined;
-  // Use brand_id from URL directly if present — skip the verify-shop fetch.
-  // Only fall back to verify-shop when brand_id is absent (e.g. old script tag installs).
-  const [brandId, setBrandId] = useState<string | undefined>(queryBrandId || undefined);
-  const [resolving, setResolving] = useState(!queryBrandId && !!shop);
+  const [brandId, setBrandId] = useState<string | undefined>(undefined);
+  const [resolving, setResolving] = useState(!!(queryBrandId || shop));
   const [isIframe, setIsIframe] = useState(false);
 
   useEffect(() => {
@@ -25,31 +24,67 @@ const WidgetPreview = () => {
     }
   }, []);
 
-  // Auto-resolve brand from shop domain only when brand_id is not in the URL.
   useEffect(() => {
     console.log("[WidgetPreview] effect fired, shop:", shop, "queryBrandId:", queryBrandId);
-    if (!shop || queryBrandId) return;
-    setResolving(true);
-    const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+    if (!queryBrandId && !shop) return;
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    console.log("[WidgetPreview] about to fetch verify-shop");
-    fetch(
-      `${SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
-      { signal: controller.signal }
-    )
-      .then((r) => { console.log("[WidgetPreview] fetch resolved, status:", r.status); return r.json(); })
-      .then((data) => {
-        console.log("[WidgetPreview] data:", data);
+
+    const resolve = async () => {
+      try {
+        // Step 1: If queryBrandId is present, validate it exists in the current project.
+        if (queryBrandId) {
+          const resp = await fetch(
+            `${SUPABASE_URL}/rest/v1/brands?id=eq.${queryBrandId}&select=id`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              },
+              signal: controller.signal,
+            }
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            if (Array.isArray(data) && data.length > 0) {
+              console.log("[WidgetPreview] queryBrandId validated:", queryBrandId);
+              setBrandId(queryBrandId);
+              return;
+            }
+          }
+          console.log("[WidgetPreview] queryBrandId not found in current project, falling back to verify-shop");
+        }
+
+        // Step 2: Fall back to verify-shop using the shop param.
+        if (!shop) {
+          // No shop to resolve from — use queryBrandId as last resort.
+          if (queryBrandId) setBrandId(queryBrandId);
+          return;
+        }
+        const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+        console.log("[WidgetPreview] about to fetch verify-shop");
+        const resp = await fetch(
+          `${SUPABASE_URL}/functions/v1/shopify-oauth?action=verify-shop&shop=${encodeURIComponent(shopDomain)}`,
+          { signal: controller.signal }
+        );
+        console.log("[WidgetPreview] verify-shop status:", resp.status);
+        const data = await resp.json();
+        console.log("[WidgetPreview] verify-shop data:", data);
         if (data?.brandId) setBrandId(data.brandId);
-      })
-      .catch((err) => { console.log("[WidgetPreview] fetch error:", err); })
-      .finally(() => {
+      } catch (err) {
+        console.log("[WidgetPreview] resolve error:", err);
+        // On timeout/error, fall back to queryBrandId if available.
+        if (queryBrandId) setBrandId(queryBrandId);
+      } finally {
         console.log("[WidgetPreview] finally, clearing resolving");
         clearTimeout(timeoutId);
         setResolving(false);
-      });
-  }, [shop]);
+      }
+    };
+
+    resolve();
+  }, [shop, queryBrandId]);
 
   if (resolving) {
     return (
