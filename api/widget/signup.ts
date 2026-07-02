@@ -10,7 +10,7 @@ export default async function handler(req: Request) {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
 
   const upstream = await fetch(
-    `${process.env.VITE_SUPABASE_URL}/functions/v1/widget-customer-auth/signup`,
+    `${process.env.SUPABASE_URL}/functions/v1/widget-customer-auth/signup`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

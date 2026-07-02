@@ -14,7 +14,7 @@ export default async function handler(req: Request) {
   if (auth) headers['Authorization'] = auth;
 
   const upstream = await fetch(
-    `${process.env.VITE_SUPABASE_URL}/functions/v1/widget-customer-auth/profile`,
+    `${process.env.SUPABASE_URL}/functions/v1/widget-customer-auth/profile`,
     { method: 'POST', headers, body: await req.text() },
   );
 

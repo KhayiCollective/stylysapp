@@ -15,7 +15,7 @@ export default async function handler(req: Request) {
 
   const body = req.method !== 'GET' ? await req.text() : undefined;
   const upstream = await fetch(
-    `${process.env.VITE_SUPABASE_URL}/functions/v1/widget-customer-auth/me`,
+    `${process.env.SUPABASE_URL}/functions/v1/widget-customer-auth/me`,
     { method: req.method, headers, body },
   );
 
