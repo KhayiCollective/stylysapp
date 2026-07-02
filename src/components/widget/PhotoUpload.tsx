@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Upload, Camera, X, Loader2, Save, ImageIcon } from "lucide-react";
 
-const WIDGET_API_BASE = "https://stylysapp.com/api/widget";
+const SUPABASE_URL = "https://agvobtjeizdoppzkvyyu.supabase.co";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const CACHE_KEY_PREFIX = "stylys_photo_cache_";
@@ -129,7 +129,7 @@ export function PhotoUpload({
     if (!customerToken || !preview) return;
     setSaving(true);
     try {
-      const resp = await fetch(`${WIDGET_API_BASE}/photo`, {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/photo`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

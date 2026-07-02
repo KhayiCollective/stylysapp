@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Check, AlertCircle } from "lucide-react";
 import stylysIcon from "@/assets/stylys-icon.png";
 
-const WIDGET_API_BASE = "https://stylysapp.com/api/widget";
+const SUPABASE_URL = "https://agvobtjeizdoppzkvyyu.supabase.co";
 
 export default function WidgetResetPassword() {
   const [searchParams] = useSearchParams();
@@ -25,7 +25,7 @@ export default function WidgetResetPassword() {
       setValid(false);
       return;
     }
-    fetch(`${WIDGET_API_BASE}/verify-reset-token`, {
+    fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/verify-reset-token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
@@ -43,7 +43,7 @@ export default function WidgetResetPassword() {
     if (password !== confirm) return setError("Passwords do not match.");
     setLoading(true);
     try {
-      const resp = await fetch(`${WIDGET_API_BASE}/reset-password`, {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),

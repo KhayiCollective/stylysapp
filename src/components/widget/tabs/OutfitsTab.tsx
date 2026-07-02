@@ -50,8 +50,7 @@ interface OutfitsTabProps {
 
 import { getCustomerToken } from "@/lib/widgetAuth";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const WIDGET_API_BASE = "https://stylysapp.com/api/widget";
+const SUPABASE_URL = "https://agvobtjeizdoppzkvyyu.supabase.co";
 
 function getToken(_brandId?: string) {
   return getCustomerToken();
@@ -74,7 +73,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     const token = getToken(brandId);
     if (!token) return null;
     try {
-      const resp = await fetch(`${WIDGET_API_BASE}/me`, {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/widget-customer-auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await resp.json();
