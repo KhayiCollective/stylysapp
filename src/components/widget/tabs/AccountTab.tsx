@@ -125,6 +125,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
 
     const endpoint = isSignUp ? "signup" : "login";
     try {
+      console.log("[AccountTab] handleAuth", { email, brandId, shopParam, endpoint });
       const resp = await fetch(`${WIDGET_API_BASE}/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
