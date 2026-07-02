@@ -131,7 +131,9 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, brand_id: brandId, shop: shopParam, name: name || undefined }),
       });
+      console.log("[AccountTab] fetch response status:", resp.status);
       const data = await resp.json();
+      console.log("[AccountTab] fetch response data:", data);
       if (!resp.ok) {
         setError(data.error || "Something went wrong");
         return;
