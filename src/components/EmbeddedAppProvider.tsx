@@ -26,7 +26,8 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
   useEffect(() => {
     // Only load App Bridge script if we detect embedded context
     const params = new URLSearchParams(window.location.search);
-    const embedded = window.self !== window.top && params.has("shop");
+    const widgetRoutes = ["/widget-preview", "/widget-reset-password"];
+    const embedded = window.self !== window.top && params.has("shop") && !widgetRoutes.includes(window.location.pathname);
 
     if (embedded && !scriptLoaded) {
       const script = document.createElement("script");
