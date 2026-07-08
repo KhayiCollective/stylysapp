@@ -59,31 +59,42 @@ function isAllowedImageUrl(raw: string): boolean {
   }
 }
 
-// Convert an external image URL to a base64 data URI (allowlist enforced)
-async function imageUrlToBase64(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url;
+// Fetch an external image URL as a Blob (allowlist enforced)
+async function imageUrlToBlob(url: string): Promise<{ blob: Blob; filename: string } | null> {
   if (!isAllowedImageUrl(url)) {
     console.warn(`Rejected image URL (not in allowlist): ${url.substring(0, 120)}`);
-    return url;
+    return null;
   }
   try {
     const resp = await fetch(url, { redirect: "error" });
     if (!resp.ok) {
       console.error(`Failed to fetch image: ${url} — ${resp.status}`);
-      return url;
+      return null;
     }
     const contentType = resp.headers.get("content-type") || "image/jpeg";
     if (!contentType.startsWith("image/")) {
       console.warn(`Rejected non-image content-type: ${contentType}`);
-      return url;
+      return null;
     }
     const buf = await resp.arrayBuffer();
-    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-    return `data:${contentType};base64,${b64}`;
+    const ext = contentType.split("/")[1]?.split(";")[0] ?? "jpg";
+    return { blob: new Blob([buf], { type: contentType }), filename: `garment.${ext}` };
   } catch (e) {
-    console.error(`Error converting image to base64: ${url}`, e);
-    return url;
+    console.error(`Error fetching image blob: ${url}`, e);
+    return null;
   }
+}
+
+// Parse a base64 data URI into a Blob, extracting MIME type from the prefix.
+function base64DataUriToBlob(dataUri: string): { blob: Blob; filename: string } {
+  const match = dataUri.match(/^data:([^;]+);base64,(.+)$/s);
+  if (!match) throw new Error("Invalid data URI format");
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const ext = mimeType.split("/")[1]?.split(";")[0] ?? "jpg";
+  return { blob: new Blob([bytes], { type: mimeType }), filename: `user.${ext}` };
 }
 
 // Simple in-memory IP rate limiter (per-instance). Protects against credit abuse.
@@ -186,23 +197,22 @@ function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   return `Generate a photorealistic virtual try-on image. Image 1 is the customer's photo — this is the BASE IMAGE. The person must remain EXACTLY the same: preserve their face, skin tone, hair, pose, body shape, and background with ZERO alterations. Your ONLY task is to remove their current clothing and dress them in these items: ${items}. Extract only the specified garment from each product image. Fit garments realistically to the person's body — correct shoulder alignment, natural draping, proper lengths. Match the lighting and shadows from Image 1. The result must look like a real photograph of this person wearing this outfit. You MUST output an image.`;
 }
 
-async function callAI(apiKey: string, contentParts: any[], model: string) {
-  const body: any = {
-    model,
-    messages: [{ role: "user", content: contentParts }],
-  };
-  if (model.includes("image-preview") || model.includes("flash-image")) {
-    body.modalities = ["image", "text"];
-  }
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+async function callOpenAI(
+  apiKey: string,
+  userBlob: { blob: Blob; filename: string },
+  garmentBlobs: Array<{ blob: Blob; filename: string }>,
+  prompt: string,
+): Promise<Response> {
+  const form = new FormData();
+  form.append("model", "gpt-image-1");
+  form.append("prompt", prompt);
+  form.append("image[]", userBlob.blob, userBlob.filename);
+  for (const g of garmentBlobs) form.append("image[]", g.blob, g.filename);
+  return fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
   });
-  return response;
 }
 
 serve(async (req) => {
@@ -220,9 +230,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -244,52 +254,43 @@ serve(async (req) => {
       console.log("Body profile included:", bodyShape, sizeInfo);
     }
 
-    // Convert external product image URLs to base64 (skip if already data URI)
-    const convertedItems = await Promise.all(
-      outfitItems.map(async (item) => {
-        if (item.imageUrl && item.imageUrl.startsWith("http")) {
-          console.log("Converting external image to base64:", item.imageUrl.substring(0, 80));
-          const b64 = await imageUrlToBase64(item.imageUrl);
-          return { ...item, imageUrl: b64 };
-        }
-        return item;
-      })
-    );
+    // Convert user photo data URI to Blob for FormData
+    let userBlob: { blob: Blob; filename: string };
+    try {
+      userBlob = base64DataUriToBlob(userImageBase64);
+    } catch (e) {
+      console.error("Failed to parse user image data URI:", e);
+      return new Response(
+        JSON.stringify({ error: "Invalid user image format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const prompt = buildPrompt(convertedItems, bodyShape, sizeInfo);
-
-    const contentParts: any[] = [
-      { type: "text", text: prompt },
-      { type: "image_url", image_url: { url: userImageBase64 } },
-    ];
-    for (const item of convertedItems) {
-      if (item.imageUrl) {
-        contentParts.push({ type: "image_url", image_url: { url: item.imageUrl } });
+    // Fetch garment images as Blobs (allowlist enforced)
+    const garmentBlobs: Array<{ blob: Blob; filename: string }> = [];
+    for (const item of outfitItems) {
+      if (item.imageUrl?.startsWith("http")) {
+        console.log("Fetching garment image:", item.imageUrl.substring(0, 80));
+        const result = await imageUrlToBlob(item.imageUrl);
+        if (result) garmentBlobs.push(result);
       }
     }
 
-    // Best quality model first, then fallbacks
-    const models = ["google/gemini-3.1-flash-image-preview", "google/gemini-3-pro-image-preview", "google/gemini-2.5-flash-image"];
-    let response: Response | null = null;
-    let lastStatus = 500;
+    const prompt = buildPrompt(outfitItems, bodyShape, sizeInfo);
+    console.log("Calling OpenAI image edits with", garmentBlobs.length, "garment image(s)");
 
-    for (const model of models) {
-      console.log(`Trying model: ${model}`);
-      response = await callAI(LOVABLE_API_KEY, contentParts, model);
-      if (response.ok) break;
-      const errorText = await response.text();
-      console.error(`AI gateway error (${model}):`, response.status, errorText);
-      lastStatus = response.status;
-    }
+    const response = await callOpenAI(OPENAI_API_KEY, userBlob, garmentBlobs, prompt);
 
-    if (!response || !response.ok) {
-      if (lastStatus === 429) {
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error("OpenAI API error:", response.status, errorBody);
+      if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (lastStatus === 402) {
+      if (response.status === 402) {
         return new Response(
           JSON.stringify({ error: "AI credits depleted. Please add credits to continue." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -301,41 +302,25 @@ serve(async (req) => {
       );
     }
 
-    let aiResponse = await response.json();
-    console.log("AI response keys:", JSON.stringify(Object.keys(aiResponse.choices?.[0]?.message || {})));
+    const aiResponse = await response.json();
+    let generatedImage = aiResponse.data?.[0]?.b64_json
+      ? `data:image/png;base64,${aiResponse.data[0].b64_json}`
+      : null;
+    console.log("OpenAI response — image received:", !!generatedImage);
 
-    let generatedImage = aiResponse.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    let textResponse = aiResponse.choices?.[0]?.message?.content;
-
-    console.log("AI text response:", textResponse?.substring(0, 500));
-
-    // Single retry with simplified prompt using the faster model only
+    // Single retry with simplified prompt if no image returned
     if (!generatedImage) {
       console.log("No image on first attempt, retrying with simplified prompt...");
-
-      const retryPrompt = buildRetryPrompt(convertedItems);
-      const retryParts: any[] = [
-        { type: "text", text: retryPrompt },
-        { type: "image_url", image_url: { url: userImageBase64 } },
-      ];
-      for (const item of convertedItems) {
-        if (item.imageUrl) {
-          retryParts.push({ type: "image_url", image_url: { url: item.imageUrl } });
-        }
-      }
-
-      const retryModel = "google/gemini-3.1-flash-image-preview";
-      console.log(`Retry with model: ${retryModel}`);
-      const retryResponse = await callAI(LOVABLE_API_KEY, retryParts, retryModel);
+      const retryResponse = await callOpenAI(OPENAI_API_KEY, userBlob, garmentBlobs, buildRetryPrompt(outfitItems));
       if (retryResponse.ok) {
         const retryData = await retryResponse.json();
-        generatedImage = retryData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-        const retryText = retryData.choices?.[0]?.message?.content;
-        console.log("Retry response keys:", JSON.stringify(Object.keys(retryData.choices?.[0]?.message || {})));
-        if (!generatedImage) textResponse = retryText || textResponse;
+        generatedImage = retryData.data?.[0]?.b64_json
+          ? `data:image/png;base64,${retryData.data[0].b64_json}`
+          : null;
+        console.log("Retry — image received:", !!generatedImage);
       } else {
         const retryErr = await retryResponse.text();
-        console.error(`Retry failed (${retryModel}):`, retryResponse.status, retryErr);
+        console.error("Retry failed:", retryResponse.status, retryErr);
       }
     }
 
@@ -344,7 +329,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          message: textResponse || "Unable to generate virtual try-on image. Please try with a different photo.",
+          message: "Unable to generate virtual try-on image. Please try with a different photo.",
           tip: "For best results, use a full-body photo with good lighting and a simple background."
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -357,7 +342,6 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         resultImage: generatedImage,
-        message: textResponse
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
