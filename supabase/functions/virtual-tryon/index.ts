@@ -97,6 +97,27 @@ function base64DataUriToBlob(dataUri: string): { blob: Blob; filename: string } 
   return { blob: new Blob([bytes], { type: mimeType }), filename: `user.${ext}` };
 }
 
+// Resolve the user photo to a Blob regardless of whether it arrives as a
+// data URI (fresh upload via FileReader) or an HTTPS URL (saved account photo).
+async function userImageToBlob(value: string): Promise<{ blob: Blob; filename: string } | null> {
+  if (value.startsWith("data:")) {
+    try {
+      return base64DataUriToBlob(value);
+    } catch (e) {
+      console.error("Failed to parse user image data URI:", e);
+      return null;
+    }
+  }
+  if (value.startsWith("https://")) {
+    const result = await imageUrlToBlob(value);
+    if (!result) return null;
+    const ext = result.filename.split(".").pop() ?? "jpg";
+    return { blob: result.blob, filename: `user.${ext}` };
+  }
+  console.error("Unrecognised user image format:", value.substring(0, 80));
+  return null;
+}
+
 // Simple in-memory IP rate limiter (per-instance). Protects against credit abuse.
 const rateBuckets = new Map<string, { count: number; reset: number }>();
 function rateLimit(ip: string, limit = 10, windowMs = 60_000): boolean {
@@ -254,12 +275,9 @@ serve(async (req) => {
       console.log("Body profile included:", bodyShape, sizeInfo);
     }
 
-    // Convert user photo data URI to Blob for FormData
-    let userBlob: { blob: Blob; filename: string };
-    try {
-      userBlob = base64DataUriToBlob(userImageBase64);
-    } catch (e) {
-      console.error("Failed to parse user image data URI:", e);
+    // Convert user photo (data URI or saved HTTPS URL) to Blob for FormData
+    const userBlob = await userImageToBlob(userImageBase64);
+    if (!userBlob) {
       return new Response(
         JSON.stringify({ error: "Invalid user image format" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
