@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Sparkles, User, X } from "lucide-react";
+import stylysIcon from "@/assets/stylys-icon.png";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-styling-chat`;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -228,7 +229,7 @@ const WidgetChat = () => {
     <div className="flex flex-col h-screen bg-background">
       <div className="p-4 border-b bg-primary text-primary-foreground flex items-center gap-3 flex-shrink-0">
         <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
-          <Sparkles className="h-4 w-4" />
+          <img src={stylysIcon} alt="STYLYS" className="h-4 w-4 object-contain" />
         </div>
         <div className="flex-1">
           <p className="font-semibold text-sm">Stylys</p>
@@ -268,7 +269,7 @@ const WidgetChat = () => {
                     }`}
                   >
                     {msg.role === "assistant" ? (
-                      <Sparkles className="h-3 w-3" />
+                      <img src={stylysIcon} alt="STYLYS" className="h-3 w-3 object-contain" />
                     ) : (
                       <User className="h-3 w-3" />
                     )}
@@ -300,7 +301,7 @@ const WidgetChat = () => {
               {isLoading && messages[messages.length - 1]?.role === "user" && (
                 <div className="flex gap-2">
                   <div className="h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="h-3 w-3" />
+                    <img src={stylysIcon} alt="STYLYS" className="h-3 w-3 object-contain" />
                   </div>
                   <div className="bg-muted rounded-lg px-3 py-2">
                     <div className="flex gap-1">
