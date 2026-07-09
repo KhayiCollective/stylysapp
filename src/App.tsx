@@ -33,6 +33,7 @@ import APIReference from "./pages/docs/APIReference";
 import FAQ from "./pages/docs/FAQ";
 import WidgetPreview from "./pages/WidgetPreview";
 import WidgetResetPassword from "./pages/WidgetResetPassword";
+import WidgetChat from "./pages/WidgetChat";
 import { useCartSync } from "@/hooks/useCartSync";
 
 const queryClient = new QueryClient();
@@ -82,6 +83,7 @@ const App = () => (
               <Route path="/widget" element={<Navigate to="/rules" replace />} />
               <Route path="/widget-preview" element={<WidgetPreview />} />
               <Route path="/widget-reset-password" element={<WidgetResetPassword />} />
+              <Route path="/widget-chat" element={<WidgetChat />} />
               <Route path="/settings" element={<ProtectedRoute requireShopify={false}><Settings /></ProtectedRoute>} />
               <Route path="/app-store-assets" element={<ProtectedRoute><AppStoreAssets /></ProtectedRoute>} />
               <Route path="/account/outfits" element={<CustomerAccount />} />

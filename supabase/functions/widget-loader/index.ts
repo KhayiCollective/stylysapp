@@ -232,6 +232,60 @@ Deno.serve(async (req) => {
     document.addEventListener('DOMContentLoaded', mount);
   }
 })();
+
+(function() {
+  if (window.__stylysChat_agvobtjeizdoppzkvyyu) return;
+  window.__stylysChat_agvobtjeizdoppzkvyyu = true;
+
+  var chatBrandId = ${JSON.stringify(brandId)};
+  var chatShopDomain = ${JSON.stringify(shopParam)};
+  var chatParams = [];
+  if (chatBrandId) chatParams.push('brand_id=' + encodeURIComponent(chatBrandId));
+  if (chatShopDomain) chatParams.push('shop=' + encodeURIComponent(chatShopDomain));
+  var chatQs = chatParams.length ? '?' + chatParams.join('&') : '';
+
+  var chatBtn = document.createElement('div');
+  chatBtn.id = 'stylys-chat-trigger';
+  chatBtn.setAttribute('aria-label', 'Open STYLYS styling chat');
+  chatBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+  chatBtn.style.cssText = 'position:fixed;bottom:88px;right:24px;z-index:999999;width:48px;height:48px;border-radius:50%;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.2s;';
+  chatBtn.onmouseenter = function() { chatBtn.style.transform = 'scale(1.1)'; };
+  chatBtn.onmouseleave = function() { chatBtn.style.transform = 'scale(1)'; };
+
+  var chatPanel = document.createElement('div');
+  chatPanel.id = 'stylys-chat-panel';
+  chatPanel.style.cssText = 'position:fixed;top:0;right:-420px;width:400px;max-width:90vw;height:100vh;z-index:1000000;background:#fff;box-shadow:-4px 0 30px rgba(0,0,0,0.2);transition:right 0.3s ease;';
+
+  var chatIframe = document.createElement('iframe');
+  chatIframe.src = '${appUrl}/widget-chat' + chatQs;
+  chatIframe.style.cssText = 'width:100%;height:100%;border:none;';
+  chatPanel.appendChild(chatIframe);
+
+  var chatOpen = false;
+  function toggleChat() {
+    chatOpen = !chatOpen;
+    chatPanel.style.right = chatOpen ? '0' : '-420px';
+    chatBtn.style.display = chatOpen ? 'none' : 'flex';
+  }
+
+  chatBtn.onclick = toggleChat;
+
+  window.addEventListener('message', function(e) {
+    if (!e.data || !e.data.type) return;
+    if (e.data.type === 'stylys-chat-close' && chatOpen) toggleChat();
+  });
+
+  function mountChat() {
+    document.body.appendChild(chatPanel);
+    document.body.appendChild(chatBtn);
+  }
+
+  if (document.body) {
+    mountChat();
+  } else {
+    document.addEventListener('DOMContentLoaded', mountChat);
+  }
+})();
 `;
 
   return new Response(widgetJs, {
