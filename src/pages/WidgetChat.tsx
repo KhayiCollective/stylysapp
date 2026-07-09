@@ -232,8 +232,8 @@ const WidgetChat = () => {
           <img src={stylysIcon} alt="STYLYS" className="h-4 w-4 object-contain" />
         </div>
         <div className="flex-1">
-          <p className="font-semibold text-sm">Stylys</p>
-          <p className="text-xs opacity-70">Personal styling assistant</p>
+          <p className="font-semibold text-sm">STYLYS</p>
+          <p className="text-xs opacity-70">Personal Styling Assistant</p>
         </div>
         <button
           onClick={() => window.parent.postMessage({ type: "stylys-chat-close" }, "*")}
