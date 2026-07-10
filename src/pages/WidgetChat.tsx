@@ -194,6 +194,7 @@ const WidgetChat = () => {
   const [freeTextValue, setFreeTextValue] = useState("");
 
   const scrollEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<Message[]>(messages);
 
   useEffect(() => {
     if (!shop) return;
@@ -218,6 +219,7 @@ const WidgetChat = () => {
   }, [shop]);
 
   useEffect(() => {
+    messagesRef.current = messages;
     const timer = setTimeout(
       () => scrollEndRef.current?.scrollIntoView({ behavior: "smooth" }),
       50
@@ -314,15 +316,11 @@ const WidgetChat = () => {
           if (styleProfile?.body_shape) ctx.body_shape = styleProfile.body_shape;
 
           setCustomerContext(ctx);
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content:
-                "Perfect! Now tell me what you're looking for and I'll find the best options.",
-            },
-          ]);
           setQuizStep(stepsToShow.length);
+          fireMessage(
+            "Please suggest some outfit options based on my style preferences",
+            ctx
+          );
         } else {
           const nextStepId = stepsToShow[nextIndex];
           setMessages((prev) => [
@@ -346,100 +344,107 @@ const WidgetChat = () => {
     handleQuizSelect(val);
   }
 
-  const sendMessage = useCallback(async () => {
-    if (!input.trim() || isLoading) return;
+  const fireMessage = useCallback(
+    async (text: string, ctx: CustomerContext | null) => {
+      const userMessage: Message = { role: "user", content: text };
+      setMessages((prev) => [...prev, userMessage]);
+      setIsLoading(true);
 
-    const userMessage: Message = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+      let assistantContent = "";
+      const updateAssistant = (chunk: string) => {
+        assistantContent += chunk;
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (
+            last?.role === "assistant" &&
+            prev.length > 1 &&
+            prev[prev.length - 2].role === "user"
+          ) {
+            return prev.map((m, i) =>
+              i === prev.length - 1 ? { ...m, content: assistantContent } : m
+            );
+          }
+          return [...prev, { role: "assistant", content: assistantContent }];
+        });
+      };
 
-    let assistantContent = "";
-    const updateAssistant = (chunk: string) => {
-      assistantContent += chunk;
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (
-          last?.role === "assistant" &&
-          prev.length > 1 &&
-          prev[prev.length - 2].role === "user"
-        ) {
-          return prev.map((m, i) =>
-            i === prev.length - 1 ? { ...m, content: assistantContent } : m
-          );
+      try {
+        const history = [...messagesRef.current, userMessage].filter(
+          (m, i) => !(m.role === "assistant" && i === 0)
+        );
+
+        const resp = await fetch(CHAT_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            brand_id: brandId,
+            messages: history,
+            products: products.slice(0, 50),
+            ...(ctx ? { customer_context: ctx } : {}),
+          }),
+        });
+
+        if (resp.status === 403) {
+          setPlanError(true);
+          setIsLoading(false);
+          return;
         }
-        return [...prev, { role: "assistant", content: assistantContent }];
-      });
-    };
+        if (!resp.ok || !resp.body) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error((err as { error?: string }).error || "Failed to get response");
+        }
 
-    try {
-      const history = [...messages, userMessage].filter(
-        (m, i) => !(m.role === "assistant" && i === 0)
-      );
-
-      const resp = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          brand_id: brandId,
-          messages: history,
-          products: products.slice(0, 50),
-          ...(customerContext ? { customer_context: customerContext } : {}),
-        }),
-      });
-
-      if (resp.status === 403) {
-        setPlanError(true);
-        setIsLoading(false);
-        return;
-      }
-      if (!resp.ok || !resp.body) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error || "Failed to get response");
-      }
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) updateAssistant(content);
-          } catch {
-            textBuffer = line + "\n" + textBuffer;
-            break;
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let textBuffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          textBuffer += decoder.decode(value, { stream: true });
+          let newlineIndex: number;
+          while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+            let line = textBuffer.slice(0, newlineIndex);
+            textBuffer = textBuffer.slice(newlineIndex + 1);
+            if (line.endsWith("\r")) line = line.slice(0, -1);
+            if (line.startsWith(":") || line.trim() === "") continue;
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) updateAssistant(content);
+            } catch {
+              textBuffer = line + "\n" + textBuffer;
+              break;
+            }
           }
         }
+      } catch (err) {
+        console.error("Chat error:", err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Sorry, I'm having trouble connecting right now. Please try again.",
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Chat error:", err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Sorry, I'm having trouble connecting right now. Please try again.",
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [input, isLoading, messages, products, brandId, customerContext]);
+    },
+    [brandId, products]
+  );
+
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || isLoading) return;
+    const text = input.trim();
+    setInput("");
+    await fireMessage(text, customerContext);
+  }, [input, isLoading, customerContext, fireMessage]);
 
   const quizComplete = profileLoaded && quizStep >= stepsToShow.length;
   const activeStepDef =
