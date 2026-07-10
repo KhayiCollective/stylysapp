@@ -44,7 +44,7 @@ serve(async (req) => {
       });
     }
 
-    const { brand_id, messages, products } = await req.json();
+    const { brand_id, messages, products, customer_context } = await req.json();
     if (!brand_id) {
       return new Response(JSON.stringify({ error: "brand_id is required." }), {
         status: 400,
@@ -111,6 +111,26 @@ serve(async (req) => {
           .join("\n");
     }
 
+    let customerContextStr = "";
+    if (customer_context && typeof customer_context === "object") {
+      const lines: string[] = [];
+      if (customer_context.occasion) lines.push(`Shopping occasion: ${customer_context.occasion}`);
+      if (customer_context.budget) lines.push(`Budget: ${customer_context.budget}`);
+      if (Array.isArray(customer_context.preferred_colors) && customer_context.preferred_colors.length)
+        lines.push(`Preferred colors: ${customer_context.preferred_colors.join(", ")}`);
+      if (Array.isArray(customer_context.avoided_colors) && customer_context.avoided_colors.length)
+        lines.push(`Avoid colors: ${customer_context.avoided_colors.join(", ")}`);
+      if (customer_context.body_shape) lines.push(`Body shape: ${customer_context.body_shape}`);
+      if (customer_context.size_info && typeof customer_context.size_info === "object") {
+        const sizeEntries = Object.entries(customer_context.size_info)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ");
+        if (sizeEntries) lines.push(`Sizes: ${sizeEntries}`);
+      }
+      if (lines.length > 0)
+        customerContextStr = `\n\nCustomer profile for this session (use to personalise recommendations):\n${lines.join("\n")}`;
+    }
+
     const systemPrompt = `You are a friendly and knowledgeable personal stylist AI assistant for an online fashion store. Your role is to:
 
 1. **Answer styling questions**: Help customers with outfit coordination, color matching, seasonal trends, body type recommendations, and occasion-appropriate dressing.
@@ -147,7 +167,7 @@ Guidelines:
 - Consider the customer's preferences, budget, and occasion
 - If asked about something outside fashion/styling, politely redirect to styling topics
 - When the customer is vague, ask a clarifying question about their occasion, style preference, or budget before recommending
-${productContext}`;
+${customerContextStr}${productContext}`;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
