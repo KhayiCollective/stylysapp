@@ -44,7 +44,7 @@ serve(async (req) => {
       });
     }
 
-    const { brand_id, messages, products, customer_context } = await req.json();
+    const { brand_id, messages, customer_context } = await req.json();
     if (!brand_id) {
       return new Response(JSON.stringify({ error: "brand_id is required." }), {
         status: 400,
@@ -98,9 +98,25 @@ serve(async (req) => {
       }
     }
 
+    // Fetch products server-side from Supabase products table
+    const { data: rawProducts } = await supabase
+      .from("products")
+      .select("name, price, image_url, shopify_handle, shopify_variant_id, category, product_type")
+      .eq("brand_id", brand_id)
+      .limit(200);
+
+    const products = (rawProducts || []).map((p: any) => ({
+      name: p.name,
+      price: p.price ?? 0,
+      handle: p.shopify_handle || "",
+      image: p.image_url || "",
+      variantId: p.shopify_variant_id ? `gid://shopify/ProductVariant/${p.shopify_variant_id}` : "",
+      category: p.category || p.product_type || "",
+    }));
+
     // Build product context string
     let productContext = "";
-    if (products?.length > 0) {
+    if (products.length > 0) {
       productContext =
         `\n\nAvailable products in catalog (use these EXACT details when recommending):\n` +
         products

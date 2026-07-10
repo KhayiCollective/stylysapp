@@ -25,14 +25,6 @@ interface ChatProduct {
   category?: string;
 }
 
-interface ShopifyProduct {
-  title: string;
-  handle: string;
-  product_type: string;
-  variants: Array<{ id: number; price: string }>;
-  images: Array<{ src: string }>;
-}
-
 interface StyleProfile {
   style_preferences?: string[];
   preferred_colors?: string[];
@@ -180,7 +172,6 @@ const WidgetChat = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [planError, setPlanError] = useState(false);
-  const [products, setProducts] = useState<ChatProduct[]>([]);
 
   const [styleProfile, setStyleProfile] = useState<StyleProfile | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -195,28 +186,6 @@ const WidgetChat = () => {
 
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Message[]>(messages);
-
-  useEffect(() => {
-    if (!shop) return;
-    fetch(`https://${shop}/products.json?limit=250`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.products) return;
-        setProducts(
-          data.products.map((p: ShopifyProduct) => ({
-            name: p.title,
-            price: parseFloat(p.variants[0]?.price ?? "0"),
-            category: p.product_type || undefined,
-            handle: p.handle,
-            image: p.images[0]?.src || "",
-            variantId: p.variants[0]
-              ? `gid://shopify/ProductVariant/${p.variants[0].id}`
-              : "",
-          }))
-        );
-      })
-      .catch(() => {});
-  }, [shop]);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -382,7 +351,6 @@ const WidgetChat = () => {
           body: JSON.stringify({
             brand_id: brandId,
             messages: history,
-            products: products.slice(0, 50),
             ...(ctx ? { customer_context: ctx } : {}),
           }),
         });
@@ -436,7 +404,7 @@ const WidgetChat = () => {
         setIsLoading(false);
       }
     },
-    [brandId, products]
+    [brandId]
   );
 
   const sendMessage = useCallback(async () => {
