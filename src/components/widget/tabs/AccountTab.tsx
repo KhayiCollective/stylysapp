@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera } from "lucide-react";
+import { User, Mail, LogIn, LogOut, Loader2, Check, ArrowLeft, Ruler, Palette, Sparkles, Camera, Eye, EyeOff } from "lucide-react";
 import { getCustomerToken, setCustomerToken, clearCustomerToken } from "@/lib/widgetAuth";
 
 interface AccountTabProps {
@@ -60,6 +60,7 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
   const [customerUser, setCustomerUser] = useState<CustomerUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [subView, setSubView] = useState<SubView>("home");
+  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -321,7 +322,18 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="account-password" className="text-xs">Password</Label>
-            <Input id="account-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <div className="relative">
+              <Input id="account-password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="pr-9" />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
           <Button className="w-full gap-2" size="sm" onClick={handleAuth} disabled={!email || !password || (isSignUp && !name) || loading}>
