@@ -312,15 +312,19 @@ serve(async (req) => {
     const userBlob = await resizeImageBlob(rawUserBlob);
     console.log(`[timing] user image decode+resize: ${Date.now() - t0}ms`);
 
-    // Fetch garment images as Blobs (allowlist enforced)
-    const garmentBlobs: Array<{ blob: Blob; filename: string }> = [];
-    for (const item of outfitItems) {
-      if (item.imageUrl?.startsWith("http")) {
-        console.log("Fetching garment image:", item.imageUrl.substring(0, 80));
-        const result = await imageUrlToBlob(item.imageUrl);
-        if (result) garmentBlobs.push(await resizeImageBlob(result));
-      }
-    }
+    // Fetch garment images as Blobs (allowlist enforced) — run concurrently
+    const garmentBlobs = (
+      await Promise.all(
+        outfitItems
+          .filter((item) => item.imageUrl?.startsWith("http"))
+          .map(async (item) => {
+            console.log("Fetching garment image:", item.imageUrl.substring(0, 80));
+            const result = await imageUrlToBlob(item.imageUrl);
+            if (!result) return null;
+            return resizeImageBlob(result);
+          })
+      )
+    ).filter((b): b is { blob: Blob; filename: string } => b !== null);
 
     console.log(`[timing] garment fetches+resizes (${garmentBlobs.length} images): ${Date.now() - t0}ms`);
     const prompt = buildPrompt(outfitItems, bodyShape, sizeInfo);
