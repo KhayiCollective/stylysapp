@@ -8,6 +8,16 @@ import { ShopifyProduct } from "@/lib/shopify";
 import { toast } from "sonner";
 import { PhotoUpload, getCachedPhotoUrl, setCachedPhotoUrl } from "../PhotoUpload";
 
+const PROCESSING_MESSAGES = [
+  "Analyzing your photo...",
+  "Reading the garments...",
+  "Fitting the outfit to your body...",
+  "Blending lighting and shadows...",
+  "Adding final touches...",
+  "Almost there...",
+];
+const PROCESSING_DELAYS = [8000, 18000, 30000, 42000, 52000];
+
 interface OutfitItemProp {
   id?: string;
   name: string;
@@ -31,6 +41,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [statusIndex, setStatusIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showingOriginal, setShowingOriginal] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
@@ -48,6 +59,18 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
       setCachedPhotoUrl(brandId, customerPhotoUrl);
     }
   }, [customerPhotoUrl, brandId]);
+
+  useEffect(() => {
+    if (!isProcessing) {
+      setStatusIndex(0);
+      return;
+    }
+    setStatusIndex(0);
+    const timers = PROCESSING_DELAYS.map((delay, i) =>
+      setTimeout(() => setStatusIndex(i + 1), delay)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [isProcessing]);
 
   const handlePhotoReady = (base64OrUrl: string) => {
     setCurrentPhoto(base64OrUrl);
@@ -280,7 +303,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
           {isProcessing ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Processing...
+              {PROCESSING_MESSAGES[statusIndex]}
             </>
           ) : (
             <>
