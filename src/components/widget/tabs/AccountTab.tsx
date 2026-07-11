@@ -482,20 +482,31 @@ export function AccountTab({ brandId, onNavigateToQuiz, onCustomerLogin }: Accou
     <div className="p-4 space-y-5">
       {/* Avatar with photo upload */}
       <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="relative h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center overflow-hidden group shrink-0"
-          disabled={uploadingPhoto}
-        >
-          {customerUser?.photo_url ? (
-            <img src={customerUser.photo_url} alt="Profile" className="h-full w-full object-cover" />
-          ) : (
-            <User className="h-5 w-5" />
-          )}
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : <Camera className="h-4 w-4 text-white" />}
-          </div>
-        </button>
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="relative h-20 w-20 rounded-xl bg-primary text-primary-foreground flex items-center justify-center overflow-hidden"
+            disabled={uploadingPhoto}
+          >
+            {customerUser?.photo_url ? (
+              <img src={customerUser.photo_url} alt="Your photo" className="h-full w-full object-cover" />
+            ) : (
+              <User className="h-8 w-8" />
+            )}
+            {uploadingPhoto && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+              </div>
+            )}
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="text-[11px] text-primary underline-offset-2 hover:underline disabled:opacity-50"
+            disabled={uploadingPhoto}
+          >
+            {customerUser?.photo_url ? "Change photo" : "Add photo"}
+          </button>
+        </div>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
         <div className="flex-1">
           <p className="font-medium text-sm">{customerUser?.name || "Customer"}</p>
