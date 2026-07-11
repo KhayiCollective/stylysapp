@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Image } from "https://deno.land/x/imagescript@1.3.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -116,6 +117,30 @@ async function userImageToBlob(value: string): Promise<{ blob: Blob; filename: s
   }
   console.error("Unrecognised user image format:", value.substring(0, 80));
   return null;
+}
+
+// Resize an image blob to fit within maxDimension on its longest edge and
+// re-encode as JPEG at the given quality. Skips WebP (not supported by imagescript)
+// and falls back to the original blob on any decode/encode error.
+async function resizeImageBlob(
+  input: { blob: Blob; filename: string },
+  maxDimension = 1024,
+  jpegQuality = 85,
+): Promise<{ blob: Blob; filename: string }> {
+  if (input.blob.type === "image/webp") return input;
+  try {
+    const buf = await input.blob.arrayBuffer();
+    const img = await Image.decode(new Uint8Array(buf));
+    if (img.width <= maxDimension && img.height <= maxDimension) return input;
+    const scale = maxDimension / Math.max(img.width, img.height);
+    const resized = img.resize(Math.round(img.width * scale), Math.round(img.height * scale));
+    const encoded = await resized.encodeJPEG(jpegQuality);
+    const baseName = input.filename.replace(/\.[^.]+$/, "");
+    return { blob: new Blob([encoded.buffer as ArrayBuffer], { type: "image/jpeg" }), filename: `${baseName}.jpg` };
+  } catch (e) {
+    console.warn("resizeImageBlob: decode/encode failed, using original:", e);
+    return input;
+  }
 }
 
 // Simple in-memory IP rate limiter (per-instance). Protects against credit abuse.
@@ -276,13 +301,14 @@ serve(async (req) => {
     }
 
     // Convert user photo (data URI or saved HTTPS URL) to Blob for FormData
-    const userBlob = await userImageToBlob(userImageBase64);
-    if (!userBlob) {
+    const rawUserBlob = await userImageToBlob(userImageBase64);
+    if (!rawUserBlob) {
       return new Response(
         JSON.stringify({ error: "Invalid user image format" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const userBlob = await resizeImageBlob(rawUserBlob);
 
     // Fetch garment images as Blobs (allowlist enforced)
     const garmentBlobs: Array<{ blob: Blob; filename: string }> = [];
@@ -290,7 +316,7 @@ serve(async (req) => {
       if (item.imageUrl?.startsWith("http")) {
         console.log("Fetching garment image:", item.imageUrl.substring(0, 80));
         const result = await imageUrlToBlob(item.imageUrl);
-        if (result) garmentBlobs.push(result);
+        if (result) garmentBlobs.push(await resizeImageBlob(result));
       }
     }
 
