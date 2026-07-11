@@ -97,22 +97,19 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     setLoading(true);
     setError("");
     try {
-      let compositionRules = undefined;
-      try {
-        const rulesResp = await fetch(`${SUPABASE_URL}/rest/v1/rules?category=eq.composition&brand_id=eq.${brandId}&select=config,enabled&limit=1`, {
-          headers: { 
+      // Fetch composition rules and customer profile concurrently — they're independent
+      const [compositionRules, customerProfile] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/rules?category=eq.composition&brand_id=eq.${brandId}&select=config,enabled&limit=1`, {
+          headers: {
             "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
             "Content-Type": "application/json"
           },
-        });
-        const rulesData = await rulesResp.json();
-        if (rulesData?.[0]?.enabled && rulesData[0].config) {
-          compositionRules = rulesData[0].config;
-        }
-      } catch { /* ignore, use defaults */ }
-
-      // Fetch customer profile if logged in
-      const customerProfile = await getCustomerProfile();
+        })
+          .then((r) => r.json())
+          .then((data: any) => (data?.[0]?.enabled && data[0].config ? data[0].config : undefined))
+          .catch(() => undefined),
+        getCustomerProfile(),
+      ]);
 
       const body: Record<string, unknown> = { brand_id: brandId, shop, rules: compositionRules, anchor_product_id: anchorProductId };
       if (customerProfile) body.customer_profile = customerProfile;
