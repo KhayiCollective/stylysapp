@@ -295,6 +295,7 @@ serve(async (req) => {
       );
     }
 
+    const t0 = Date.now();
     console.log("Processing virtual try-on request with", outfitItems.length, "outfit items");
     if (bodyShape || sizeInfo) {
       console.log("Body profile included:", bodyShape, sizeInfo);
@@ -309,6 +310,7 @@ serve(async (req) => {
       );
     }
     const userBlob = await resizeImageBlob(rawUserBlob);
+    console.log(`[timing] user image decode+resize: ${Date.now() - t0}ms`);
 
     // Fetch garment images as Blobs (allowlist enforced)
     const garmentBlobs: Array<{ blob: Blob; filename: string }> = [];
@@ -320,9 +322,11 @@ serve(async (req) => {
       }
     }
 
+    console.log(`[timing] garment fetches+resizes (${garmentBlobs.length} images): ${Date.now() - t0}ms`);
     const prompt = buildPrompt(outfitItems, bodyShape, sizeInfo);
     console.log("Calling OpenAI image edits with", garmentBlobs.length, "garment image(s)");
 
+    const tOpenAI = Date.now();
     const response = await callOpenAI(OPENAI_API_KEY, userBlob, garmentBlobs, prompt);
 
     if (!response.ok) {
@@ -346,6 +350,7 @@ serve(async (req) => {
       );
     }
 
+    console.log(`[timing] OpenAI call: ${Date.now() - tOpenAI}ms`);
     const aiResponse = await response.json();
     let generatedImage = aiResponse.data?.[0]?.b64_json
       ? `data:image/png;base64,${aiResponse.data[0].b64_json}`
@@ -380,6 +385,7 @@ serve(async (req) => {
       );
     }
 
+    console.log(`[timing] total: ${Date.now() - t0}ms`);
     console.log("Virtual try-on image generated successfully");
 
     return new Response(
