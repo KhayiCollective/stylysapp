@@ -21,9 +21,10 @@ const steps = [
 interface OnboardingWizardProps {
   onClose?: () => void;
   onComplete?: () => void;
+  onRefetch?: () => void;
 }
 
-export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps) {
+export function OnboardingWizard({ onClose, onComplete, onRefetch }: OnboardingWizardProps) {
   const navigate = useNavigate();
   const { progress, initializeOnboarding, updateStep, completeStep, completeOnboarding, isStepCompleted } = useOnboarding();
   const [currentStep, setCurrentStep] = useState(1);
@@ -34,7 +35,10 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
       setCurrentStep(progress.current_step);
       setInitialized(true);
     } else if (!initialized) {
-      initializeOnboarding().then(() => setInitialized(true));
+      initializeOnboarding().then((result) => {
+        if (result) onRefetch?.();
+        setInitialized(true);
+      });
     }
   }, [progress, initialized]);
 

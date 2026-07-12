@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 
 const Dashboard = () => {
-  const { showOnboarding, completeOnboarding, isLoading: onboardingLoading } = useOnboarding();
+  const { showOnboarding, completeOnboarding, refetch, isLoading: onboardingLoading } = useOnboarding();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
@@ -164,7 +164,7 @@ const Dashboard = () => {
 
   // Show onboarding wizard for new users
   if (!onboardingLoading && showOnboarding) {
-    return <OnboardingWizard onComplete={completeOnboarding} />;
+    return <OnboardingWizard onComplete={completeOnboarding} onRefetch={refetch} />;
   }
 
   return (
