@@ -16,6 +16,7 @@ interface ShopifyVariant {
   option2: string | null;
   option3: string | null;
   inventory_quantity?: number;
+  inventory_item_id?: number;
 }
 
 interface ShopifyImage {
@@ -73,7 +74,7 @@ function getOptionValue(variant: ShopifyVariant, position: number): string {
 
 interface ColorGroup {
   color: string | null;
-  variants: { variant_id: string; size: string; price: string; available: boolean }[];
+  variants: { variant_id: string; size: string; price: string; available: boolean; inventory_item_id: string }[];
   primaryVariantId: string;
   price: number;
   imageUrl: string | null;
@@ -99,7 +100,8 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
       variant_id: toNumericId(v.id),
       size: sizeOptionPosition ? getOptionValue(v, sizeOptionPosition) : v.title,
       price: v.price,
-      available: true,
+      available: (v.inventory_quantity ?? 1) > 0,
+      inventory_item_id: String(v.inventory_item_id ?? ""),
     }));
     return [{
       color: null,
@@ -140,7 +142,8 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
       variant_id: toNumericId(variant.id),
       size: sizeValue,
       price: variant.price,
-      available: true,
+      available: (variant.inventory_quantity ?? 1) > 0,
+      inventory_item_id: String(variant.inventory_item_id ?? ""),
     });
   }
 

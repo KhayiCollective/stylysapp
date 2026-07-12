@@ -97,7 +97,7 @@ function getOptionValue(variant: any, position: number): string {
 
 interface ColorGroup {
   color: string | null;
-  variants: { variant_id: string; size: string; price: string; available: boolean }[];
+  variants: { variant_id: string; size: string; price: string; available: boolean; inventory_item_id: string }[];
   primaryVariantId: string;
   price: number;
   imageUrl: string | null;
@@ -114,6 +114,7 @@ function groupVariantsByColor(product: any): ColorGroup[] {
       size: sizeOptionPosition ? getOptionValue(v, sizeOptionPosition) : v.title,
       price: v.price,
       available: (v.inventory_quantity ?? 1) > 0,
+      inventory_item_id: String(v.inventory_item_id ?? ""),
     }));
     return [{
       color: null,
@@ -148,6 +149,7 @@ function groupVariantsByColor(product: any): ColorGroup[] {
       size: sizeValue,
       price: variant.price,
       available: (variant.inventory_quantity ?? 1) > 0,
+      inventory_item_id: String(variant.inventory_item_id ?? ""),
     });
   }
 
@@ -570,19 +572,54 @@ serve(async (req) => {
         break;
 
       case "inventory_levels/update": {
-        const variantId = `gid://shopify/ProductVariant/${payload.inventory_item_id}`;
-        const newStatus = payload.available > 0 ? "in_stock" : "out_of_stock";
-
-        const { error: inventoryError } = await supabase
-          .from("products")
-          .update({ inventory_status: newStatus })
-          .eq("brand_id", brand.id)
-          .eq("shopify_variant_id", variantId);
-
-        if (inventoryError) {
-          console.error("Error updating inventory:", inventoryError);
+        const inventoryItemId = String(payload.inventory_item_id || "");
+        if (!inventoryItemId || inventoryItemId === "0") {
+          console.log("[WEBHOOK] inventory_levels/update: missing inventory_item_id, skipping");
+          result = { updated_inventory: false, reason: "missing_inventory_item_id" };
+          break;
         }
-        result = { updated_inventory: true };
+
+        const { data: invRow, error: findError } = await supabase
+          .from("products")
+          .select("id, variants_json, inventory_status")
+          .eq("brand_id", brand.id)
+          .contains("variants_json", [{ inventory_item_id: inventoryItemId }])
+          .maybeSingle();
+
+        if (findError) {
+          console.error("[WEBHOOK] inventory_levels/update: query error:", findError);
+          result = { updated_inventory: false, reason: "query_error" };
+          break;
+        }
+
+        if (!invRow) {
+          console.log(`[WEBHOOK] inventory_levels/update: no matching variant for inventory_item_id ${inventoryItemId}`);
+          result = { updated_inventory: false, reason: "not_found" };
+          break;
+        }
+
+        const variants: any[] = Array.isArray(invRow.variants_json) ? invRow.variants_json : [];
+        const updatedVariants = variants.map((v: any) =>
+          v.inventory_item_id === inventoryItemId
+            ? { ...v, available: payload.available > 0 }
+            : v
+        );
+        const anyAvailable = updatedVariants.some((v: any) => v.available);
+        const newStatus = anyAvailable ? "in_stock" : "out_of_stock";
+
+        const { error: updateError } = await supabase
+          .from("products")
+          .update({ variants_json: updatedVariants, inventory_status: newStatus })
+          .eq("id", invRow.id);
+
+        if (updateError) {
+          console.error("[WEBHOOK] inventory_levels/update: update error:", updateError);
+          result = { updated_inventory: false, reason: "update_error" };
+          break;
+        }
+
+        console.log(`[WEBHOOK] inventory_levels/update: updated inventory_item_id ${inventoryItemId} → ${newStatus}`);
+        result = { updated_inventory: true, new_status: newStatus };
         break;
       }
 
