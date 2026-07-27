@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Camera, Loader2, Sparkles, Eye, User, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useCartStore } from "@/stores/cartStore";
-import { ShopifyProduct } from "@/lib/shopify";
+import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
 import { toast } from "sonner";
 import { PhotoUpload, getCachedPhotoUrl, setCachedPhotoUrl } from "../PhotoUpload";
 
@@ -45,8 +44,6 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   const [error, setError] = useState<string | null>(null);
   const [showingOriginal, setShowingOriginal] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
-
-  const addItem = useCartStore((state) => state.addItem);
 
   // Auto-load: check cache first, then saved photo from account
   useEffect(() => {
@@ -130,12 +127,11 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   const handleAddAllToCart = async () => {
     if (!outfitItems?.length) return;
 
-    const shopifyItems = outfitItems.filter(item => {
-      const vid = item.shopify_variant_id || item.id;
-      return vid && vid.startsWith('gid://shopify/ProductVariant/');
-    });
+    const valid = outfitItems
+      .map((item) => ({ item, variantId: toNumericVariantId(item.shopify_variant_id) }))
+      .filter((x): x is { item: OutfitItemProp; variantId: string } => x.variantId !== null);
 
-    if (shopifyItems.length === 0) {
+    if (valid.length === 0) {
       toast.error("Cannot add to cart", {
         description: "These outfit items don't have valid Shopify product IDs.",
         position: "top-center",
@@ -145,53 +141,39 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
 
     setAddingToCart(true);
     try {
-      for (const item of shopifyItems) {
-        const variantId = item.shopify_variant_id || item.id!;
-        const mockProduct: ShopifyProduct = {
-          node: {
-            id: item.id || variantId,
-            title: item.name,
-            description: "",
-            handle: item.id || variantId,
-            priceRange: {
-              minVariantPrice: { amount: String(item.price || 0), currencyCode: "ZAR" },
-            },
-            images: {
-              edges: item.imageUrl
-                ? [{ node: { url: item.imageUrl, altText: item.name } }]
-                : [],
-            },
-            variants: {
-              edges: [{
-                node: {
-                  id: variantId,
-                  title: "Default",
-                  price: { amount: String(item.price || 0), currencyCode: "ZAR" },
-                  availableForSale: true,
-                  selectedOptions: [],
-                },
-              }],
-            },
-            options: [],
-          },
-        };
+      const result = await addItemsToShopifyCart(
+        valid.map((v) => ({ variantId: v.variantId, quantity: 1, name: v.item.name }))
+      );
 
-        await addItem({
-          product: mockProduct,
-          variantId,
-          variantTitle: "Default",
-          price: { amount: String(item.price || 0), currencyCode: "ZAR" },
-          quantity: 1,
-          selectedOptions: [],
+      const added = result.added || [];
+      const failed = result.failed || [];
+      const noIdSkipped = outfitItems.length - valid.length;
+
+      if (added.length === 0) {
+        toast.error("Couldn't add items to cart", {
+          description: failed.length
+            ? `Sold out: ${failed.map((f) => f.name).filter(Boolean).join(", ")}`
+            : result.error || "All items unavailable",
+          position: "top-center",
         });
+        return;
       }
 
-      const skipped = outfitItems.length - shopifyItems.length;
-      const msg = skipped > 0
-        ? `Added ${shopifyItems.length} items (${skipped} skipped — no Shopify ID)`
-        : `${shopifyItems.length} items added`;
+      let description = `Added ${added.length} item${added.length === 1 ? "" : "s"} to cart.`;
+      if (failed.length) {
+        description += failed.length === 1
+          ? ` Note: ${failed[0].name} is currently sold out and was not added.`
+          : ` Note: ${failed.map((f) => f.name).filter(Boolean).join(", ")} are currently sold out and were not added.`;
+      } else if (noIdSkipped > 0) {
+        description += ` (${noIdSkipped} skipped — no Shopify variant)`;
+      }
 
-      toast.success("Added outfit to cart", { description: msg, position: "top-center" });
+      toast.success("Added outfit to cart", {
+        description,
+        position: "top-center",
+        duration: failed.length ? 8000 : 6000,
+        action: { label: "View Cart", onClick: () => openShopifyCart() },
+      });
     } catch (error) {
       console.error('Failed to add outfit to cart:', error);
       toast.error("Failed to add items to cart", { position: "top-center" });
