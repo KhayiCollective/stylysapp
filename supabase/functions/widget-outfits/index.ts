@@ -422,7 +422,7 @@ Variation seed: ${crypto.randomUUID()}`;
         .from("products")
         .select("shopify_variant_id, inventory_status, variants_json")
         .eq("brand_id", brand_id)
-        .or(variantIds.map((v) => `shopify_variant_id.eq.${v}`).join(","));
+        .or(variantIds.flatMap((v) => [`shopify_variant_id.eq.${v}`, `variants_json.cs.[{"variant_id":"${v}"}]`]).join(","));
 
       const stock: Record<string, boolean> = {};
       for (const id of variantIds) stock[id] = false;
