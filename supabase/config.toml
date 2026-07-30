@@ -36,9 +36,6 @@ verify_jwt = true
 [functions.widget-loader]
 verify_jwt = false
 
-[functions.shopify-widget-toggle]
-verify_jwt = false
-
 [functions.widget-customer-auth]
 verify_jwt = false
 
@@ -55,4 +52,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.widget-notify]
+verify_jwt = false
+
+[functions.shopify-embed-status]
 verify_jwt = false
