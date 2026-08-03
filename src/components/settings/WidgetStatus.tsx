@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useEmbeddedInvoke } from '@/hooks/useEmbeddedInvoke';
 import { Sparkles, Loader2, ExternalLink } from 'lucide-react';
 
 export function WidgetStatus() {
   const { user } = useAuth();
+  const embeddedInvoke = useEmbeddedInvoke();
   const [loading, setLoading] = useState(true);
   const [embedEnabled, setEmbedEnabled] = useState<boolean | null>(null);
   const [brandData, setBrandData] = useState<{
@@ -41,7 +43,7 @@ export function WidgetStatus() {
   useEffect(() => {
     if (!brandData?.id) return;
     const checkEmbedStatus = async () => {
-      const { data, error } = await supabase.functions.invoke('shopify-embed-status', {
+      const { data, error } = await embeddedInvoke('shopify-embed-status', {
         body: { brand_id: brandData.id },
       });
       if (!error && typeof data?.enabled === 'boolean') {

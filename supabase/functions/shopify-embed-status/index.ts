@@ -1,13 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyShopifySessionToken } from "../_shared/shopify-session-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-session-token",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const SHOPIFY_CLIENT_ID = Deno.env.get("SHOPIFY_CLIENT_ID") || "";
+const SHOPIFY_CLIENT_SECRET = Deno.env.get("SHOPIFY_CLIENT_SECRET") || "";
 
 // uid from extensions/stylys-widget/shopify.extension.toml
 const EMBED_BLOCK_UID = "1a56a68b-be49-a278-21b2-9e86191a1e00624a4835";
@@ -18,22 +21,44 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Resolve brand_id: verified session token (embedded) or request body (standalone)
     let brand_id: string;
-    try {
-      const body = await req.json();
-      brand_id = body.brand_id;
-    } catch {
-      return new Response(JSON.stringify({ error: "Invalid request body" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const sessionToken = req.headers.get("X-Shopify-Session-Token");
 
-    if (!brand_id) {
-      return new Response(JSON.stringify({ error: "brand_id required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (sessionToken) {
+      // Embedded path: verify the token cryptographically — body is never read
+      try {
+        const { brandId } = await verifyShopifySessionToken(
+          sessionToken,
+          supabase,
+          SHOPIFY_CLIENT_ID,
+          SHOPIFY_CLIENT_SECRET,
+        );
+        brand_id = brandId;
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid session token" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      // Standalone path: read body exactly once
+      try {
+        const body = await req.json();
+        brand_id = body.brand_id;
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid request body" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!brand_id) {
+        return new Response(JSON.stringify({ error: "brand_id required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { data: brand, error: brandError } = await supabase
