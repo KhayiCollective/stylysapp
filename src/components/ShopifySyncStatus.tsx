@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
+import { useEmbeddedInvoke } from '@/hooks/useEmbeddedInvoke';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ interface SyncStatus {
 export function ShopifySyncStatus() {
   const { user } = useAuth();
   const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
+  const embeddedInvoke = useEmbeddedInvoke();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -30,7 +32,7 @@ export function ShopifySyncStatus() {
     if (!brandId || !isConnected) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke('shopify-product-sync', {
+      const { data, error } = await embeddedInvoke('shopify-product-sync', {
         body: { brand_id: brandId, action: 'status' },
       });
 
@@ -92,7 +94,7 @@ export function ShopifySyncStatus() {
 
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('shopify-product-sync', {
+      const { data, error } = await embeddedInvoke('shopify-product-sync', {
         body: { brand_id: brandId, action: 'sync' },
       });
 

@@ -1,12 +1,15 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyShopifySessionToken } from "../_shared/shopify-session-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-session-token",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const SHOPIFY_CLIENT_ID = Deno.env.get("SHOPIFY_CLIENT_ID") || "";
+const SHOPIFY_CLIENT_SECRET = Deno.env.get("SHOPIFY_CLIENT_SECRET") || "";
 
 interface ShopifyVariant {
   id: number;
@@ -333,17 +336,94 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { brand_id, action } = await req.json();
-    console.log(`[PRODUCT-SYNC] Starting sync for brand: ${brand_id}, action: ${action}`);
-
-    if (!brand_id) {
+    // Parse body once — action always comes from the body; brand_id used in standalone path
+    let bodyBrandId: string | undefined;
+    let action: string;
+    try {
+      const body = await req.json();
+      bodyBrandId = body.brand_id;
+      action = body.action;
+    } catch {
       return new Response(
-        JSON.stringify({ error: "brand_id is required" }),
+        JSON.stringify({ error: "Invalid request body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!action) {
+      return new Response(
+        JSON.stringify({ error: "action is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Auth: resolve authenticated brand_id
+    let brand_id: string;
+    const sessionToken = req.headers.get("X-Shopify-Session-Token");
+
+    if (sessionToken) {
+      // Embedded path: verify Shopify App Bridge session token
+      try {
+        const { brandId } = await verifyShopifySessionToken(
+          sessionToken,
+          supabase,
+          SHOPIFY_CLIENT_ID,
+          SHOPIFY_CLIENT_SECRET,
+        );
+        brand_id = brandId;
+      } catch {
+        return new Response(
+          JSON.stringify({ error: "Invalid session token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Standalone path: verify Supabase user JWT from Authorization header
+      const authHeader = req.headers.get("Authorization");
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+
+      if (!token) {
+        return new Response(
+          JSON.stringify({ error: "Authentication required" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: "Invalid or expired token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("brand_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profile?.brand_id) {
+        return new Response(
+          JSON.stringify({ error: "User has no associated brand" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (bodyBrandId && bodyBrandId !== profile.brand_id) {
+        return new Response(
+          JSON.stringify({ error: "brand_id does not match authenticated user" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      brand_id = profile.brand_id;
+    }
+
+    console.log(`[PRODUCT-SYNC] Starting sync for brand: ${brand_id}, action: ${action}`);
 
     const { data: brand, error: brandError } = await supabase
       .from("brands")
