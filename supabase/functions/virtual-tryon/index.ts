@@ -1,10 +1,17 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyShopifySessionToken } from "../_shared/shopify-session-token.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Image } from "https://deno.land/x/imagescript@1.3.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shopify-session-token",
 };
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const SHOPIFY_CLIENT_ID = Deno.env.get("SHOPIFY_CLIENT_ID") || "";
+const SHOPIFY_CLIENT_SECRET = Deno.env.get("SHOPIFY_CLIENT_SECRET") || "";
 
 interface OutfitItem {
   name: string;
@@ -284,6 +291,36 @@ serve(async (req) => {
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Auth: verify caller is a valid embedded merchant or a logged-in user.
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const sessionToken = req.headers.get("X-Shopify-Session-Token");
+    if (sessionToken) {
+      try {
+        await verifyShopifySessionToken(sessionToken, supabase, SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET);
+      } catch {
+        return new Response(
+          JSON.stringify({ error: "Invalid session token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      const authHeader = req.headers.get("Authorization");
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+      if (!token) {
+        return new Response(
+          JSON.stringify({ error: "Authentication required" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: "Invalid or expired token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const body: TryOnRequest = await req.json();

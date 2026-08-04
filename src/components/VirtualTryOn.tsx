@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Upload, Camera, Loader2, Sparkles, X, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useEmbeddedInvoke } from '@/hooks/useEmbeddedInvoke';
 
 interface VirtualTryOnProps {
   productImage?: string;
@@ -19,6 +19,7 @@ export function VirtualTryOn({ productImage, productName }: VirtualTryOnProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showingOriginal, setShowingOriginal] = useState(false);
   const { toast } = useToast();
+  const embeddedInvoke = useEmbeddedInvoke();
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,7 +47,7 @@ export function VirtualTryOn({ productImage, productName }: VirtualTryOnProps) {
     setIsProcessing(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("virtual-tryon", {
+      const { data, error } = await embeddedInvoke("virtual-tryon", {
         body: {
           userImageBase64: userImage,
           outfitItems: [{ name: productName || "Selected Product", imageUrl: productImage, category: "clothing" }],
