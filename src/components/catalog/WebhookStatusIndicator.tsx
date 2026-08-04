@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useEmbeddedInvoke } from '@/hooks/useEmbeddedInvoke';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,7 @@ interface WebhookInfo {
 export function WebhookStatusIndicator() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const embeddedInvoke = useEmbeddedInvoke();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -74,7 +76,7 @@ export function WebhookStatusIndicator() {
     setRefreshing(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('shopify-product-sync', {
+      const { data, error } = await embeddedInvoke('shopify-product-sync', {
         body: { brand_id: brandId, action: 'webhooks' },
       });
 
@@ -92,7 +94,7 @@ export function WebhookStatusIndicator() {
     setRegistering(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('shopify-product-sync', {
+      const { data, error } = await embeddedInvoke('shopify-product-sync', {
         body: { brand_id: brandId, action: 'register-webhooks' },
       });
 

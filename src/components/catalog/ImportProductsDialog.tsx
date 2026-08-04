@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Download, ShoppingBag, Store, ArrowLeft, CheckCircle2, AlertCircle, Loader2, FileSpreadsheet, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useEmbeddedInvoke } from "@/hooks/useEmbeddedInvoke";
 import { useNavigate } from "react-router-dom";
 
 interface ImportProductsDialogProps {
@@ -70,6 +71,7 @@ export function ImportProductsDialog({ brandId, shopifyConnected, onImportComple
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const embeddedInvoke = useEmbeddedInvoke();
 
   const [wooForm, setWooForm] = useState({
     store_url: "",
@@ -98,7 +100,7 @@ export function ImportProductsDialog({ brandId, shopifyConnected, onImportComple
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("shopify-product-sync", {
+      const { data, error: fnError } = await embeddedInvoke("shopify-product-sync", {
         body: { brand_id: brandId, action: "sync" },
       });
 
