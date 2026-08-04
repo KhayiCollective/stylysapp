@@ -153,7 +153,9 @@ export default function Auth() {
             <br />
             E-commerce with
             <br />
-            STYLYS, Our AI-Powered Personal Stylist
+            STYLYS,
+            <br />
+            <span className="text-2xl font-medium">Our AI-Powered Personal Stylist</span>
           </h1>
           
           <p className="text-lg text-primary-foreground/80 max-w-md">
