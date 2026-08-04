@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, ArrowRight, Mail, Lock, User, Store, CheckCircle, Crown, Eye, EyeOff } from 'lucide-react';
+import stylysIcon from '@/assets/stylys-icon.png';
+import { ArrowRight, Mail, Lock, User, Store, CheckCircle, Crown, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TIERS, TierKey } from '@/lib/tiers';
 
@@ -141,9 +142,9 @@ export default function Auth() {
         <div className="relative z-10 flex flex-col justify-center px-16 text-primary-foreground">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-3 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
-              <Sparkles className="h-8 w-8" />
+              <img src={stylysIcon} alt="STYLYS" className="h-8 w-8 object-contain" />
             </div>
-            <span className="text-2xl font-display font-semibold">AI Stylist</span>
+            <span className="text-2xl font-display font-semibold">STYLYS</span>
           </div>
           
           <h1 className="text-5xl font-display font-bold leading-tight mb-6">
@@ -151,7 +152,7 @@ export default function Auth() {
             <br />
             E-commerce with
             <br />
-            AI Styling
+            STYLYS, Our AI-Powered Personal Stylist
           </h1>
           
           <p className="text-lg text-primary-foreground/80 max-w-md">
@@ -180,7 +181,7 @@ export default function Auth() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-            <Sparkles className="h-6 w-6 text-primary" />
+            <img src={stylysIcon} alt="STYLYS" className="h-6 w-6 object-contain" />
             <span className="text-xl font-display font-semibold">STYLYS</span>
           </div>
 
