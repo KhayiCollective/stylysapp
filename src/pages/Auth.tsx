@@ -153,7 +153,7 @@ export default function Auth() {
             <br />
             E-commerce with
             <br />
-            STYLYS,
+            STYLYS
             <br />
             <span className="text-2xl font-medium">Our AI-Powered Personal Stylist</span>
           </h1>
