@@ -26,6 +26,14 @@ export default async function middleware(
     return undefined;
   }
 
+  // Only inject App Bridge when Shopify signals an embedded context via ?shop=.
+  // Standalone routes (login, reset-password, marketing pages) must NOT get
+  // App Bridge — loading it outside the Admin iframe triggers the same
+  // window.fetch monkey-patch hang documented in commit f46f644 (2026-07-08).
+  if (!url.searchParams.has("shop")) {
+    return undefined;
+  }
+
   const apiKey = process.env.SHOPIFY_API_KEY;
   if (!apiKey) {
     // Fail open: serve index.html as-is so the app still loads.
