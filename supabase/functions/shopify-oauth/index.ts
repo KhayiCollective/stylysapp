@@ -16,18 +16,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 // Required scopes for storefront access, checkout, and webhooks
 const SCOPES = "read_inventory,read_product_listings,read_products,unauthenticated_read_product_listings,unauthenticated_read_product_tags,read_themes";
 
-// Webhook topics to register
-const WEBHOOK_TOPICS = [
-  "products/create",
-  "products/update",
-  "products/delete",
-  "inventory_levels/update",
-  "app/uninstalled",
-  "customers/data_request",
-  "customers/redact",
-  "shop/redact",
-];
-
 // Generic error messages for client responses (no internal details)
 const CLIENT_ERRORS = {
   MISSING_PARAMS: "Missing required parameters",
@@ -494,49 +482,8 @@ Deno.serve(async (req) => {
 
       console.log("[SHOPIFY-OAUTH] Connection saved successfully");
 
-      // Auto-register webhooks
-      const webhookBaseUrl = `${SUPABASE_URL}/functions/v1/shopify-webhooks`;
-      const registeredWebhooks: string[] = [];
-      const failedWebhooks: string[] = [];
-
-      for (const topic of WEBHOOK_TOPICS) {
-        try {
-          const webhookResponse = await fetch(
-            `https://${shop}/admin/api/2025-01/webhooks.json`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Shopify-Access-Token": accessToken,
-              },
-              body: JSON.stringify({
-                webhook: {
-                  topic,
-                  address: webhookBaseUrl,
-                  format: "json",
-                },
-              }),
-            }
-          );
-
-          if (webhookResponse.ok || webhookResponse.status === 422) {
-            registeredWebhooks.push(topic);
-          } else {
-            failedWebhooks.push(topic);
-          }
-        } catch {
-          failedWebhooks.push(topic);
-        }
-      }
-
-      console.log(`[SHOPIFY-OAUTH] Webhooks: ${registeredWebhooks.length}/${WEBHOOK_TOPICS.length} registered`);
-
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          shop,
-          webhooksRegistered: registeredWebhooks.length,
-        }),
+        JSON.stringify({ success: true, shop }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
