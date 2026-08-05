@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { ArrowLeft, BookOpen, Rocket, Store, Code, HelpCircle, Sparkles, Menu } from "lucide-react";
+import { ArrowLeft, BookOpen, Rocket, Store, Code, HelpCircle, Menu } from "lucide-react";
+import stylysIconCream from '@/assets/stylys-icon-cream.png';
 import { useAuth } from "@/hooks/useAuth";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,7 @@ export function DocsLayout({ children, title, description }: DocsLayoutProps) {
             </Link>
             <div className="hidden md:flex items-center gap-2">
               <div className="w-8 h-8 bg-foreground rounded-sm flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-background" />
+                <img src={stylysIconCream} alt="STYLYS" className="w-4 h-4 object-contain" />
               </div>
               <span className="font-display font-semibold">STYLYS Docs</span>
             </div>
