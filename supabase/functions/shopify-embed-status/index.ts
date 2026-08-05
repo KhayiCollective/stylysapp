@@ -76,50 +76,42 @@ Deno.serve(async (req) => {
 
     const { shopify_store_domain: shop, shopify_access_token: token } = brand;
 
-    // Step 1: get the active (main) theme ID
-    const themesResp = await fetch(
-      `https://${shop}/admin/api/2025-01/themes.json?role=main`,
-      { headers: { "X-Shopify-Access-Token": token } }
+    // Fetch active theme + settings_data.json in a single GraphQL query
+    const gqlResp = await fetch(
+      `https://${shop}/admin/api/2025-01/graphql.json`,
+      {
+        method: "POST",
+        headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `{ themes(first: 1, roles: [MAIN]) { nodes { files(filenames: ["config/settings_data.json"], first: 1) { nodes { body { ... on OnlineStoreThemeFileBodyText { content } } } } } } }`,
+        }),
+      }
     );
 
-    if (!themesResp.ok) {
-      console.error("[SHOPIFY-EMBED-STATUS] Themes API failed:", themesResp.status);
-      return new Response(JSON.stringify({ error: "Failed to fetch themes" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const themesData = await themesResp.json();
-    const themeId = themesData.themes?.[0]?.id;
-
-    if (!themeId) {
-      return new Response(JSON.stringify({ error: "No active theme found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Step 2: fetch config/settings_data.json from the active theme
-    const assetResp = await fetch(
-      `https://${shop}/admin/api/2025-01/themes/${themeId}/assets.json?asset[key]=config/settings_data.json`,
-      { headers: { "X-Shopify-Access-Token": token } }
-    );
-
-    if (!assetResp.ok) {
-      console.error("[SHOPIFY-EMBED-STATUS] Asset API failed:", assetResp.status);
+    if (!gqlResp.ok) {
+      console.error("[SHOPIFY-EMBED-STATUS] GraphQL request failed:", gqlResp.status);
       return new Response(JSON.stringify({ error: "Failed to fetch theme settings" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const assetData = await assetResp.json();
+    const gqlData = await gqlResp.json();
+    const rawContent: string =
+      gqlData?.data?.themes?.nodes?.[0]?.files?.nodes?.[0]?.body?.content ?? "";
 
-    // asset.value is the raw JSON string of settings_data.json
+    if (!rawContent) {
+      return new Response(JSON.stringify({ error: "No active theme found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Strip leading /* ... */ comment block Shopify may prepend to raw file content
     let settings: Record<string, unknown>;
     try {
-      settings = JSON.parse(assetData.asset?.value ?? "{}");
+      const stripped = rawContent.replace(/^\/\*[\s\S]*?\*\/\s*/, "");
+      settings = JSON.parse(stripped || "{}");
     } catch {
       console.error("[SHOPIFY-EMBED-STATUS] Failed to parse settings_data.json");
       return new Response(JSON.stringify({ error: "Failed to parse theme settings" }), {
