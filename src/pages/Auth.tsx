@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import stylysIcon from '@/assets/stylys-icon.png';
-import stylysLogoMark from '@/assets/stylys-logo-mark.png';
+import stylysIconCream from '@/assets/stylys-icon-cream.png';
 import { ArrowRight, Mail, Lock, User, Store, CheckCircle, Crown, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TIERS, TierKey } from '@/lib/tiers';
@@ -142,8 +142,8 @@ export default function Auth() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/80" />
         <div className="relative z-10 flex flex-col justify-center px-16 text-primary-foreground">
           <div className="flex items-center gap-3 mb-8">
-            <div className="p-3 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
-              <img src={stylysLogoMark} alt="STYLYS" className="h-8 w-8 object-contain" />
+            <div className="p-1.5 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
+              <img src={stylysIconCream} alt="STYLYS" className="h-10 w-10 object-contain" />
             </div>
             <span className="text-2xl font-display font-semibold">STYLYS</span>
           </div>
