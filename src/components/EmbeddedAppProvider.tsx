@@ -19,28 +19,8 @@ interface EmbeddedAppProviderProps {
 
 export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
   const { config, isEmbedded, showToast, setAppLoading, getSessionToken } = useShopifyAppBridge();
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const [embeddedBrandId, setEmbeddedBrandId] = useState<string | null>(null);
   const [connectionChecked, setConnectionChecked] = useState(false);
-
-  useEffect(() => {
-    // Only load App Bridge script if we detect embedded context
-    const params = new URLSearchParams(window.location.search);
-    const widgetRoutes = ["/widget-preview", "/widget-reset-password", "/widget-chat"];
-    const embedded = window.self !== window.top && params.has("shop") && !widgetRoutes.includes(window.location.pathname);
-
-    if (embedded && !scriptLoaded) {
-      const script = document.createElement("script");
-      script.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
-      script.async = true;
-      script.onload = () => setScriptLoaded(true);
-      document.head.appendChild(script);
-
-      return () => {
-        document.head.removeChild(script);
-      };
-    }
-  }, [scriptLoaded]);
 
   // Look up brand_id by shop domain. Only counts as connected if shopify_connected_at is set.
   useEffect(() => {
@@ -60,7 +40,7 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
 
   // Fallback: if no connected brand found, attempt token exchange using App Bridge session token.
   useEffect(() => {
-    if (!scriptLoaded || !connectionChecked || embeddedBrandId || !isEmbedded || !config?.shop) return;
+    if (!connectionChecked || embeddedBrandId || !isEmbedded || !config?.shop) return;
 
     const attemptTokenExchange = async () => {
       const sessionToken = await getSessionToken();
@@ -87,7 +67,7 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
     };
 
     attemptTokenExchange();
-  }, [scriptLoaded, connectionChecked, embeddedBrandId, isEmbedded, config?.shop]);
+  }, [connectionChecked, embeddedBrandId, isEmbedded, config?.shop]);
 
   const contextValue: EmbeddedAppContextValue = {
     isEmbedded,
