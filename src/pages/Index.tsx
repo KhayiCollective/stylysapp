@@ -95,7 +95,7 @@ const Index = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="AI Outfit Builder" description="Our AI creates personalized outfit combinations from your catalog, increasing average order value by 35%. Smart recommendations based on style, color harmony, and customer preferences."
+            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="AI Outfit Builder" description="Our AI creates personalized outfit combinations from your catalog to help boost average order value, with smart recommendations based on style, color harmony, and customer preferences."
             badge="Core Feature" />
 
             <FeatureCard
