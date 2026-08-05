@@ -156,33 +156,34 @@ function groupVariantsByColor(product: any): ColorGroup[] {
   return Object.values(groups);
 }
 
-// Fetch collections (custom + smart) containing a given product
+// Fetch collections containing a given product via GraphQL Admin API
 async function fetchProductCollections(
   shop: string,
   accessToken: string,
   productId: string | number
 ): Promise<{ id: string; title: string; handle: string }[]> {
   if (!shop || !accessToken) return [];
-  const out: { id: string; title: string; handle: string }[] = [];
-
-  async function fetchOne(endpoint: "custom_collections" | "smart_collections") {
-    try {
-      const res = await fetch(
-        `https://${shop}/admin/api/2025-01/${endpoint}.json?product_id=${productId}&limit=250`,
-        { headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" } }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      for (const c of data[endpoint] || []) {
-        out.push({ id: String(c.id), title: c.title, handle: c.handle });
-      }
-    } catch (err) {
-      console.error(`[WEBHOOK] Failed to fetch ${endpoint} for product ${productId}:`, err);
-    }
+  const gid = `gid://shopify/Product/${productId}`;
+  try {
+    const res = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": accessToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: `{ product(id: "${gid}") { collections(first: 250) { nodes { id title handle } } } }`,
+      }),
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    const nodes: { id: string; title: string; handle: string }[] =
+      json?.data?.product?.collections?.nodes ?? [];
+    return nodes.map((c) => ({ id: c.id.split("/").pop() ?? c.id, title: c.title, handle: c.handle }));
+  } catch (err) {
+    console.error(`[WEBHOOK] Failed to fetch collections for product ${productId}:`, err);
+    return [];
   }
-
-  await Promise.all([fetchOne("custom_collections"), fetchOne("smart_collections")]);
-  return out;
 }
 
 // Create sync history entry
