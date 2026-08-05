@@ -386,9 +386,9 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Create a Storefront API token
+      // Create a Storefront API token via GraphQL
       const storefrontResponse = await fetch(
-        `https://${shop}/admin/api/2025-01/storefront_access_tokens.json`,
+        `https://${shop}/admin/api/2025-01/graphql.json`,
         {
           method: "POST",
           headers: {
@@ -396,9 +396,7 @@ Deno.serve(async (req) => {
             "X-Shopify-Access-Token": accessToken,
           },
           body: JSON.stringify({
-            storefront_access_token: {
-              title: "AI Stylist Platform",
-            },
+            query: `mutation { storefrontAccessTokenCreate(input: { title: "AI Stylist Platform" }) { storefrontAccessToken { accessToken } userErrors { field message } } }`,
           }),
         }
       );
@@ -406,8 +404,13 @@ Deno.serve(async (req) => {
       let storefrontToken = null;
       if (storefrontResponse.ok) {
         const storefrontData = await storefrontResponse.json();
-        storefrontToken = storefrontData.storefront_access_token?.access_token;
-        console.log("[SHOPIFY-OAUTH] Storefront token created");
+        storefrontToken = storefrontData.data?.storefrontAccessTokenCreate?.storefrontAccessToken?.accessToken ?? null;
+        if (storefrontToken) {
+          console.log("[SHOPIFY-OAUTH] Storefront token created");
+        } else {
+          const errs = storefrontData.data?.storefrontAccessTokenCreate?.userErrors;
+          console.warn("[SHOPIFY-OAUTH] Could not create storefront token", errs);
+        }
       } else {
         console.warn("[SHOPIFY-OAUTH] Could not create storefront token");
       }
