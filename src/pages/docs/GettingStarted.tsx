@@ -135,7 +135,7 @@ export default function GettingStarted() {
               </div>
               <div>
                 <CardTitle className="text-lg">Embed on Your Store</CardTitle>
-                <CardDescription>Add the widget code to your Shopify theme</CardDescription>
+                <CardDescription>Enable the STYLYS app embed in your Shopify theme</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -143,11 +143,11 @@ export default function GettingStarted() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                <span>Copy your unique embed code from the Widget page</span>
+                <span>Go to Online Store → Themes → Customize → App embeds</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                <span>Add it to your product page template in Shopify</span>
+                <span>Toggle on STYLYS to activate the widget</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" />
