@@ -3,6 +3,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Camera, User, ShoppingBag, X, Sparkles } from "lucide-react";
 import stylysIcon from "@/assets/S_no_border.png";
+import stylysIconCream from "@/assets/stylys-icon-cream.png";
 import { StyleQuizTab, QuizAnswers } from "./tabs/StyleQuizTab";
 import { OutfitsTab } from "./tabs/OutfitsTab";
 import { WishlistTab } from "./tabs/WishlistTab";
@@ -112,8 +113,8 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
           {/* Header */}
           <div className="bg-primary text-primary-foreground p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full overflow-hidden">
-                <img src={stylysIcon} alt="STYLYS" className="h-full w-full object-cover" />
+              <div className="h-12 w-12 rounded-full bg-primary-foreground/10 flex items-center justify-center">
+                <img src={stylysIconCream} alt="STYLYS" className="h-6 w-6 object-contain" />
               </div>
               <div>
                 <h2 className="font-semibold text-sm tracking-wide">STYLYS</h2>

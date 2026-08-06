@@ -423,8 +423,8 @@ const WidgetChat = () => {
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="p-4 border-b bg-primary text-primary-foreground flex items-center gap-3 flex-shrink-0">
-        <div className="h-8 w-8 rounded-full flex items-center justify-center">
-          <img src={stylysIconCream} alt="STYLYS" className="h-4 w-4 object-contain" />
+        <div className="h-12 w-12 rounded-full bg-primary-foreground/10 flex items-center justify-center">
+          <img src={stylysIconCream} alt="STYLYS" className="h-6 w-6 object-contain" />
         </div>
         <div className="flex-1">
           <p className="font-semibold text-sm">STYLYS</p>
