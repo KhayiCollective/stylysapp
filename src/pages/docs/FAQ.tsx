@@ -83,7 +83,7 @@ export default function FAQ() {
   const troubleshootingFaqs = [
     {
       question: "The widget isn't appearing on my store",
-      answer: "First, ensure your Shopify store is connected and products are synced. Then verify the embed code is correctly placed in your theme. Check the browser console for any JavaScript errors. If issues persist, contact support."
+      answer: "First, ensure your Shopify store is connected and products are synced. Then, in your Shopify admin, go to Online Store → Themes → Customize → App embeds, and make sure STYLYS is toggled on. Check the browser console for any JavaScript errors. If issues persist, contact support."
     },
     {
       question: "Products aren't syncing from Shopify",
