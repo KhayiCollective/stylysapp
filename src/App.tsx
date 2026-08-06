@@ -29,7 +29,6 @@ import ResetPassword from "./pages/ResetPassword";
 import GettingStarted from "./pages/docs/GettingStarted";
 import ShopifySetup from "./pages/docs/ShopifySetup";
 import WidgetEmbed from "./pages/docs/WidgetEmbed";
-import APIReference from "./pages/docs/APIReference";
 import FAQ from "./pages/docs/FAQ";
 import WidgetPreview from "./pages/WidgetPreview";
 import WidgetResetPassword from "./pages/WidgetResetPassword";
@@ -106,7 +105,6 @@ const App = () => (
               <Route path="/docs/getting-started" element={<GettingStarted />} />
               <Route path="/docs/shopify-setup" element={<ShopifySetup />} />
               <Route path="/docs/widget-embed" element={<WidgetEmbed />} />
-              <Route path="/docs/api" element={<APIReference />} />
               <Route path="/docs/faq" element={<FAQ />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

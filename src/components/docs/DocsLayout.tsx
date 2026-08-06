@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { ArrowLeft, BookOpen, Rocket, Store, Code, HelpCircle, Menu } from "lucide-react";
+import { ArrowLeft, Rocket, Store, Code, HelpCircle, Menu } from "lucide-react";
 import stylysIconCream from '@/assets/stylys-icon-cream.png';
 import { useAuth } from "@/hooks/useAuth";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
@@ -12,7 +12,6 @@ const navigation = [
   { name: "Getting Started", href: "/docs", icon: Rocket },
   { name: "Shopify Setup", href: "/docs/shopify-setup", icon: Store },
   { name: "Widget Embed", href: "/docs/widget-embed", icon: Code },
-  { name: "API Reference", href: "/docs/api", icon: BookOpen },
   { name: "FAQ", href: "/docs/faq", icon: HelpCircle },
 ];
 

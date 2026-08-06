@@ -171,16 +171,6 @@ export default function GettingStarted() {
                 </CardHeader>
               </Card>
             </Link>
-            <Link to="/docs/api">
-              <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer">
-                <CardHeader>
-                  <CardTitle className="text-base">API Reference</CardTitle>
-                  <CardDescription>
-                    Advanced integration options for developers
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
           </div>
         </div>
       </section>
