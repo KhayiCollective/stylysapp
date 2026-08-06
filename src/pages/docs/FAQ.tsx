@@ -7,7 +7,7 @@ export default function FAQ() {
   const generalFaqs = [
     {
       question: "What is STYLYS?",
-      answer: "STYLYS is an AI-powered outfit recommendation platform for e-commerce stores. It analyzes your product catalog and generates personalized outfit suggestions for your customers, helping increase average order value and customer engagement."
+      answer: "STYLYS is an AI-powered outfit recommendation platform for e-commerce stores. It analyzes your product catalog and generates personalized outfit suggestions for your customers — including virtual try-on — helping increase average order value and customer engagement. A STYLYS AI styling chatbot is also available on Professional and Enterprise plans."
     },
     {
       question: "Which platforms does STYLYS support?",
