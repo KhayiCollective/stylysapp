@@ -44,10 +44,6 @@ export default function Support() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  useEffect(() => {
-    if (user?.email) setEmail(user.email);
-  }, [user]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -101,7 +97,7 @@ export default function Support() {
 
       setSubject("");
       setMessage("");
-      setEmail(user?.email || "");
+      setEmail("");
     } catch (error) {
       console.error("Error submitting support ticket:", error);
       toast({
