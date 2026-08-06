@@ -95,7 +95,7 @@ export default function FAQ() {
     },
     {
       question: "The 'Add to Cart' button isn't working",
-      answer: "Ensure your Shopify integration has 'write_checkouts' permission. Try disconnecting and reconnecting your store to refresh permissions. The button requires products to be in stock and available for sale."
+      answer: "The 'Add to Cart' button uses your store's built-in cart API directly, so no special permissions are required. If it's not working, check that the product or variant is in stock and available for sale, and check the browser console for errors. If issues persist, contact support."
     }
   ];
 
