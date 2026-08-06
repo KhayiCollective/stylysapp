@@ -284,20 +284,62 @@ async function fetchAllProducts(shop: string, accessToken: string): Promise<Shop
 }
 
 async function fetchWebhooks(shop: string, accessToken: string): Promise<ShopifyWebhook[]> {
-  const response = await fetch(`https://${shop}/admin/api/2025-01/webhooks.json`, {
-    headers: {
-      "X-Shopify-Access-Token": accessToken,
-      "Content-Type": "application/json",
-    },
-  });
+  const query = `
+    query($cursor: String) {
+      webhookSubscriptions(first: 250, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          legacyResourceId
+          topic
+          createdAt
+          endpoint {
+            ... on WebhookHttpEndpoint { callbackUrl }
+          }
+        }
+      }
+    }
+  `;
 
-  if (!response.ok) {
-    console.error(`Failed to fetch webhooks: ${response.status}`);
-    return [];
+  const webhooks: ShopifyWebhook[] = [];
+  let cursor: string | null = null;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const response: Response = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: "POST",
+      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables: { cursor } }),
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to fetch webhooks: ${response.status}`);
+      return webhooks;
+    }
+
+    const json: any = await response.json();
+    const connection: any = json?.data?.webhookSubscriptions;
+
+    if (!connection) {
+      console.error("Failed to fetch webhooks: no data returned", json?.errors);
+      return webhooks;
+    }
+
+    for (const node of connection.nodes) {
+      webhooks.push({
+        id: Number(node.legacyResourceId),
+        // GraphQL returns topic as enum (e.g. PRODUCTS_CREATE); normalize to the
+        // REST slash format (e.g. products/create) that WebhookStatusIndicator compares against.
+        topic: node.topic.toLowerCase().replace(/_([^_]+)$/, "/$1"),
+        address: node.endpoint?.callbackUrl ?? "",
+        created_at: node.createdAt,
+      });
+    }
+
+    hasNextPage = connection.pageInfo.hasNextPage;
+    cursor = connection.pageInfo.endCursor;
   }
 
-  const data = await response.json();
-  return data.webhooks || [];
+  return webhooks;
 }
 
 // Build a map of shopify_product_id -> array of collection summaries
