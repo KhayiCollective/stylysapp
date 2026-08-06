@@ -128,7 +128,7 @@ export default function Privacy() {
               <li><strong>Multi-tenant isolation:</strong> Row-level security (RLS) policies ensure strict data separation between merchants</li>
               <li><strong>Data masking:</strong> Masked database views prevent bulk exposure of sensitive information such as email addresses and access tokens</li>
               <li><strong>Password security:</strong> Customer widget passwords are hashed using bcrypt</li>
-              <li><strong>Access logging:</strong> All backend function invocations are logged for audit purposes</li>
+              <li><strong>Function logging:</strong> Backend function activity is captured in Supabase's built-in function logs</li>
             </ul>
             <p className="text-muted-foreground leading-relaxed mt-2">
               While no method of transmission over the Internet is 100% secure, we continuously review and improve our security practices.
@@ -138,7 +138,7 @@ export default function Privacy() {
           <section>
             <h2 className="font-display text-2xl font-medium mb-4">6. Data Retention</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We retain your information for as long as your account is active or as needed to provide services. Merchants can request data deletion at any time. Customer preference data is retained for 24 months of inactivity, after which it is automatically deleted.
+              We retain your information for as long as your account is active or as needed to provide services. Merchants can request data deletion at any time.
             </p>
             <p className="text-muted-foreground leading-relaxed mt-2">
               Upon app uninstallation, all merchant and associated customer data is permanently deleted in response to Shopify's <code className="text-sm bg-muted px-1 rounded">shop/redact</code> webhook. Individual customer data is deleted upon receiving a <code className="text-sm bg-muted px-1 rounded">customers/redact</code> request from Shopify.
