@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, Send, Sparkles, User, X } from "lucide-react";
-import stylysIconCreamCream from "@/assets/stylys-icon-cream.png";
+import stylysIconCream from "@/assets/stylys-icon-cream.png";
 import { getCustomerToken } from "@/lib/widgetAuth";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-styling-chat`;
