@@ -155,33 +155,129 @@ function groupVariantsByColor(product: ShopifyProduct): ColorGroup[] {
 
 async function fetchAllProducts(shop: string, accessToken: string): Promise<ShopifyProduct[]> {
   const allProducts: ShopifyProduct[] = [];
-  let nextUrl = `https://${shop}/admin/api/2025-01/products.json?limit=250`;
+  let cursor: string | null = null;
+  let hasNextPage = true;
 
-  while (nextUrl) {
-    console.log(`[PRODUCT-SYNC] Fetching products from: ${nextUrl.substring(0, 80)}...`);
+  // Confirmed query cost: 673 requested / 13 actual at 250/250/250 against
+  // stylys-2.myshopify.com (well under the 1000-point single-query hard ceiling).
+  const query = `
+    query($cursor: String) {
+      products(first: 250, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          legacyResourceId
+          title
+          handle
+          productType
+          tags
+          status
+          options { name position values }
+          images(first: 250) {
+            nodes { id url altText width height }
+          }
+          variants(first: 250) {
+            nodes {
+              legacyResourceId
+              title
+              price
+              selectedOptions { name value }
+              inventoryQuantity
+              inventoryItem { legacyResourceId }
+              image { id }
+            }
+          }
+        }
+      }
+    }
+  `;
 
-    const response = await fetch(nextUrl, {
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
-    });
+  const doFetch = () => fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": accessToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query, variables: { cursor } }),
+  });
+
+  while (hasNextPage) {
+    console.log(`[PRODUCT-SYNC] Fetching products via GraphQL, cursor: ${cursor ? cursor.substring(0, 20) + "..." : "start"}`);
+
+    // Initialize response immediately to avoid uninitialized-variable TypeScript concerns.
+    let response = await doFetch();
+    for (let attempt = 0; response.status === 429; attempt++) {
+      if (attempt >= 3) throw new Error("GraphQL throttled after 3 retries");
+      const retryAfter = parseFloat(response.headers.get("Retry-After") ?? "2");
+      console.warn(`[PRODUCT-SYNC] GraphQL throttled — retrying in ${retryAfter}s (attempt ${attempt + 1})`);
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      response = await doFetch();
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to fetch products: ${response.status} ${await response.text()}`);
     }
 
-    const data = await response.json();
-    allProducts.push(...data.products);
+    const json = await response.json();
+    const connection = json?.data?.products;
 
-    const linkHeader = response.headers.get("Link");
-    nextUrl = "";
-    if (linkHeader) {
-      const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
-      if (nextMatch) nextUrl = nextMatch[1];
+    if (!connection) {
+      throw new Error(`GraphQL products query returned no data: ${JSON.stringify(json?.errors)}`);
     }
 
-    console.log(`[PRODUCT-SYNC] Fetched ${data.products.length} products, total: ${allProducts.length}`);
+    for (const gqlProduct of connection.nodes) {
+      // Reconstruct variant_ids per image: REST had image.variant_ids[]; GraphQL
+      // inverts this — ProductVariant.image.id points to the variant's image.
+      // image.id is nullable on the Image type; skip nulls to avoid bad map keys.
+      const variantImageMap: Record<string, number[]> = {};
+      for (const v of gqlProduct.variants.nodes) {
+        const imgId: string | null | undefined = v.image?.id;
+        if (imgId) {
+          if (!variantImageMap[imgId]) variantImageMap[imgId] = [];
+          variantImageMap[imgId].push(Number(v.legacyResourceId));
+        }
+      }
+
+      const images: ShopifyImage[] = gqlProduct.images.nodes.map(
+        (img: any, index: number) => ({
+          id: img.id ? Number(toNumericId(img.id)) : undefined,
+          src: img.url,
+          alt: img.altText ?? null,
+          position: index + 1,
+          width: img.width ?? null,
+          height: img.height ?? null,
+          variant_ids: img.id ? (variantImageMap[img.id] ?? []) : [],
+        })
+      );
+
+      const variants: ShopifyVariant[] = gqlProduct.variants.nodes.map((v: any) => ({
+        id: Number(v.legacyResourceId),
+        price: v.price,
+        title: v.title,
+        option1: v.selectedOptions[0]?.value ?? null,
+        option2: v.selectedOptions[1]?.value ?? null,
+        option3: v.selectedOptions[2]?.value ?? null,
+        inventory_quantity: v.inventoryQuantity ?? 0,
+        inventory_item_id: v.inventoryItem?.legacyResourceId
+          ? Number(v.inventoryItem.legacyResourceId)
+          : undefined,
+      }));
+
+      allProducts.push({
+        id: Number(gqlProduct.legacyResourceId),
+        title: gqlProduct.title,
+        handle: gqlProduct.handle,
+        product_type: gqlProduct.productType,
+        tags: gqlProduct.tags.join(","), // GQL returns string[]; downstream splits on comma
+        status: gqlProduct.status?.toLowerCase(),
+        images,
+        variants,
+        options: gqlProduct.options,
+      });
+    }
+
+    hasNextPage = connection.pageInfo.hasNextPage;
+    cursor = connection.pageInfo.endCursor;
+    console.log(`[PRODUCT-SYNC] Fetched ${connection.nodes.length} products, total: ${allProducts.length}`);
   }
 
   return allProducts;
