@@ -307,91 +307,115 @@ async function fetchProductCollectionsMap(
 ): Promise<Record<string, { id: string; title: string; handle: string }[]>> {
   const map: Record<string, { id: string; title: string; handle: string }[]> = {};
 
-  async function fetchCollections(endpoint: "custom_collections" | "smart_collections") {
-    let nextUrl = `https://${shop}/admin/api/2025-01/${endpoint}.json?limit=250`;
-    const collections: { id: number; title: string; handle: string }[] = [];
-    while (nextUrl) {
-      const res = await fetch(nextUrl, {
-        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      });
-      if (!res.ok) {
-        console.error(`[PRODUCT-SYNC] Failed to fetch ${endpoint}: ${res.status}`);
-        return collections;
-      }
-      const data = await res.json();
-      collections.push(...(data[endpoint] || []));
-      const link = res.headers.get("Link");
-      nextUrl = "";
-      if (link) {
-        const m = link.match(/<([^>]+)>;\s*rel="next"/);
-        if (m) nextUrl = m[1];
+  // Replaces four REST endpoints: custom_collections.json, smart_collections.json,
+  // collects.json, and collections/{id}/products.json. Custom and smart collections
+  // are unified — the GraphQL collections query returns both.
+  const collectionsQuery = `
+    query($cursor: String) {
+      collections(first: 250, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          legacyResourceId
+          title
+          handle
+          products(first: 250) {
+            pageInfo { hasNextPage endCursor }
+            nodes { legacyResourceId }
+          }
+        }
       }
     }
-    return collections;
-  }
+  `;
 
-  async function fetchCollects(collectionId: number): Promise<number[]> {
-    const productIds: number[] = [];
-    let nextUrl = `https://${shop}/admin/api/2025-01/collects.json?collection_id=${collectionId}&limit=250`;
-    while (nextUrl) {
-      const res = await fetch(nextUrl, {
-        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      });
-      if (!res.ok) return productIds;
-      const data = await res.json();
-      for (const c of data.collects || []) productIds.push(c.product_id);
-      const link = res.headers.get("Link");
-      nextUrl = "";
-      if (link) {
-        const m = link.match(/<([^>]+)>;\s*rel="next"/);
-        if (m) nextUrl = m[1];
+  // Used only when a collection's products connection has >250 members.
+  const collectionProductsQuery = `
+    query($id: ID!, $cursor: String) {
+      collection(id: $id) {
+        products(first: 250, after: $cursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes { legacyResourceId }
+        }
       }
     }
-    return productIds;
-  }
+  `;
 
-  async function fetchSmartCollectionProducts(collectionId: number): Promise<number[]> {
-    const productIds: number[] = [];
-    let nextUrl = `https://${shop}/admin/api/2025-01/collections/${collectionId}/products.json?limit=250`;
-    while (nextUrl) {
-      const res = await fetch(nextUrl, {
-        headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      });
-      if (!res.ok) return productIds;
-      const data = await res.json();
-      for (const p of data.products || []) productIds.push(p.id);
-      const link = res.headers.get("Link");
-      nextUrl = "";
-      if (link) {
-        const m = link.match(/<([^>]+)>;\s*rel="next"/);
-        if (m) nextUrl = m[1];
-      }
-    }
-    return productIds;
-  }
+  const gqlFetch = (body: unknown) =>
+    fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: "POST",
+      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
   try {
-    const [custom, smart] = await Promise.all([
-      fetchCollections("custom_collections"),
-      fetchCollections("smart_collections"),
-    ]);
+    let cursor: string | null = null;
+    let hasNextPage = true;
 
-    for (const col of custom) {
-      const productIds = await fetchCollects(col.id);
-      for (const pid of productIds) {
-        const key = String(pid);
-        if (!map[key]) map[key] = [];
-        map[key].push({ id: String(col.id), title: col.title, handle: col.handle });
-      }
-    }
+    while (hasNextPage) {
+      const res = await gqlFetch({ query: collectionsQuery, variables: { cursor } });
 
-    for (const col of smart) {
-      const productIds = await fetchSmartCollectionProducts(col.id);
-      for (const pid of productIds) {
-        const key = String(pid);
-        if (!map[key]) map[key] = [];
-        map[key].push({ id: String(col.id), title: col.title, handle: col.handle });
+      if (!res.ok) {
+        console.error(`[PRODUCT-SYNC] Failed to fetch collections: ${res.status}`);
+        break;
       }
+
+      const json = await res.json();
+      const connection = json?.data?.collections;
+
+      if (!connection) {
+        console.error("[PRODUCT-SYNC] GraphQL collections query returned no data:", json?.errors);
+        break;
+      }
+
+      for (const col of connection.nodes) {
+        const colSummary = { id: col.legacyResourceId, title: col.title, handle: col.handle };
+
+        for (const product of col.products.nodes) {
+          const key = product.legacyResourceId;
+          if (!map[key]) map[key] = [];
+          map[key].push(colSummary);
+        }
+
+        // Paginate overflow: fires only when a collection has >250 products.
+        if (col.products.pageInfo.hasNextPage) {
+          console.log(`[PRODUCT-SYNC] Collection "${col.title}" (${col.legacyResourceId}) has >250 products — paginating`);
+          const collectionGid = `gid://shopify/Collection/${col.legacyResourceId}`;
+          let productCursor: string = col.products.pageInfo.endCursor;
+          let moreProducts = true;
+
+          while (moreProducts) {
+            const overflowRes = await gqlFetch({
+              query: collectionProductsQuery,
+              variables: { id: collectionGid, cursor: productCursor },
+            });
+
+            if (!overflowRes.ok) {
+              console.error(`[PRODUCT-SYNC] Failed to fetch products overflow for collection ${col.legacyResourceId}: ${overflowRes.status}`);
+              break;
+            }
+
+            const overflowJson = await overflowRes.json();
+            const productsConn = overflowJson?.data?.collection?.products;
+
+            if (!productsConn) {
+              console.error(`[PRODUCT-SYNC] No products data for collection ${col.legacyResourceId}:`, overflowJson?.errors);
+              break;
+            }
+
+            for (const product of productsConn.nodes) {
+              const key = product.legacyResourceId;
+              if (!map[key]) map[key] = [];
+              map[key].push(colSummary);
+            }
+
+            moreProducts = productsConn.pageInfo.hasNextPage;
+            productCursor = productsConn.pageInfo.endCursor;
+          }
+        }
+      }
+
+      hasNextPage = connection.pageInfo.hasNextPage;
+      cursor = connection.pageInfo.endCursor;
+      console.log(`[PRODUCT-SYNC] Fetched ${connection.nodes.length} collections, hasNextPage: ${hasNextPage}`);
     }
   } catch (err) {
     console.error("[PRODUCT-SYNC] Error fetching collections:", err);
