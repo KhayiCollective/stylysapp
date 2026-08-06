@@ -86,7 +86,7 @@ export default function Privacy() {
             <h3 className="font-medium text-lg mb-2 mt-4">3.2 App Functionality</h3>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
               <li>Authenticate widget accounts (email and password)</li>
-              <li>Process merchant subscriptions and billing</li>
+              <li>Manage subscription access and feature gating based on your Shopify plan</li>
               <li>Sync product catalogs from your Shopify store</li>
               <li>Ensure security and prevent fraud</li>
             </ul>
@@ -132,7 +132,7 @@ export default function Privacy() {
               <li><strong>Encryption in transit:</strong> All data is transmitted using TLS 1.2 or higher</li>
               <li><strong>Encryption at rest:</strong> Stored data is encrypted using AES-256</li>
               <li><strong>Multi-tenant isolation:</strong> Row-level security (RLS) policies ensure strict data separation between merchants</li>
-              <li><strong>Data masking:</strong> Masked database views prevent bulk exposure of sensitive information such as email addresses and access tokens</li>
+              <li><strong>Data masking:</strong> Masked database views prevent bulk exposure of sensitive information such as email addresses</li>
               <li><strong>Password security:</strong> Customer widget passwords are hashed using bcrypt</li>
               <li><strong>Function logging:</strong> Backend function activity is captured in Supabase's built-in function logs</li>
             </ul>
@@ -205,7 +205,7 @@ export default function Privacy() {
           <section>
             <h2 className="font-display text-2xl font-medium mb-4">12. Cookies</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We use essential cookies for authentication and functionality, and optional analytics cookies to understand usage patterns. You can control cookie preferences through your browser settings.
+              We use essential cookies and local storage for authentication and session management.
             </p>
           </section>
 
