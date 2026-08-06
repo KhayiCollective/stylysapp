@@ -206,7 +206,7 @@ export function DashboardLayout({ children, title, description }: DashboardLayou
             <SheetContent side="left" className="w-64 p-0">
               <div className="p-6 border-b border-border">
                 <Link to="/" className="flex items-center gap-2">
-                  <img src={stylysIcon} alt="STYLYS" className="w-8 h-8 rounded-sm object-cover" />
+                  <img src={stylysIconS} alt="STYLYS" className="w-8 h-8 rounded-sm object-cover" />
                   <span className="font-display text-lg font-semibold">STYLYS</span>
                 </Link>
               </div>
