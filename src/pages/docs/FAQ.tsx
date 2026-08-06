@@ -49,7 +49,7 @@ export default function FAQ() {
     },
     {
       question: "Can I customize the widget appearance?",
-      answer: "Yes! You can customize colors, fonts, layout style (grid/carousel/list), number of recommendations, and whether to show prices and add-to-cart buttons. All settings are available in the Widget page."
+      answer: "Widget appearance customization isn't available yet — the widget currently uses a standard, pre-designed look on your storefront."
     },
     {
       question: "Does the widget work on mobile devices?",
