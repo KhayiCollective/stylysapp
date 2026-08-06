@@ -39,7 +39,6 @@ export default function ShopifyConnect() {
 
   const redirectUri = `https://stylysapp.vercel.app/connect-shopify`;
   const callbackProcessed = useRef(false);
-  const [oauthClientId, setOauthClientId] = useState<string | null>(null);
 
   // Pre-flight check for edge function availability
   const checkEdgeFunctionHealth = async (): Promise<boolean> => {
@@ -63,30 +62,6 @@ export default function ShopifyConnect() {
       return false;
     }
   };
-
-  // Load the Shopify Client ID currently configured in the backend.
-  // This helps ensure you're editing the correct Partner app when whitelisting redirect URIs.
-  useEffect(() => {
-    const loadOAuthClientId = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=authorize&shop=test-store.myshopify.com&redirect_uri=${encodeURIComponent(redirectUri)}&state=debug`,
-          { method: 'GET' }
-        );
-
-        const result = await response.json();
-        if (result.authUrl) {
-          const u = new URL(result.authUrl);
-          const clientId = u.searchParams.get('client_id');
-          if (clientId) setOauthClientId(clientId);
-        }
-      } catch {
-        // Silent: this is only for debugging display
-      }
-    };
-
-    loadOAuthClientId();
-  }, [redirectUri]);
 
   // Check for embedded mode params
   const isEmbeddedFlow = searchParams.get('embedded') === 'true';
@@ -580,15 +555,6 @@ export default function ShopifyConnect() {
                 Enter just your store name (e.g., "mystore" not "mystore.myshopify.com")
               </p>
 
-              <div className="mt-3 rounded-lg border border-border bg-muted/50 p-3 text-xs">
-                <p className="text-muted-foreground">
-                  In Shopify Partners, whitelist this Redirect URI for the app with Client ID{' '}
-                  <span className="font-mono">{oauthClientId || '…'}</span>:
-                </p>
-                <code className="mt-2 block break-all rounded border border-border bg-background px-2 py-1">
-                  {redirectUri}
-                </code>
-              </div>
             </div>
 
             <Button type="submit" className="w-full h-11 font-medium" disabled={loading || !shop.trim()}>
@@ -615,25 +581,26 @@ export default function ShopifyConnect() {
             </ol>
           </div>
 
-          {/* Developer Test Mode link */}
-          <div className="mt-4 p-4 rounded-lg border border-dashed border-border bg-background">
-            <div className="flex items-start gap-3">
-              <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <h3 className="font-medium text-sm mb-1">Having trouble connecting?</h3>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Use Developer Test Mode to create a mock connection and test the dashboard without real OAuth.
-                </p>
-                <Link 
-                  to="/settings" 
-                  className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Go to Settings → Developer Test Mode
-                  <ExternalLink className="h-3 w-3" />
-                </Link>
+          {import.meta.env.DEV && (
+            <div className="mt-4 p-4 rounded-lg border border-dashed border-border bg-background">
+              <div className="flex items-start gap-3">
+                <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <h3 className="font-medium text-sm mb-1">Having trouble connecting?</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Use Developer Test Mode to create a mock connection and test the dashboard without real OAuth.
+                  </p>
+                  <Link
+                    to="/settings"
+                    className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Go to Settings → Developer Test Mode
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
