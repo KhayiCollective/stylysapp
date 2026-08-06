@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Palette, Scale, DollarSign, Package, Info, Loader2, Layers, Sparkles, ShoppingBag, RefreshCw } from "lucide-react";
+import stylysIconCream from "@/assets/stylys-icon-cream.png";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -475,8 +476,8 @@ const Rules = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <Sparkles className="w-4 h-4" />
-                      <span className="uppercase tracking-widest text-[10px] font-semibold">AI Styled</span>
+                      <img src={stylysIconCream} alt="STYLYS" className="w-4 h-4" />
+                      <span className="uppercase tracking-widest text-[10px] font-semibold">STYLYS</span>
                     </div>
                     <h3 className="font-display text-lg font-medium">Complete the Look</h3>
                   </div>
