@@ -76,7 +76,7 @@ export default function FAQ() {
     },
     {
       question: "Do you offer refunds?",
-      answer: "We offer refunds within 7 days of your initial subscription. Contact support@stylysapp.com with your request."
+      answer: "Subscriptions are billed month-to-month, and you can cancel anytime — you'll retain access until the end of your current billing period. We don't offer refunds for partial billing periods. Contact support@stylysapp.com with any billing questions."
     }
   ];
 
