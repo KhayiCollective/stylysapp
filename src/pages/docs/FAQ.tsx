@@ -30,7 +30,7 @@ export default function FAQ() {
     },
     {
       question: "What Shopify permissions does STYLYS need?",
-      answer: "STYLYS requires read access to products and product listings to sync your catalog, plus write access to checkouts to enable the 'Add to Cart' functionality. We never access customer personal data or payment information."
+      answer: "STYLYS only requests read-only access — to your products, inventory, and theme settings — to sync your catalog and confirm the widget is properly embedded. We never access customer personal data or payment information."
     },
     {
       question: "How often does my catalog sync?",
