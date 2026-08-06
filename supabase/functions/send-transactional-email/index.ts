@@ -32,8 +32,54 @@ function renderPasswordReset(data: Record<string, any>) {
   return { subject, html };
 }
 
+function renderCustomerDataExport(data: Record<string, any>) {
+  const brandName = data.brandName || "your store";
+  const subject = `Your personal data held by ${brandName} via STYLYS`;
+
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:4px 0;color:#888;width:160px;vertical-align:top">${label}</td><td style="padding:4px 0;color:#333">${value}</td></tr>`;
+
+  const accountRows = [
+    data.accountEmail ? row("Email", data.accountEmail) : "",
+    data.accountName ? row("Name", data.accountName) : "",
+    data.accountCreatedAt ? row("Account created", fmt(data.accountCreatedAt)) : "",
+  ].filter(Boolean).join("");
+
+  const accountSection = accountRows
+    ? `<h2 style="font-size:16px;font-weight:600;margin:24px 0 8px">Account</h2><table style="width:100%;border-collapse:collapse">${accountRows}</table>`
+    : "";
+
+  let profileSection = "";
+  if (data.quizCompleted) {
+    const arr = (v: unknown) => (Array.isArray(v) && v.length ? (v as string[]).join(", ") : null);
+    const profileRows = [
+      data.bodyShape ? row("Body shape", data.bodyShape) : "",
+      arr(data.preferredColors) ? row("Preferred colors", arr(data.preferredColors)!) : "",
+      arr(data.avoidedColors) ? row("Avoided colors", arr(data.avoidedColors)!) : "",
+      data.sizeInfo ? row("Size info", JSON.stringify(data.sizeInfo)) : "",
+      arr(data.occasions) ? row("Occasions", arr(data.occasions)!) : "",
+      data.budgetRange ? row("Budget range", data.budgetRange) : "",
+    ].filter(Boolean).join("");
+    if (profileRows) {
+      profileSection = `<h2 style="font-size:16px;font-weight:600;margin:24px 0 8px">Style Profile</h2><table style="width:100%;border-collapse:collapse">${profileRows}</table>`;
+    }
+  }
+
+  const activitySection = `<h2 style="font-size:16px;font-weight:600;margin:24px 0 8px">Activity</h2><table style="width:100%;border-collapse:collapse">${row("Recommendations", `${data.recommendationCount ?? 0} generated`)}${row("Saved outfits", `${data.savedOutfitCount ?? 0} saved`)}</table>`;
+
+  const retentionSection = `<p style="font-size:13px;color:#888;line-height:1.5;margin:24px 0 0;padding-top:16px;border-top:1px solid #eee">To request deletion of your data, contact ${brandName} directly.</p>`;
+
+  const html = `<!doctype html><html><body style="margin:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#111"><div style="max-width:520px;margin:0 auto;padding:40px 24px"><div style="font-size:20px;font-weight:600;letter-spacing:0.04em;margin-bottom:28px">STYLYS</div><h1 style="font-size:22px;font-weight:600;margin:0 0 8px">Your personal data</h1><p style="font-size:14px;color:#666;margin:0 0 24px">Held by <strong>${brandName}</strong> via STYLYS</p>${accountSection}${profileSection}${activitySection}${retentionSection}</div></body></html>`;
+
+  return { subject, html };
+}
+
 const TEMPLATES: Record<string, (d: Record<string, any>) => { subject: string; html: string }> = {
   "customer-password-reset": renderPasswordReset,
+  "customer-data-export": renderCustomerDataExport,
 };
 
 Deno.serve(async (req) => {

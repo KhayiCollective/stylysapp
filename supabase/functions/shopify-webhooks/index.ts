@@ -358,28 +358,90 @@ async function handleProductDelete(
   return { deleted };
 }
 
-// Handle customers/data_request — acknowledge the request
+// Handle customers/data_request — export all stored data to the customer via email
 async function handleCustomerDataRequest(
   supabase: any,
-  brandId: string,
+  brand: { id: string; name: string },
   payload: any
 ) {
   const email = payload?.customer?.email;
-  console.log(`Customer data request for: ${email ? "***" : "unknown"}`);
-
-  if (email) {
-    const { data } = await supabase
-      .from("customers")
-      .select("id")
-      .eq("brand_id", brandId)
-      .eq("email", email)
-      .maybeSingle();
-
-    console.log(`Customer record found: ${!!data}`);
+  if (!email) {
+    console.warn("[customers/data_request] No email in payload — skipping export");
+    return { acknowledged: true, reason: "no_email" };
   }
 
-  // Shopify requires a 200 acknowledgment; actual data export is handled offline
-  return { acknowledged: true, topic: "customers/data_request" };
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("id, email, body_shape, preferred_colors, avoided_colors, size_info, occasions, budget_range, quiz_completed_at, created_at")
+    .eq("brand_id", brand.id)
+    .eq("email", email)
+    .maybeSingle();
+
+  if (!customer) {
+    console.log(`[customers/data_request] No record for email *** brand ${brand.id} — no export to send`);
+    return { acknowledged: true, reason: "no_record" };
+  }
+
+  const [accountResult, recResult] = await Promise.all([
+    supabase
+      .from("customer_accounts")
+      .select("id, name, email, created_at")
+      .eq("brand_id", brand.id)
+      .eq("customer_id", customer.id)
+      .maybeSingle(),
+    supabase
+      .from("recommendations")
+      .select("id", { count: "exact", head: true })
+      .eq("brand_id", brand.id)
+      .eq("customer_id", customer.id),
+  ]);
+
+  const account = accountResult.data;
+  const recCount = recResult.count ?? 0;
+
+  let outfitCount = 0;
+  if (account?.id) {
+    const { count } = await supabase
+      .from("saved_outfits")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_account_id", account.id);
+    outfitCount = count ?? 0;
+  }
+
+  let exported = false;
+  try {
+    const { error } = await supabase.functions.invoke("send-transactional-email", {
+      body: {
+        templateName: "customer-data-export",
+        recipientEmail: email,
+        templateData: {
+          brandName: brand.name,
+          accountEmail: account?.email ?? email,
+          accountName: account?.name ?? null,
+          accountCreatedAt: account?.created_at ?? null,
+          quizCompleted: !!customer.quiz_completed_at,
+          quizCompletedAt: customer.quiz_completed_at,
+          profileCreatedAt: customer.created_at,
+          bodyShape: customer.body_shape,
+          preferredColors: customer.preferred_colors,
+          avoidedColors: customer.avoided_colors,
+          sizeInfo: customer.size_info,
+          occasions: customer.occasions,
+          budgetRange: customer.budget_range,
+          recommendationCount: recCount,
+          savedOutfitCount: outfitCount,
+        },
+      },
+    });
+    if (error) throw error;
+    console.log(`[customers/data_request] export email sent to *** brand ${brand.id}`);
+    exported = true;
+  } catch (err) {
+    const e = err as Error;
+    console.error(`[customers/data_request] EXPORT EMAIL FAILED — manual follow-up required for customer: *** brand: ${brand.id} error: ${e.message}`);
+  }
+
+  return { acknowledged: true, exported };
 }
 
 // Handle customers/redact — delete customer data
@@ -638,7 +700,7 @@ serve(async (req) => {
         break;
 
       case "customers/data_request":
-        result = await handleCustomerDataRequest(supabase, brand.id, payload);
+        result = await handleCustomerDataRequest(supabase, brand, payload);
         break;
 
       case "customers/redact":
