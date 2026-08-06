@@ -98,8 +98,8 @@ export default function GettingStarted() {
                 3
               </div>
               <div>
-                <CardTitle className="text-lg">Configure Your Widget</CardTitle>
-                <CardDescription>Customize the look and behavior of recommendations</CardDescription>
+                <CardTitle className="text-lg">Set Your Outfit Rules</CardTitle>
+                <CardDescription>Fine-tune how AI generates outfit recommendations</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -107,17 +107,22 @@ export default function GettingStarted() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                <span>Go to Widget Settings in your dashboard</span>
+                <span>Go to the Rules page in your dashboard</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                <span>Set your brand colors and fonts</span>
+                <span>Set outfit composition (item count, required/optional categories) and styling rules (color harmony, fit balance, seasonal relevance)</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                <span>Choose the number of recommendations to show</span>
+                <span>Preview your rules live against your synced catalog before publishing</span>
               </li>
             </ul>
+            <Link to="/rules">
+              <Button variant="outline" className="mt-4 gap-2">
+                Go to Rules <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 
