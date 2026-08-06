@@ -69,6 +69,25 @@ export default function Support() {
 
       if (error) throw error;
 
+      const submitterEmail = email || user?.email || "";
+      const priority = hasPrioritySupport ? "priority" : "standard";
+      await Promise.allSettled([
+        supabase.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "support-ticket-received",
+            recipientEmail: "support@stylysapp.com",
+            templateData: { fromEmail: submitterEmail, ticketSubject: subject, message, priority },
+          },
+        }),
+        ...(submitterEmail ? [supabase.functions.invoke("send-transactional-email", {
+          body: {
+            templateName: "support-ticket-confirmation",
+            recipientEmail: submitterEmail,
+            templateData: { ticketSubject: subject, message, priority },
+          },
+        })] : []),
+      ]);
+
       toast({
         title: "Support request submitted",
         description: hasPrioritySupport

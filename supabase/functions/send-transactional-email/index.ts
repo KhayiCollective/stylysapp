@@ -77,9 +77,27 @@ function renderCustomerDataExport(data: Record<string, any>) {
   return { subject, html };
 }
 
+function renderSupportTicketReceived(data: Record<string, any>) {
+  const subject = `[Support] ${data.priority === "priority" ? "[PRIORITY] " : ""}New ticket: ${data.ticketSubject}`;
+  const priorityBadge = data.priority === "priority"
+    ? `<span style="display:inline-block;background:#b91c1c;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;margin-left:8px">PRIORITY</span>`
+    : `<span style="display:inline-block;background:#6b7280;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;margin-left:8px">STANDARD</span>`;
+  const html = `<!doctype html><html><body style="margin:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#111"><div style="max-width:600px;margin:0 auto;padding:40px 24px"><div style="font-size:20px;font-weight:600;letter-spacing:0.04em;margin-bottom:28px">STYLYS</div><h1 style="font-size:20px;font-weight:600;margin:0 0 4px">New support ticket ${priorityBadge}</h1><p style="font-size:13px;color:#888;margin:0 0 24px">${new Date().toUTCString()}</p><table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px"><tr><td style="padding:6px 0;color:#888;width:100px;vertical-align:top">From</td><td style="padding:6px 0;color:#111">${data.fromEmail}</td></tr><tr><td style="padding:6px 0;color:#888;vertical-align:top">Subject</td><td style="padding:6px 0;color:#111">${data.ticketSubject}</td></tr></table><div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap">${data.message}</div></div></body></html>`;
+  return { subject, html };
+}
+
+function renderSupportTicketConfirmation(data: Record<string, any>) {
+  const responseTime = data.priority === "priority" ? "4 hours" : "24–48 hours";
+  const subject = `We received your support request`;
+  const html = `<!doctype html><html><body style="margin:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#111"><div style="max-width:520px;margin:0 auto;padding:40px 24px"><div style="font-size:20px;font-weight:600;letter-spacing:0.04em;margin-bottom:28px">STYLYS</div><h1 style="font-size:22px;font-weight:600;margin:0 0 16px">We got your message</h1><p style="font-size:15px;line-height:1.55;color:#333;margin:0 0 16px">Thanks for reaching out. We'll get back to you within <strong>${responseTime}</strong>.</p><div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:0 0 24px"><p style="font-size:12px;color:#888;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em">Your message</p><p style="font-size:14px;font-weight:600;color:#111;margin:0 0 8px">${data.ticketSubject}</p><p style="font-size:14px;color:#555;line-height:1.55;margin:0;white-space:pre-wrap">${data.message}</p></div><p style="font-size:13px;color:#888;line-height:1.5;margin:0">You can also reach us at <a href="mailto:support@stylysapp.com" style="color:#111">support@stylysapp.com</a>.</p></div></body></html>`;
+  return { subject, html };
+}
+
 const TEMPLATES: Record<string, (d: Record<string, any>) => { subject: string; html: string }> = {
   "customer-password-reset": renderPasswordReset,
   "customer-data-export": renderCustomerDataExport,
+  "support-ticket-received": renderSupportTicketReceived,
+  "support-ticket-confirmation": renderSupportTicketConfirmation,
 };
 
 Deno.serve(async (req) => {
