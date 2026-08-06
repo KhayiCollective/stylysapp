@@ -1,17 +1,23 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
 
 export default function Privacy() {
+  const { user } = useAuth();
+  const { isEmbedded } = useEmbeddedApp();
+  const backLink = isEmbedded ? "/embedded" : user ? "/dashboard" : "/";
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border">
         <div className="container mx-auto px-4 py-4">
-          <Link to="/">
+          <Link to={backLink}>
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
-              Back to Home
+              {isEmbedded || user ? "Back to Dashboard" : "Back to Home"}
             </Button>
           </Link>
         </div>
