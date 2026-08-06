@@ -45,7 +45,7 @@ export default function FAQ() {
   const widgetFaqs = [
     {
       question: "Where should I place the widget on my product pages?",
-      answer: "We recommend placing the widget below the product description or after the add-to-cart button. This ensures customers see recommendations after viewing the main product details."
+      answer: "The STYLYS widget appears automatically as a floating button in the bottom-right corner of your storefront — no manual placement needed. When a customer clicks it, a panel slides in from the right showing outfit recommendations. On Professional and Enterprise plans, a second floating button for the AI styling chatbot appears just above it."
     },
     {
       question: "Can I customize the widget appearance?",
