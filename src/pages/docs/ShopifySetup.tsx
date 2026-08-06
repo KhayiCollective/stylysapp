@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocsLayout } from "@/components/docs/DocsLayout";
-import { CodeBlock } from "@/components/docs/CodeBlock";
 
 export default function ShopifySetup() {
   return (
@@ -37,23 +36,17 @@ export default function ShopifySetup() {
           
           <div className="space-y-6">
             <div>
-              <h3 className="font-medium text-lg mb-2">1. Navigate to Connect Page</h3>
+              <h3 className="font-medium text-lg mb-2">1. Install from the Shopify App Store</h3>
               <p className="text-muted-foreground mb-3">
-                From your STYLYS dashboard, go to Settings → Shopify Connection, or click 
-                the "Connect Shopify" button on the Dashboard.
+                Install STYLYS from the Shopify App Store — this automatically detects your store and starts the connection. If you need to reconnect later, go to Settings → Shopify Connection in your STYLYS dashboard.
               </p>
             </div>
 
             <div>
-              <h3 className="font-medium text-lg mb-2">2. Enter Your Store URL</h3>
+              <h3 className="font-medium text-lg mb-2">2. Enter Your Store Name</h3>
               <p className="text-muted-foreground mb-3">
-                Enter your Shopify store URL in the format:
+                If reconnecting via Settings, enter just your store name (e.g. "mystore") — STYLYS automatically appends .myshopify.com. If you installed from the Shopify App Store, this step is handled automatically and you can skip ahead.
               </p>
-              <CodeBlock
-                code="mystore.myshopify.com"
-                language="text"
-                title="Store URL Format"
-              />
             </div>
 
             <div>
@@ -62,10 +55,14 @@ export default function ShopifySetup() {
                 You'll be redirected to Shopify to approve the following permissions:
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-4">
-                <li><code>read_products</code> - Access product information</li>
-                <li><code>read_product_listings</code> - Access product listings</li>
-                <li><code>write_checkouts</code> - Create checkout sessions</li>
+                <li><code>read_products</code> — Access product details</li>
+                <li><code>read_product_listings</code> — Access how products are listed and organized</li>
+                <li><code>read_inventory</code> — Check stock levels</li>
+                <li><code>read_themes</code> — Detect whether the STYLYS widget is enabled in your theme</li>
+                <li><code>unauthenticated_read_product_listings</code> — Power the storefront-facing widget's product data</li>
+                <li><code>unauthenticated_read_product_tags</code> — Power tag-based filtering in the widget</li>
               </ul>
+              <p className="text-sm text-muted-foreground mt-3">STYLYS never requests write access to your store.</p>
             </div>
 
             <div>
@@ -120,17 +117,10 @@ export default function ShopifySetup() {
 
         {/* App Proxy */}
         <div>
-          <h2 className="font-display text-2xl font-medium mb-4">App Proxy (Optional)</h2>
+          <h2 className="font-display text-2xl font-medium mb-4">App Proxy</h2>
           <p className="text-muted-foreground mb-4">
-            For advanced integrations, STYLYS supports Shopify App Proxy to serve content 
-            directly on your domain (e.g., <code>yourstore.com/apps/stylys</code>).
+            STYLYS uses Shopify App Proxy to serve the widget and quiz experience directly on your domain (e.g., <code>yourstore.com/apps/stylys</code>), giving you same-origin requests, better SEO, and seamless integration with your store's theme.
           </p>
-          <div className="p-4 bg-muted rounded-lg">
-            <p className="text-sm">
-              <strong>Benefits:</strong> Same-origin requests, better SEO, access to customer 
-              session data, and seamless integration with your store's theme.
-            </p>
-          </div>
         </div>
 
         {/* Troubleshooting */}
@@ -149,8 +139,7 @@ export default function ShopifySetup() {
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium mb-2">Products Not Syncing</h4>
               <p className="text-sm text-muted-foreground">
-                Check the Sync Status in your dashboard. If webhooks aren't receiving, 
-                try the "Manual Sync" button to force a full catalog refresh.
+                Check Sync Status in Settings — you'll see total/synced product counts and the last sync time. If products are out of date, click "Sync Products Now" to force a full catalog refresh.
               </p>
             </div>
 
