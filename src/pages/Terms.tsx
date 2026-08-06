@@ -111,13 +111,13 @@ export default function Terms() {
           <section>
             <h2 className="font-display text-2xl font-medium mb-4">8. Subscription and Billing</h2>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              STYLYS offers subscription-based pricing:
+              STYLYS offers subscription-based pricing managed through Shopify. By subscribing, you acknowledge that:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-              <li>Subscription fees are billed in advance on a monthly or annual basis</li>
+              <li>Subscriptions are billed and managed by Shopify through your Shopify admin</li>
               <li>All fees are non-refundable except as required by law</li>
-              <li>We reserve the right to modify pricing with 30 days' notice</li>
-              <li>Failure to pay may result in suspension or termination of service</li>
+              <li>Pricing changes and plan modifications are subject to Shopify's billing consent flow and policies</li>
+              <li>Failure to maintain an active Shopify subscription may result in loss of access to paid features</li>
             </ul>
           </section>
 
@@ -140,7 +140,7 @@ export default function Terms() {
               <li>Verifying all compliance webhooks using HMAC signatures</li>
             </ul>
             <p className="text-muted-foreground leading-relaxed mt-2">
-              Upon app uninstallation, all merchant data—including synced products, customer accounts, outfit data, and widget configurations—is permanently deleted.
+              Upon app uninstallation, all store data synced through STYLYS—including products, customer accounts, outfit data, and widget configurations—is permanently deleted. Your STYLYS account itself is not automatically removed; contact support if you wish to delete your account entirely.
             </p>
           </section>
 
