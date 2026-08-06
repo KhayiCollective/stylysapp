@@ -1,13 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useAccountBootstrap } from '@/hooks/useAccountBootstrap';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Sparkles, Store, CheckCircle, Loader2, ExternalLink, AlertCircle, RefreshCw, Settings } from 'lucide-react';
+import { Sparkles, Store, CheckCircle, Loader2, ExternalLink, AlertCircle, Settings } from 'lucide-react';
 import stylysIconCream from '@/assets/stylys-icon-cream.png';
 import { Link } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -17,68 +14,25 @@ interface ConnectionStep {
   message: string;
 }
 
-interface PopupBlockedState {
-  blocked: boolean;
-  authUrl: string | null;
-}
-
 export default function ShopifyConnect() {
-  const [shop, setShop] = useState('');
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [connected, setConnected] = useState(false);
   const [connectionStep, setConnectionStep] = useState<ConnectionStep | null>(null);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
-  const [popupBlocked, setPopupBlocked] = useState<PopupBlockedState>({ blocked: false, authUrl: null });
-  const [missingProfile, setMissingProfile] = useState(false);
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { bootstrap, bootstrapping } = useAccountBootstrap();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const redirectUri = `https://stylysapp.vercel.app/connect-shopify`;
   const callbackProcessed = useRef(false);
 
-  // Pre-flight check for edge function availability
-  const checkEdgeFunctionHealth = async (): Promise<boolean> => {
-    try {
-      console.log('[ShopifyConnect] Checking edge function health...');
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=health`,
-        { method: 'GET' }
-      );
-      
-      if (response.status === 404) {
-        console.error('[ShopifyConnect] Edge function not found (404)');
-        return false;
-      }
-      
-      const data = await response.json();
-      console.log('[ShopifyConnect] Health check response:', data);
-      return data.status === 'ok';
-    } catch (error) {
-      console.error('[ShopifyConnect] Health check failed:', error);
-      return false;
-    }
-  };
-
-  // Check for embedded mode params
   const isEmbeddedFlow = searchParams.get('embedded') === 'true';
-  const prefilledShop = searchParams.get('shop');
-
-  // Pre-fill shop if coming from embedded flow
-  useEffect(() => {
-    if (prefilledShop && !shop) {
-      const cleanShop = prefilledShop.replace('.myshopify.com', '');
-      setShop(cleanShop);
-    }
-  }, [prefilledShop, shop]);
 
   // Check if already connected or handle OAuth callback
   useEffect(() => {
     const checkConnection = async () => {
-      // Handle OAuth callback
+      // Handle OAuth callback (Shopify redirects back here with code+shop+state)
       const code = searchParams.get('code');
       const shopParam = searchParams.get('shop');
       const state = searchParams.get('state');
@@ -87,22 +41,19 @@ export default function ShopifyConnect() {
         // Guard: prevent double-execution (React StrictMode / re-renders)
         if (callbackProcessed.current) return;
         callbackProcessed.current = true;
-        
+
         // Immediately clear URL params to prevent re-triggering
         window.history.replaceState({}, '', '/connect-shopify');
 
         console.log('[ShopifyConnect] OAuth callback detected');
         console.log('[ShopifyConnect] Params:', { code: code.substring(0, 10) + '...', shop: shopParam, hasState: !!state });
-        
+
         setLoading(true);
         setConnectionStep({ step: 'processing-callback', message: 'Processing OAuth callback...' });
-        
-        // Check if this was an embedded flow by checking state
-        let wasEmbeddedFlow = false;
+
         try {
           const decodedState = JSON.parse(atob(state));
           console.log('[ShopifyConnect] Decoded state:', decodedState);
-          wasEmbeddedFlow = decodedState.embedded === true;
         } catch (e) {
           console.error('[ShopifyConnect] Could not decode state:', e);
         }
@@ -110,13 +61,12 @@ export default function ShopifyConnect() {
         try {
           setConnectionStep({ step: 'exchanging-token', message: 'Exchanging authorization code...' });
 
-          // Call callback endpoint
           const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=callback&code=${encodeURIComponent(code)}&shop=${encodeURIComponent(shopParam)}&state=${encodeURIComponent(state)}`;
           console.log('[ShopifyConnect] Calling callback URL...');
-          
+
           const response = await fetch(callbackUrl, { method: 'GET' });
           console.log('[ShopifyConnect] Callback response status:', response.status);
-          
+
           const result = await response.json();
           console.log('[ShopifyConnect] Callback result:', result);
 
@@ -127,8 +77,8 @@ export default function ShopifyConnect() {
               description: `Successfully connected to ${result.shop}`,
             });
             setConnected(true);
-            
-            // Always redirect back to Shopify Admin with the app open
+
+            // Redirect back to Shopify Admin with the app open
             sessionStorage.removeItem('selectedPlan');
             const shopName = shopParam.replace('.myshopify.com', '');
             const adminUrl = `https://admin.shopify.com/store/${shopName}/apps/stylys-app`;
@@ -191,7 +141,6 @@ export default function ShopifyConnect() {
 
           if (brand?.shopify_connected_at) {
             setConnected(true);
-            // If embedded flow and already connected, go back to embedded
             if (isEmbeddedFlow && brand.shopify_store_domain) {
               const shopName = brand.shopify_store_domain.replace('.myshopify.com', '');
               window.location.href = `https://admin.shopify.com/store/${shopName}/apps/stylys-app`;
@@ -207,120 +156,6 @@ export default function ShopifyConnect() {
 
     checkConnection();
   }, [user, searchParams, navigate, toast, isEmbeddedFlow]);
-
-  const handleConnect = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      toast({
-        title: "Not authenticated",
-        description: "Please sign in first",
-        variant: "destructive",
-      });
-      navigate('/auth');
-      return;
-    }
-
-    setLoading(true);
-    setErrorDetails(null);
-    setConnectionStep({ step: 'checking', message: 'Verifying edge function...' });
-
-    try {
-      // Pre-flight check
-      const isHealthy = await checkEdgeFunctionHealth();
-      if (!isHealthy) {
-        throw new Error('The OAuth service is currently unavailable. Please try again in a moment or check Settings > Developer Test Mode for diagnostics.');
-      }
-
-      // Get brand_id - if missing, try to bootstrap
-      let { data: profile } = await supabase
-        .from('profiles')
-        .select('brand_id')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile?.brand_id) {
-        // Try to bootstrap the account
-        const result = await bootstrap();
-        if (!result.ok) {
-          setMissingProfile(true);
-          throw new Error('Account setup incomplete. Please try the "Fix Account" button.');
-        }
-        // Re-fetch profile after bootstrap
-        const { data: refreshedProfile } = await supabase
-          .from('profiles')
-          .select('brand_id')
-          .eq('id', user.id)
-          .single();
-        profile = refreshedProfile;
-        
-        if (!profile?.brand_id) {
-          setMissingProfile(true);
-          throw new Error('Account setup incomplete');
-        }
-      }
-
-      // Format shop domain
-      let shopDomain = shop.trim().toLowerCase();
-      if (!shopDomain.includes('.myshopify.com')) {
-        shopDomain = `${shopDomain}.myshopify.com`;
-      }
-
-      // Create state with brand_id (and embedded flag if applicable)
-      const statePayload: { brand_id: string; embedded?: boolean } = { brand_id: profile.brand_id };
-      if (isEmbeddedFlow) {
-        statePayload.embedded = true;
-      }
-      const state = btoa(JSON.stringify(statePayload));
-      const redirectUri = `https://stylysapp.vercel.app/connect-shopify`;
-
-      console.log('[ShopifyConnect] Initiating OAuth flow:', { shopDomain, redirectUri, brandId: profile.brand_id });
-
-      // Get auth URL from edge function
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/shopify-oauth?action=authorize&shop=${encodeURIComponent(shopDomain)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`,
-        { method: 'GET' }
-      );
-
-      console.log('[ShopifyConnect] Auth URL response status:', response.status);
-      const result = await response.json();
-      console.log('[ShopifyConnect] Auth URL result:', result);
-
-      if (result.authUrl) {
-        // Open Shopify OAuth in a new window to bypass iframe restrictions
-        console.log('[ShopifyConnect] Opening Shopify auth in new window...');
-        const authWindow = window.open(result.authUrl, '_blank', 'noopener,noreferrer');
-        
-        if (!authWindow || authWindow.closed || typeof authWindow.closed === 'undefined') {
-          // Popup was blocked - show fallback UI
-          console.log('[ShopifyConnect] Popup blocked, showing fallback');
-          setPopupBlocked({ blocked: true, authUrl: result.authUrl });
-          setLoading(false);
-          toast({
-            title: "Popup blocked",
-            description: "Please click the link below to open Shopify authorization",
-          });
-        } else {
-          toast({
-            title: "Opening Shopify...",
-            description: "Complete authorization in the new window, then return here",
-          });
-          setLoading(false);
-        }
-      } else {
-        throw new Error(result.error || 'Failed to get authorization URL');
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Failed to initiate Shopify connection";
-      console.error('[ShopifyConnect] Connection error:', error);
-      setConnectionStep({ step: 'error', message: errorMsg });
-      toast({
-        title: "Connection failed",
-        description: errorMsg,
-        variant: "destructive",
-      });
-      setLoading(false);
-    }
-  };
 
   if (checking) {
     return (
@@ -343,77 +178,17 @@ export default function ShopifyConnect() {
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <div className="flex gap-1">
               {['processing-callback', 'exchanging-token', 'saving', 'done'].map((step, i) => (
-                <div 
+                <div
                   key={step}
                   className={`w-2 h-2 rounded-full ${
                     connectionStep.step === step ? 'bg-primary' :
-                    ['processing-callback', 'exchanging-token', 'saving', 'done'].indexOf(connectionStep.step) > i 
+                    ['processing-callback', 'exchanging-token', 'saving', 'done'].indexOf(connectionStep.step) > i
                       ? 'bg-primary' : 'bg-muted'
                   }`}
                 />
               ))}
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show recovery UI for missing profile/brand
-  if (missingProfile) {
-    const handleFixAccount = async () => {
-      setMissingProfile(false);
-      const result = await bootstrap();
-      if (result.ok) {
-        toast({
-          title: "Account fixed!",
-          description: "Your account has been set up. You can now connect Shopify.",
-        });
-        setConnectionStep(null);
-        setErrorDetails(null);
-      } else {
-        toast({
-          title: "Still having issues",
-          description: result.error || "Please try signing out and back in",
-          variant: "destructive",
-        });
-        setMissingProfile(true);
-      }
-    };
-
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center space-y-6 max-w-md">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30">
-            <AlertCircle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-display font-bold">Account Setup Required</h2>
-            <p className="text-muted-foreground mt-2">
-              Your account wasn't fully initialized. This can happen if there was an issue during sign-up.
-            </p>
-          </div>
-          <div className="space-y-3">
-            <Button onClick={handleFixAccount} disabled={bootstrapping} className="w-full">
-              {bootstrapping ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Fixing account...
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  Fix My Account
-                </span>
-              )}
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/auth')} className="w-full">
-              Sign Out & Try Again
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            User ID: {user?.id?.substring(0, 8)}...
-          </p>
         </div>
       </div>
     );
@@ -445,13 +220,13 @@ export default function ShopifyConnect() {
             </div>
             <span className="text-2xl font-display font-semibold">STYLYS</span>
           </Link>
-          
+
           <h1 className="text-5xl font-display font-bold leading-tight mb-6">
             Connect Your
             <br />
             Shopify Store
           </h1>
-          
+
           <p className="text-lg text-primary-foreground/80 max-w-md">
             Link your store and start generating AI-powered outfit recommendations for your customers in minutes.
           </p>
@@ -477,13 +252,13 @@ export default function ShopifyConnect() {
         </div>
       </div>
 
-      {/* Right side - Form */}
+      {/* Right side - Install instructions */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
             <Sparkles className="h-6 w-6 text-primary" />
-            <span className="text-xl font-display font-semibold">AI Stylist</span>
+            <span className="text-xl font-display font-semibold">STYLYS</span>
           </div>
 
           <div className="text-center mb-8">
@@ -491,14 +266,13 @@ export default function ShopifyConnect() {
               <Store className="h-7 w-7 text-primary" />
             </div>
             <h2 className="text-3xl font-display font-bold text-foreground">
-              Connect Shopify
+              Connect Your Store
             </h2>
             <p className="mt-2 text-muted-foreground">
-              Enter your Shopify store URL to get started
+              Install STYLYS from the Shopify App Store to get started.
             </p>
           </div>
 
-          {/* Error Alert */}
           {connectionStep?.step === 'error' && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -511,78 +285,33 @@ export default function ShopifyConnect() {
             </Alert>
           )}
 
-          {/* Popup Blocked Fallback */}
-          {popupBlocked.blocked && popupBlocked.authUrl && (
-            <Alert className="mb-6 border-amber-500 bg-amber-50 dark:bg-amber-900/20">
-              <ExternalLink className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="space-y-3">
-                <p className="font-medium text-amber-800 dark:text-amber-200">
-                  Popup was blocked by your browser
-                </p>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  Click the button below to open Shopify authorization in a new tab:
-                </p>
+          <div className="space-y-4">
+            <Button className="w-full h-11 font-medium" asChild>
+              <a
+                href="https://apps.shopify.com/stylys"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Install from Shopify App Store
+              </a>
+            </Button>
+
+            <div className="p-4 rounded-lg bg-muted/50 border border-border">
+              <h3 className="font-medium text-sm mb-2">Already installed?</h3>
+              <p className="text-sm text-muted-foreground">
+                Open STYLYS from your{' '}
                 <a
-                  href={popupBlocked.authUrl}
+                  href="https://admin.shopify.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
+                  className="text-primary hover:underline"
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  Open Shopify Authorization
+                  Shopify Admin
                 </a>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <form onSubmit={handleConnect} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="shop" className="text-sm font-medium">
-                Store URL
-              </Label>
-              <div className="relative">
-                <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="shop"
-                  type="text"
-                  placeholder="mystore"
-                  value={shop}
-                  onChange={(e) => setShop(e.target.value)}
-                  required
-                  className="pl-10 pr-32"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  .myshopify.com
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Enter just your store name (e.g., "mystore" not "mystore.myshopify.com")
+                {' '}— Shopify will connect your store automatically.
               </p>
-
             </div>
-
-            <Button type="submit" className="w-full h-11 font-medium" disabled={loading || !shop.trim()}>
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {connectionStep?.message || 'Connecting...'}
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  Connect Store
-                  <ExternalLink className="h-4 w-4" />
-                </span>
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-8 p-4 rounded-lg bg-muted/50 border border-border">
-            <h3 className="font-medium text-sm mb-2">What happens next?</h3>
-            <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>You'll be redirected to Shopify to authorize</li>
-              <li>Grant read access to your products</li>
-              <li>Return here to start creating outfits</li>
-            </ol>
           </div>
 
           {import.meta.env.DEV && (
@@ -590,7 +319,7 @@ export default function ShopifyConnect() {
               <div className="flex items-start gap-3">
                 <Settings className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <h3 className="font-medium text-sm mb-1">Having trouble connecting?</h3>
+                  <h3 className="font-medium text-sm mb-1">Developer Test Mode</h3>
                   <p className="text-sm text-muted-foreground mb-2">
                     Use Developer Test Mode to create a mock connection and test the dashboard without real OAuth.
                   </p>
