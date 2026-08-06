@@ -465,8 +465,8 @@ export default function ShopifyConnect() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/80" />
         <div className="relative z-10 flex flex-col justify-center px-16 text-primary-foreground">
           <Link to="/" className="flex items-center gap-3 mb-8">
-            <div className="p-3 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
-              <img src={stylysIconCream} alt="STYLYS" className="h-12 w-12 object-contain" />
+            <div className="p-2 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
+              <img src={stylysIconCream} alt="STYLYS" className="h-16 w-16 object-contain" />
             </div>
             <span className="text-2xl font-display font-semibold">STYLYS</span>
           </Link>
