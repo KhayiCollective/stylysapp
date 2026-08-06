@@ -453,21 +453,25 @@ export default function ShopifyConnect() {
           </h1>
           
           <p className="text-lg text-primary-foreground/80 max-w-md">
-            Link your Shopify store to start creating AI-powered outfit recommendations for your customers.
+            Link your store and start generating AI-powered outfit recommendations for your customers in minutes.
           </p>
 
           <div className="mt-12 space-y-4">
             <div className="flex items-center gap-3 text-primary-foreground/70">
               <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground/50" />
-              <span>Sync your product catalog automatically</span>
+              <span>Automatically sync your entire product catalog</span>
             </div>
             <div className="flex items-center gap-3 text-primary-foreground/70">
               <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground/50" />
-              <span>Create AI outfit recommendations</span>
+              <span>Generate AI-powered outfit recommendations</span>
             </div>
             <div className="flex items-center gap-3 text-primary-foreground/70">
               <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground/50" />
-              <span>Embed widget on your store</span>
+              <span>Let customers virtually try on outfits before they buy</span>
+            </div>
+            <div className="flex items-center gap-3 text-primary-foreground/70">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground/50" />
+              <span>Add the styling widget to your storefront</span>
             </div>
           </div>
         </div>
