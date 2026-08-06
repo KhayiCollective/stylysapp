@@ -28,5 +28,6 @@ api_version = "2025-10"
     "inventory_levels/update",
     "app/uninstalled"
   ]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
   uri = "https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/shopify-webhooks"
 
