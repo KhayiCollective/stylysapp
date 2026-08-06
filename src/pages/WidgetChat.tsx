@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, Send, Sparkles, User, X } from "lucide-react";
-import stylysIcon from "@/assets/stylys-icon.png";
+import stylysIconCreamCream from "@/assets/stylys-icon-cream.png";
 import { getCustomerToken } from "@/lib/widgetAuth";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/widget-styling-chat`;
@@ -140,7 +140,7 @@ function LoadingDots() {
   return (
     <div className="flex gap-2">
       <div className="h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
-        <img src={stylysIcon} alt="STYLYS" className="h-3 w-3 object-contain" />
+        <img src={stylysIconCream} alt="STYLYS" className="h-3 w-3 object-contain" />
       </div>
       <div className="bg-muted rounded-lg px-3 py-2">
         <div className="flex gap-1">
@@ -424,11 +424,11 @@ const WidgetChat = () => {
     <div className="flex flex-col h-screen bg-background">
       <div className="p-4 border-b bg-primary text-primary-foreground flex items-center gap-3 flex-shrink-0">
         <div className="h-8 w-8 rounded-full flex items-center justify-center">
-          <img src={stylysIcon} alt="STYLYS" className="h-4 w-4 object-contain" />
+          <img src={stylysIconCream} alt="STYLYS" className="h-4 w-4 object-contain" />
         </div>
         <div className="flex-1">
           <p className="font-semibold text-sm">STYLYS</p>
-          <p className="text-xs opacity-70">Personal Styling Assistant</p>
+          <p className="text-xs opacity-70">Your Personal Stylist</p>
         </div>
         <button
           onClick={() => window.parent.postMessage({ type: "stylys-chat-close" }, "*")}
@@ -464,7 +464,7 @@ const WidgetChat = () => {
                     }`}
                   >
                     {msg.role === "assistant" ? (
-                      <img src={stylysIcon} alt="STYLYS" className="h-3 w-3 object-contain" />
+                      <img src={stylysIconCream} alt="STYLYS" className="h-3 w-3 object-contain" />
                     ) : (
                       <User className="h-3 w-3" />
                     )}
