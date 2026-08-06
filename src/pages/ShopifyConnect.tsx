@@ -464,12 +464,12 @@ export default function ShopifyConnect() {
       <div className="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-primary/80" />
         <div className="relative z-10 flex flex-col justify-center px-16 text-primary-foreground">
-          <div className="flex items-center gap-3 mb-8">
+          <Link to="/" className="flex items-center gap-3 mb-8">
             <div className="p-3 rounded-xl bg-primary-foreground/10 backdrop-blur-sm">
-              <img src={stylysIconCream} alt="STYLYS" className="h-8 w-8 object-contain" />
+              <img src={stylysIconCream} alt="STYLYS" className="h-12 w-12 object-contain" />
             </div>
             <span className="text-2xl font-display font-semibold">STYLYS</span>
-          </div>
+          </Link>
           
           <h1 className="text-5xl font-display font-bold leading-tight mb-6">
             Connect Your
