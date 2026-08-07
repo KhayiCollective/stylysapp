@@ -61,7 +61,7 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
       <div className="bg-primary text-primary-foreground p-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-12 w-12 rounded-full bg-primary-foreground/10 flex items-center justify-center">
-            <img src={stylysIconCream} alt="STYLYS" className="h-8 w-8 object-contain" />
+            <img src={stylysIconCream} alt="STYLYS" className="h-9 w-9 object-contain" />
           </div>
           <div>
             <h2 className="font-semibold text-sm tracking-wide">STYLYS</h2>
