@@ -100,7 +100,7 @@ export function CustomerWidget({ brandId, externalOpen, externalTab, onOpenChang
           onClick={() => setOpen(true)}
           className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all flex items-center justify-center hover:scale-105 active:scale-95"
         >
-          <img src={stylysIcon} alt="STYLYS" className="h-8 w-8 rounded-full object-cover" />
+          <img src={stylysIcon} alt="STYLYS" className="h-9 w-9 rounded-full object-cover" />
         </button>
       )}
 
