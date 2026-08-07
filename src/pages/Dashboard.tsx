@@ -213,56 +213,66 @@ const Dashboard = () => {
             <CardTitle className="font-display text-xl">Weekly Performance</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorConversions" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: "hsl(var(--card))", 
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px"
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="views" 
-                    stroke="hsl(var(--chart-1))" 
-                    fillOpacity={1} 
-                    fill="url(#colorViews)" 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="conversions" 
-                    stroke="hsl(var(--chart-2))" 
-                    fillOpacity={1} 
-                    fill="url(#colorConversions)" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center justify-center gap-6 mt-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} />
-                <span className="text-sm text-muted-foreground">Views</span>
+            {totalOutfits === 0 ? (
+              <div className="h-80 flex flex-col items-center justify-center text-muted-foreground">
+                <TrendingUp className="w-8 h-8 mb-3 opacity-30" />
+                <p className="text-sm font-medium">No data yet</p>
+                <p className="text-xs mt-1">Performance data will appear once customers interact with the widget</p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} />
-                <span className="text-sm text-muted-foreground">Conversions</span>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorConversions" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--card))", 
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px"
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="views" 
+                        stroke="hsl(var(--chart-1))" 
+                        fillOpacity={1} 
+                        fill="url(#colorViews)" 
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="conversions" 
+                        stroke="hsl(var(--chart-2))" 
+                        fillOpacity={1} 
+                        fill="url(#colorConversions)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center justify-center gap-6 mt-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} />
+                    <span className="text-sm text-muted-foreground">Views</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} />
+                    <span className="text-sm text-muted-foreground">Conversions</span>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -272,34 +282,44 @@ const Dashboard = () => {
             <CardTitle className="font-display text-xl">Outfit Categories</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {categoryData.map((cat) => (
-                <div key={cat.name} className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                  <span className="text-xs text-muted-foreground">{cat.name} ({cat.value}%)</span>
+            {totalOutfits === 0 ? (
+              <div className="h-48 flex flex-col items-center justify-center text-muted-foreground">
+                <Layers className="w-8 h-8 mb-3 opacity-30" />
+                <p className="text-sm font-medium">No data yet</p>
+                <p className="text-xs mt-1">Categories will appear once outfits are generated</p>
+              </div>
+            ) : (
+              <>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  {categoryData.map((cat) => (
+                    <div key={cat.name} className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+                      <span className="text-xs text-muted-foreground">{cat.name} ({cat.value}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
