@@ -321,8 +321,9 @@ Variation seed: ${crypto.randomUUID()}`;
             in_stock: p._sizeAvailable !== false && p.inventory_status === "in_stock",
             available: p._sizeAvailable !== false && p.inventory_status === "in_stock",
           }));
+        const outfitId = crypto.randomUUID();
         return {
-          id: crypto.randomUUID(),
+          id: outfitId,
           name: o.name || `Look ${i + 1}`,
           items,
           totalPrice: items.reduce((s: number, p: any) => s + Number(p.price), 0),
@@ -330,6 +331,31 @@ Variation seed: ${crypto.randomUUID()}`;
           occasion: o.occasion,
         };
       }).filter((o: any) => o.items.length > 0);
+
+      // Persist to DB for analytics — fire-and-forget, never blocks outfit delivery
+      (async () => {
+        try {
+          const { error: outfitErr } = await supabase.from("outfits").insert(
+            outfits.map((o: any) => ({
+              id: o.id,
+              brand_id,
+              name: o.name,
+              anchor_product_id: anchorProduct?.id ?? null,
+              total_price: o.totalPrice,
+            }))
+          );
+          if (outfitErr) { console.error("[widget-outfits/generate] outfit persist:", outfitErr.message); return; }
+          const itemRows = outfits.flatMap((o: any) =>
+            o.items.map((item: any, pos: number) => ({ outfit_id: o.id, product_id: item.id, position: pos }))
+          );
+          if (itemRows.length) {
+            const { error: itemErr } = await supabase.from("outfit_items").insert(itemRows);
+            if (itemErr) console.error("[widget-outfits/generate] outfit_items persist:", itemErr.message);
+          }
+        } catch (e) {
+          console.error("[widget-outfits/generate] persist exception:", e);
+        }
+      })();
 
       return json({ outfits });
     }
@@ -441,6 +467,39 @@ Variation seed: ${crypto.randomUUID()}`;
         }
       }
       return json({ stock });
+    }
+
+    // --- EVENT (public: view or conversion) ---
+    if (path === "event" && req.method === "POST") {
+      const body = await req.json();
+      let brand_id: string | undefined = body.brand_id;
+      const shop: string | undefined = body.shop;
+      const outfit_id: string | undefined = body.outfit_id;
+      const event_type: string | undefined = body.event_type;
+
+      if (!event_type || !["view", "conversion"].includes(event_type)) {
+        return json({ error: "event_type must be 'view' or 'conversion'" }, 400);
+      }
+      if (shop) {
+        const shopDomain = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+        const { data: brandRow } = await supabase
+          .from("brands").select("id").eq("shopify_store_domain", shopDomain).maybeSingle();
+        if (brandRow?.id) brand_id = brandRow.id;
+      }
+      if (!brand_id) return json({ error: "brand_id or shop required" }, 400);
+
+      const { error: evtErr } = await supabase
+        .from("widget_events")
+        .insert({ brand_id, outfit_id: outfit_id || null, event_type });
+      if (evtErr) {
+        console.error("[widget-outfits/event] insert:", evtErr.message);
+        return json({ error: "Failed to record event" }, 500);
+      }
+      if (outfit_id) {
+        const rpcName = event_type === "view" ? "increment_outfit_views" : "increment_outfit_conversions";
+        await supabase.rpc(rpcName, { p_outfit_id: outfit_id });
+      }
+      return json({ ok: true });
     }
 
     return json({ error: "Not found" }, 404);

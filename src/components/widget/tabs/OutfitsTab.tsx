@@ -82,6 +82,21 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
     return null;
   };
 
+  const fireEvent = (outfitId: string, eventType: 'view' | 'conversion') => {
+    const shopFromUrl = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("shop") || undefined
+      : undefined;
+    const shop = shopFromUrl ||
+      (typeof window !== "undefined"
+        ? (window as unknown as { Shopify?: { shop?: string } }).Shopify?.shop
+        : undefined);
+    fetch(`${SUPABASE_URL}/functions/v1/widget-outfits/event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ brand_id: brandId, shop, outfit_id: outfitId, event_type: eventType }),
+    }).catch(() => {});
+  };
+
   const fetchOutfits = async () => {
     // Always re-derive shop from the current URL (or Shopify.shop when running
     // inside the storefront) so brand_id is resolved fresh on EVERY API call.
@@ -130,7 +145,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
       }
       const data = await resp.json();
       if (!resp.ok) { setError(data.error || "Failed to load outfits"); return; }
-      setOutfits((data.outfits || []).map((o: any) => ({
+      const mapped = (data.outfits || []).map((o: any) => ({
         id: o.id,
         name: o.name || "Look",
         items: (o.items || []).map((i: any) => ({
@@ -143,7 +158,9 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
         })),
         totalPrice: o.totalPrice,
         occasion: o.occasion,
-      })));
+      }));
+      setOutfits(mapped);
+      mapped.forEach(o => fireEvent(o.id, 'view'));
     } catch {
       setError("Network error");
     } finally {
@@ -287,6 +304,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
         duration: unavailableNames.length ? 8000 : 6000,
         action: { label: "View Cart", onClick: () => openShopifyCart() },
       });
+      fireEvent(outfit.id, 'conversion');
     } catch (error) {
       console.error('Failed to add outfit to cart:', error);
       toast.error("Failed to add items to cart", { position: "top-center" });
