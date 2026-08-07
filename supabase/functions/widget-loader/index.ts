@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
   var btn = document.createElement('div');
   btn.id = 'stylys-trigger';
   btn.setAttribute('aria-label', 'Open STYLYS personal stylist');
-  btn.innerHTML = '<img src="https://stylysapp.com/S_no_border.png?v=3" alt="STYLYS" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />';
+  btn.innerHTML = '<img src="https://stylysapp.com/S_no_border.png?v=3" alt="STYLYS" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />';
   btn.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999999;width:56px;height:56px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.2s;';
   btn.onmouseenter = function() { btn.style.transform = 'scale(1.1)'; };
   btn.onmouseleave = function() { btn.style.transform = 'scale(1)'; };
