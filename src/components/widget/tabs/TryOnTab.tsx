@@ -94,8 +94,31 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
     setError(null);
 
     try {
+      // If currentPhoto is a saved-photo signed URL, fetch and re-encode as
+      // base64 client-side so the edge function never has to hit Storage directly.
+      let photoPayload = currentPhoto;
+      if (currentPhoto.startsWith("https://")) {
+        try {
+          const imgResp = await fetch(currentPhoto);
+          if (!imgResp.ok) throw new Error(`status ${imgResp.status}`);
+          const blob = await imgResp.blob();
+          photoPayload = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          clearCachedPhoto(brandId);
+          setCurrentPhoto(null);
+          setError("Your saved photo has expired. Please upload a new photo to continue.");
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       const requestBody: Record<string, unknown> = {
-        userImageBase64: currentPhoto,
+        userImageBase64: photoPayload,
         outfitItems: outfitItems.map(i => ({
           name: i.name,
           imageUrl: i.imageUrl,
