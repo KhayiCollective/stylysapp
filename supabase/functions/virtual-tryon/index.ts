@@ -293,31 +293,17 @@ serve(async (req) => {
       );
     }
 
-    // Auth: verify caller is a valid embedded merchant or a logged-in user.
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Auth: verify Shopify session token for embedded merchant callers.
+    // Widget storefront callers proceed without a session token —
+    // the per-IP rate limiter above is the primary abuse defence for those callers.
     const sessionToken = req.headers.get("X-Shopify-Session-Token");
     if (sessionToken) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       try {
         await verifyShopifySessionToken(sessionToken, supabase, SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET);
       } catch {
         return new Response(
           JSON.stringify({ error: "Invalid session token" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    } else {
-      const authHeader = req.headers.get("Authorization");
-      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
-      if (!token) {
-        return new Response(
-          JSON.stringify({ error: "Authentication required" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-      if (userError || !user) {
-        return new Response(
-          JSON.stringify({ error: "Invalid or expired token" }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
