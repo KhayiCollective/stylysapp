@@ -113,6 +113,7 @@ const Dashboard = () => {
     {
       title: "Total Outfits",
       value: totalOutfits.toString(),
+      rawValue: totalOutfits,
       change: "+12%",
       trend: "up",
       icon: Layers,
@@ -121,6 +122,7 @@ const Dashboard = () => {
     {
       title: "Widget Views",
       value: totalViews.toLocaleString(),
+      rawValue: totalViews,
       change: "+23%",
       trend: "up",
       icon: Eye,
@@ -129,6 +131,7 @@ const Dashboard = () => {
     {
       title: "Conversions",
       value: totalConversions.toLocaleString(),
+      rawValue: totalConversions,
       change: "+18%",
       trend: "up",
       icon: ShoppingCart,
@@ -137,6 +140,7 @@ const Dashboard = () => {
     {
       title: "Est. Revenue",
       value: `$${totalRevenue.toLocaleString()}`,
+      rawValue: totalRevenue,
       change: "+8%",
       trend: "up",
       icon: DollarSign,
@@ -184,6 +188,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-display font-semibold">{stat.value}</div>
+              {stat.rawValue > 0 && (
               <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                 {stat.trend === "up" ? (
                   <ArrowUpRight className="w-3 h-3 text-success" />
@@ -195,6 +200,7 @@ const Dashboard = () => {
                 </span>
                 {" "}{stat.description}
               </p>
+              )}
             </CardContent>
           </Card>
         ))}
