@@ -5,7 +5,7 @@ import { Camera, Loader2, Sparkles, Eye, User, ShoppingBag } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client";
 import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
 import { toast } from "sonner";
-import { PhotoUpload, getCachedPhotoUrl, setCachedPhotoUrl } from "../PhotoUpload";
+import { PhotoUpload, getCachedPhotoUrl, setCachedPhotoUrl, clearCachedPhoto } from "../PhotoUpload";
 
 const PROCESSING_MESSAGES = [
   "Analyzing your photo...",
