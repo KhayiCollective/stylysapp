@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Zap, Sparkles, Users, TrendingUp, Check, Camera, MessageCircle, BarChart3 } from "lucide-react";
@@ -202,6 +203,21 @@ const Index = () => {
         </div>
       </section>
 
+      {/* See How It Works Video */}
+      <section className="py-20 bg-[hsl(35,30%,95%)]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">
+              See How It Works
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Watch STYLYS in action — from product catalog to personalized outfits in seconds
+            </p>
+          </div>
+          <VideoSection />
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 bg-foreground">
         <div className="max-w-4xl mx-auto px-6 text-center">
@@ -353,5 +369,42 @@ const StepCard = ({
     <p className="text-muted-foreground leading-relaxed">{description}</p>
   </div>;
 
+
+const VideoSection = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [started, setStarted] = useState(false);
+
+  const handlePlay = () => {
+    setStarted(true);
+    videoRef.current?.play();
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="relative rounded-2xl overflow-hidden">
+        <video
+          ref={videoRef}
+          src="/videos/stylys-tutorial.mp4"
+          poster="/videos/stylys-tutorial-poster.jpg"
+          controls={started}
+          className="w-full h-auto block"
+        />
+        {!started && (
+          <button
+            onClick={handlePlay}
+            className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors group"
+            aria-label="Play video"
+          >
+            <div className="w-20 h-20 bg-background rounded-full flex items-center justify-center shadow-xl group-hover:scale-105 transition-transform">
+              <svg className="w-8 h-8 text-foreground ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default Index;
