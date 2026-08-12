@@ -78,8 +78,9 @@ serve(async (req) => {
       throw new Error("Shopify store not connected");
     }
 
-    // Redirect to Shopify admin billing page
-    const billingUrl = `https://${brand.shopify_store_domain}/admin/settings/billing`;
+    // Redirect to Shopify admin billing settings page (manage existing charges)
+    const storeHandle = brand.shopify_store_domain.replace(/\.myshopify\.com$/, "");
+    const billingUrl = `https://admin.shopify.com/store/${storeHandle}/settings/billing`;
     logStep("Redirecting to Shopify billing", { url: billingUrl });
 
     return new Response(JSON.stringify({ url: billingUrl }), {

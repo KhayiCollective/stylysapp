@@ -80,9 +80,11 @@ serve(async (req) => {
 
     logStep("Brand found", { domain: brand.shopify_store_domain });
 
-    // For Managed Pricing apps, redirect to the Shopify admin billing page
-    // Shopify handles plan selection and billing natively
-    const billingUrl = `https://${brand.shopify_store_domain}/admin/app/billing`;
+    // For Shopify App Pricing (managed pricing) apps, redirect to the plan
+    // selection page: admin.shopify.com/store/{store-handle}/charges/{app-handle}/pricing_plans
+    // App handle comes from shopify.app.toml.
+    const storeHandle = brand.shopify_store_domain.replace(/\.myshopify\.com$/, "");
+    const billingUrl = `https://admin.shopify.com/store/${storeHandle}/charges/stylys-app/pricing_plans`;
 
     logStep("Returning Shopify managed billing URL", { url: billingUrl });
 
