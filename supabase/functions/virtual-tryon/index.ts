@@ -319,6 +319,7 @@ async function callOpenAI(
   userBlob: { blob: Blob; filename: string },
   garmentBlobs: Array<{ blob: Blob; filename: string }>,
   prompt: string,
+  mask?: Blob,
 ): Promise<Response> {
   const form = new FormData();
   form.append("model", "gpt-image-1");
@@ -326,6 +327,7 @@ async function callOpenAI(
   form.append("quality", "high");
   form.append("image[]", userBlob.blob, userBlob.filename);
   for (const g of garmentBlobs) form.append("image[]", g.blob, g.filename);
+  if (mask) form.append("mask", mask, "mask.png");
   return fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -399,6 +401,7 @@ serve(async (req) => {
     }
     const userBlob = await resizeImageBlob(rawUserBlob);
     console.log(`[timing] user image decode+resize: ${Date.now() - t0}ms`);
+    const faceBoxPromise = detectFaceBoundingBox(OPENAI_API_KEY, userBlob);
 
     // Fetch garment images as Blobs (allowlist enforced) — run concurrently
     const garmentBlobs = (
@@ -415,11 +418,25 @@ serve(async (req) => {
     ).filter((b): b is { blob: Blob; filename: string } => b !== null);
 
     console.log(`[timing] garment fetches+resizes (${garmentBlobs.length} images): ${Date.now() - t0}ms`);
+    let mask: Blob | undefined;
+    try {
+      const faceBox = await faceBoxPromise;
+      if (faceBox) {
+        const buf = await userBlob.blob.arrayBuffer();
+        const img = await Image.decode(new Uint8Array(buf));
+        mask = await buildFaceMask(img.width, img.height, faceBox);
+        console.log("[face-mask] built mask for box:", JSON.stringify(faceBox));
+      } else {
+        console.warn("[face-mask] no face box detected, skipping mask");
+      }
+    } catch (e) {
+      console.warn("[face-mask] failed, continuing without mask:", e);
+    }
     const prompt = buildPrompt(outfitItems, bodyShape, sizeInfo);
     console.log("Calling OpenAI image edits with", garmentBlobs.length, "garment image(s)");
 
     const tOpenAI = Date.now();
-    const response = await callOpenAI(OPENAI_API_KEY, userBlob, garmentBlobs, prompt);
+    const response = await callOpenAI(OPENAI_API_KEY, userBlob, garmentBlobs, prompt, mask);
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -452,7 +469,7 @@ serve(async (req) => {
     // Single retry with simplified prompt if no image returned
     if (!generatedImage) {
       console.log("No image on first attempt, retrying with simplified prompt...");
-      const retryResponse = await callOpenAI(OPENAI_API_KEY, userBlob, garmentBlobs, buildRetryPrompt(outfitItems));
+      const retryResponse = await callOpenAI(OPENAI_API_KEY, userBlob, garmentBlobs, buildRetryPrompt(outfitItems), mask);
       if (retryResponse.ok) {
         const retryData = await retryResponse.json();
         generatedImage = retryData.data?.[0]?.b64_json
