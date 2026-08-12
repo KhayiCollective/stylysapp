@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Zap, Sparkles, Users, TrendingUp, Check, Camera, MessageCircle, BarChart3 } from "lucide-react";
@@ -371,36 +371,39 @@ const StepCard = ({
 
 
 const VideoSection = () => {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [started, setStarted] = useState(false);
-
-  const handlePlay = () => {
-    setStarted(true);
-    videoRef.current?.play();
-  };
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="relative rounded-2xl overflow-hidden">
-        <video
-          ref={videoRef}
-          src="/videos/stylys-tutorial.mp4"
-          poster="/videos/stylys-tutorial-poster.jpg"
-          controls={started}
-          className="w-full h-auto block"
-        />
-        {!started && (
-          <button
-            onClick={handlePlay}
-            className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors group"
-            aria-label="Play video"
-          >
-            <div className="w-20 h-20 bg-background rounded-full flex items-center justify-center shadow-xl group-hover:scale-105 transition-transform">
-              <svg className="w-8 h-8 text-foreground ml-1" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-          </button>
+      <div className="relative rounded-2xl overflow-hidden aspect-video bg-black">
+        {started ? (
+          <iframe
+            className="absolute inset-0 w-full h-full"
+            src="https://www.youtube-nocookie.com/embed/OHvEEvuyjdw?autoplay=1"
+            title="STYLYS Video Tutorial"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : (
+          <>
+            <img
+              src="/videos/stylys-tutorial-poster.jpg"
+              alt="STYLYS video tutorial preview"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <button
+              onClick={() => setStarted(true)}
+              className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors group"
+              aria-label="Play video"
+            >
+              <div className="w-20 h-20 bg-background rounded-full flex items-center justify-center shadow-xl group-hover:scale-105 transition-transform">
+                <svg className="w-8 h-8 text-foreground ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+            </button>
+          </>
         )}
       </div>
     </div>
