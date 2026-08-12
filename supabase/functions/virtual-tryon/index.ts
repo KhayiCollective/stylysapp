@@ -323,6 +323,12 @@ async function callOpenAI(
   const form = new FormData();
   form.append("model", "gpt-image-1");
   form.append("prompt", prompt);
+  // input_fidelity=high preserves faces/logos far more accurately than the
+  // default (OpenAI cookbook: "Generate images with high input fidelity").
+  // Only the FIRST image in the array gets this richer treatment, which is
+  // why the user's photo must stay first in the image[] list below — don't
+  // reorder these appends. Costs more input tokens than default fidelity.
+  form.append("input_fidelity", "high");
   form.append("image[]", userBlob.blob, userBlob.filename);
   for (const g of garmentBlobs) form.append("image[]", g.blob, g.filename);
   return fetch("https://api.openai.com/v1/images/edits", {
