@@ -402,7 +402,12 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    const userBlob = rawUserBlob;
+    // Cap the user photo at 1536px longest edge. Raw phone photos can be
+    // 3000-4000px+; sending them uncapped adds upload + processing latency
+    // without improving face fidelity beyond what input_fidelity=high can
+    // already extract from a 1536px image. Higher JPEG quality (92) than
+    // garment images (85) since this is the fidelity-critical image.
+    const userBlob = await resizeImageBlob(rawUserBlob, 1536, 92);
     console.log(`[timing] user image decode+resize: ${Date.now() - t0}ms`);
 
     // Fetch garment images as Blobs (allowlist enforced) — run concurrently
