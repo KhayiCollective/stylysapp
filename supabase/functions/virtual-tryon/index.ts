@@ -323,7 +323,6 @@ async function callOpenAI(
   const form = new FormData();
   form.append("model", "gpt-image-1");
   form.append("prompt", prompt);
-  form.append("quality", "medium");
   form.append("image[]", userBlob.blob, userBlob.filename);
   for (const g of garmentBlobs) form.append("image[]", g.blob, g.filename);
   return fetch("https://api.openai.com/v1/images/edits", {
@@ -397,7 +396,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    const userBlob = await resizeImageBlob(rawUserBlob, 2048, 95);
+    const userBlob = rawUserBlob;
     console.log(`[timing] user image decode+resize: ${Date.now() - t0}ms`);
 
     // Fetch garment images as Blobs (allowlist enforced) — run concurrently
