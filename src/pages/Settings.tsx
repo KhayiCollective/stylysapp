@@ -277,7 +277,11 @@ export default function Settings() {
                     if (!session) return;
                   }
                   const { data, error } = await embeddedInvoke<{ url?: string; error?: string }>('customer-portal');
-                  if (!error && data?.url) window.open(data.url, '_blank');
+                  // Embedded apps run inside an iframe and can't redirect the parent
+                  // window with a normal navigation — '_top' breaks out of the iframe
+                  // to the same tab (Shopify's recommended pattern), vs. '_blank' which
+                  // opens a background tab the merchant has to notice and switch to.
+                  if (!error && data?.url) window.open(data.url, isEmbedded ? '_top' : '_blank');
                 }}>
                   Manage Subscription
                 </Button>
@@ -295,7 +299,7 @@ export default function Settings() {
                     toast({ title: 'Subscription Error', description: data?.error || 'Failed to open billing page. Please try again.', variant: 'destructive' });
                     return;
                   }
-                  if (data?.url) window.open(data.url, '_blank');
+                  if (data?.url) window.open(data.url, isEmbedded ? '_top' : '_blank');
                 }}>
                   <Crown className="h-4 w-4 mr-2" />
                   Choose a Plan on Shopify
