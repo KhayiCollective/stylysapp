@@ -325,6 +325,7 @@ async function callOpenAI(
   form.append("model", "gpt-image-1");
   form.append("prompt", prompt);
   form.append("quality", "high");
+  form.append("size", "1024x1536");
   form.append("image[]", userBlob.blob, userBlob.filename);
   for (const g of garmentBlobs) form.append("image[]", g.blob, g.filename);
   if (mask) form.append("mask", mask, "mask.png");
