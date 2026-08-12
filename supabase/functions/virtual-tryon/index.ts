@@ -402,12 +402,14 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    // Cap the user photo at 1536px longest edge. Raw phone photos can be
-    // 3000-4000px+; sending them uncapped adds upload + processing latency
-    // without improving face fidelity beyond what input_fidelity=high can
-    // already extract from a 1536px image. Higher JPEG quality (92) than
-    // garment images (85) since this is the fidelity-critical image.
-    const userBlob = await resizeImageBlob(rawUserBlob, 1536, 92);
+    // Reverted: resizing the user photo here (via imagescript, a pure JS/WASM
+    // decoder) made results slower and visibly hurt facial fidelity — most
+    // likely because imagescript doesn't apply EXIF orientation on decode, so
+    // phone photos with rotation metadata got re-encoded in the wrong
+    // orientation, and the decode/encode pass itself was slow enough to add
+    // more latency than the smaller upload saved. Sending the photo unresized
+    // (as before input_fidelity was added) tested faster and correct.
+    const userBlob = rawUserBlob;
     console.log(`[timing] user image decode+resize: ${Date.now() - t0}ms`);
 
     // Fetch garment images as Blobs (allowlist enforced) — run concurrently
