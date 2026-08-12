@@ -314,6 +314,15 @@ function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   return `Generate a photorealistic virtual try-on image. Image 1 is the customer's photo — this is the BASE IMAGE. The person must remain EXACTLY the same: preserve their face, skin tone, hair, pose, body shape, and background with ZERO alterations. Your ONLY task is to remove their current clothing and dress them in these items: ${items}. Extract only the specified garment from each product image. Fit garments realistically to the person's body — correct shoulder alignment, natural draping, proper lengths. Match the lighting and shadows from Image 1. The result must look like a real photograph of this person wearing this outfit. You MUST output an image.`;
 }
 
+// gpt-image-1 is deprecated by OpenAI on Oct 23, 2026 — migrating ahead of
+// that deadline. gpt-image-2 is priced at or below gpt-image-1 on every
+// quality tier and, per OpenAI's docs, always processes input images at
+// high fidelity automatically (the input_fidelity param can't be adjusted
+// for this model — omit it entirely rather than risk a validation error by
+// sending a param the model doesn't accept). Change this constant back to
+// "gpt-image-1" to A/B against the previous behavior if needed.
+const IMAGE_MODEL = "gpt-image-2";
+
 async function callOpenAI(
   apiKey: string,
   userBlob: { blob: Blob; filename: string },
@@ -321,14 +330,16 @@ async function callOpenAI(
   prompt: string,
 ): Promise<Response> {
   const form = new FormData();
-  form.append("model", "gpt-image-1");
+  form.append("model", IMAGE_MODEL);
   form.append("prompt", prompt);
-  // input_fidelity=high preserves faces/logos far more accurately than the
-  // default (OpenAI cookbook: "Generate images with high input fidelity").
-  // Only the FIRST image in the array gets this richer treatment, which is
-  // why the user's photo must stay first in the image[] list below — don't
-  // reorder these appends. Costs more input tokens than default fidelity.
-  form.append("input_fidelity", "high");
+  // Only send input_fidelity for models that support adjusting it.
+  // gpt-image-2 always applies high fidelity automatically (see comment above).
+  if (IMAGE_MODEL === "gpt-image-1") {
+    form.append("input_fidelity", "high");
+  }
+  // Only the FIRST image in the array gets the richest fidelity treatment,
+  // which is why the user's photo must stay first in the image[] list below
+  // — don't reorder these appends.
   form.append("image[]", userBlob.blob, userBlob.filename);
   for (const g of garmentBlobs) form.append("image[]", g.blob, g.filename);
   return fetch("https://api.openai.com/v1/images/edits", {
