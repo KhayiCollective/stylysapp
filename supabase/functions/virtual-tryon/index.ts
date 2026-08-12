@@ -150,6 +150,70 @@ async function resizeImageBlob(
   }
 }
 
+async function detectFaceBoundingBox(
+  apiKey: string,
+  userBlob: { blob: Blob; filename: string },
+): Promise<{ x_min: number; y_min: number; x_max: number; y_max: number } | null> {
+  try {
+    const buf = await userBlob.blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const b64 = btoa(binary);
+    const dataUrl = `data:${userBlob.blob.type || "image/jpeg"};base64,${b64}`;
+
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: dataUrl } },
+            { type: "text", text: 'Return ONLY a JSON object with the bounding box of this person\'s head, hair, and face (from top of hair to bottom of jawline) as normalized coordinates 0 to 1: {"x_min":0.0,"y_min":0.0,"x_max":0.0,"y_max":0.0}. No other text, no markdown.' },
+          ],
+        }],
+        max_tokens: 100,
+      }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const text: string = data.choices?.[0]?.message?.content ?? "";
+    const box = JSON.parse(text);
+    if (
+      typeof box.x_min !== "number" || typeof box.y_min !== "number" ||
+      typeof box.x_max !== "number" || typeof box.y_max !== "number" ||
+      box.x_min >= box.x_max || box.y_min >= box.y_max ||
+      box.x_min < 0 || box.y_min < 0 || box.x_max > 1 || box.y_max > 1
+    ) return null;
+    return { x_min: box.x_min, y_min: box.y_min, x_max: box.x_max, y_max: box.y_max };
+  } catch {
+    return null;
+  }
+}
+
+async function buildFaceMask(
+  width: number,
+  height: number,
+  box: { x_min: number; y_min: number; x_max: number; y_max: number },
+  paddingPct = 0.15,
+): Promise<Blob> {
+  const img = new Image(width, height);
+  const padX = Math.round(width * paddingPct);
+  const padY = Math.round(height * paddingPct);
+  const x1 = Math.max(0, Math.round(box.x_min * width) - padX);
+  const y1 = Math.max(0, Math.round(box.y_min * height) - padY);
+  const x2 = Math.min(width - 1, Math.round(box.x_max * width) + padX);
+  const y2 = Math.min(height - 1, Math.round(box.y_max * height) + padY);
+  const black = Image.rgbaToColor(0, 0, 0, 255);
+  for (let y = y1; y <= y2; y++) {
+    for (let x = x1; x <= x2; x++) img.setPixelAt(x + 1, y + 1, black);
+  }
+  const encoded = await img.encode();
+  return new Blob([encoded.buffer as ArrayBuffer], { type: "image/png" });
+}
+
 // Simple in-memory IP rate limiter (per-instance). Protects against credit abuse.
 const rateBuckets = new Map<string, { count: number; reset: number }>();
 function rateLimit(ip: string, limit = 10, windowMs = 60_000): boolean {
