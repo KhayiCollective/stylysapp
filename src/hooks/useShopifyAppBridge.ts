@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 declare global {
   interface Window {
@@ -51,19 +51,24 @@ export function useShopifyAppBridge() {
     setLoading(false);
   }, []);
 
-  const showToast = (message: string, isError = false) => {
+  // Stable identities: these close over window.shopify (not React state), so
+  // an empty dep array is correct. Downstream hooks (useEmbeddedInvoke,
+  // useSubscription) depend on getSessionToken in effect/callback deps —
+  // an unstable reference here causes those effects to re-fire on every
+  // render, which previously caused the billing card to flicker.
+  const showToast = useCallback((message: string, isError = false) => {
     if (window.shopify?.toast) {
       window.shopify.toast.show(message, { isError });
     }
-  };
+  }, []);
 
-  const setAppLoading = (isLoading: boolean) => {
+  const setAppLoading = useCallback((isLoading: boolean) => {
     if (window.shopify?.loading) {
       window.shopify.loading(isLoading);
     }
-  };
+  }, []);
 
-  const getSessionToken = async (): Promise<string | null> => {
+  const getSessionToken = useCallback(async (): Promise<string | null> => {
     if (window.shopify?.idToken) {
       try {
         return await window.shopify.idToken();
@@ -73,19 +78,19 @@ export function useShopifyAppBridge() {
       }
     }
     return null;
-  };
+  }, []);
 
-  const enterFullscreen = () => {
+  const enterFullscreen = useCallback(() => {
     if (window.shopify?.fullscreen) {
       window.shopify.fullscreen.enter();
     }
-  };
+  }, []);
 
-  const exitFullscreen = () => {
+  const exitFullscreen = useCallback(() => {
     if (window.shopify?.fullscreen) {
       window.shopify.fullscreen.exit();
     }
-  };
+  }, []);
 
   return {
     config,

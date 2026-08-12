@@ -134,8 +134,17 @@ serve(async (req) => {
     const shopifyData = await shopifyResp.json();
     logStep("Shopify response received");
 
+    // Distinguish "Shopify confirmed zero subscriptions" from "the request
+    // itself failed" (rate limit, transient error, bad scope, etc). Silently
+    // treating the latter as "not subscribed" was making the billing card
+    // flicker between the real plan and "no subscription" under load.
+    if (!shopifyResp.ok || shopifyData.errors) {
+      logStep("Shopify GraphQL request failed", { status: shopifyResp.status, errors: shopifyData.errors });
+      throw new Error("Failed to fetch subscription status from Shopify");
+    }
+
     const subscriptions = shopifyData.data?.currentAppInstallation?.activeSubscriptions || [];
-    
+
     if (subscriptions.length === 0) {
       logStep("No active subscriptions");
       return new Response(JSON.stringify({ subscribed: false }), {

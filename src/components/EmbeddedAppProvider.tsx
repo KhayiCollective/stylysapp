@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useEffect, useState } from "react";
+import { createContext, useContext, ReactNode, useEffect, useMemo, useState } from "react";
 import { useShopifyAppBridge, AppBridgeConfig } from "@/hooks/useShopifyAppBridge";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -69,14 +69,19 @@ export function EmbeddedAppProvider({ children }: EmbeddedAppProviderProps) {
     attemptTokenExchange();
   }, [connectionChecked, embeddedBrandId, isEmbedded, config?.shop]);
 
-  const contextValue: EmbeddedAppContextValue = {
-    isEmbedded,
-    config,
-    showToast,
-    setLoading: setAppLoading,
-    getSessionToken,
-    embeddedBrandId,
-  };
+  // Memoized so consumers relying on referential stability (e.g. useEmbeddedInvoke,
+  // useSubscription's polling effect) don't re-run on every unrelated render.
+  const contextValue: EmbeddedAppContextValue = useMemo(
+    () => ({
+      isEmbedded,
+      config,
+      showToast,
+      setLoading: setAppLoading,
+      getSessionToken,
+      embeddedBrandId,
+    }),
+    [isEmbedded, config, showToast, setAppLoading, getSessionToken, embeddedBrandId],
+  );
 
   return (
     <EmbeddedAppContext.Provider value={contextValue}>
