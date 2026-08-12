@@ -19,6 +19,7 @@ import { User, Building2, Loader2, Save, LogOut, BookOpen, CreditCard, Crown, Ch
 import { Link, useNavigate } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useEmbeddedInvoke } from '@/hooks/useEmbeddedInvoke';
 import { TIERS, getTierLimits, hasFeature } from '@/lib/tiers';
 import { Badge } from '@/components/ui/badge';
 
@@ -29,6 +30,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const { isDevUser } = useUserRole();
   const { subscribed, loading: subLoading, tierName, isTrialing, trialEnd, subscriptionEnd, checkSubscription } = useSubscription();
+  const embeddedInvoke = useEmbeddedInvoke();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -213,11 +215,7 @@ export default function Settings() {
             <CardDescription>Manage your subscription plan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isEmbedded ? (
-              <p className="text-sm text-muted-foreground">
-                Plan selection will be available once STYLYS is published to the Shopify App Store. For now, you have full access to all features during development.
-              </p>
-            ) : subLoading ? (
+            {subLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Checking subscription...
@@ -274,11 +272,11 @@ export default function Settings() {
                 </div>
 
                 <Button variant="outline" onClick={async () => {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  if (!session) return;
-                  const { data, error } = await supabase.functions.invoke('customer-portal', {
-                    headers: { Authorization: `Bearer ${session.access_token}` },
-                  });
+                  if (!isEmbedded) {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) return;
+                  }
+                  const { data, error } = await embeddedInvoke<{ url?: string; error?: string }>('customer-portal');
                   if (!error && data?.url) window.open(data.url, '_blank');
                 }}>
                   Manage Subscription
@@ -288,11 +286,11 @@ export default function Settings() {
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">You don't have an active subscription. Choose a plan via Shopify to get started.</p>
                 <Button onClick={async () => {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  if (!session) return;
-                  const { data, error } = await supabase.functions.invoke('create-checkout', {
-                    headers: { Authorization: `Bearer ${session.access_token}` },
-                  });
+                  if (!isEmbedded) {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) return;
+                  }
+                  const { data, error } = await embeddedInvoke<{ url?: string; error?: string }>('create-checkout');
                   if (error || data?.error) {
                     toast({ title: 'Subscription Error', description: data?.error || 'Failed to open billing page. Please try again.', variant: 'destructive' });
                     return;

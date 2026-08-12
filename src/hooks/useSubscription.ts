@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useEmbeddedApp } from '@/components/EmbeddedAppProvider';
+import { useEmbeddedInvoke } from '@/hooks/useEmbeddedInvoke';
 import { getTierByName, TierKey } from '@/lib/tiers';
 
 interface SubscriptionState {
@@ -14,6 +16,8 @@ interface SubscriptionState {
 
 export function useSubscription() {
   const { session } = useAuth();
+  const { isEmbedded } = useEmbeddedApp();
+  const embeddedInvoke = useEmbeddedInvoke();
   const [state, setState] = useState<SubscriptionState>({
     subscribed: false,
     loading: true,
@@ -24,31 +28,38 @@ export function useSubscription() {
   });
 
   const checkSubscription = useCallback(async () => {
-    if (!session?.access_token) {
+    // Embedded callers authenticate via Shopify session token (handled inside
+    // useEmbeddedInvoke); standalone callers need a Supabase auth session.
+    if (!isEmbedded && !session?.access_token) {
       setState(prev => ({ ...prev, loading: false }));
       return;
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('check-subscription', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      const { data, error } = await embeddedInvoke<{
+        subscribed: boolean;
+        tier_name?: string;
+        subscription_end?: string;
+        is_trialing?: boolean;
+      }>('check-subscription', {
+        headers: isEmbedded ? undefined : { Authorization: `Bearer ${session!.access_token}` },
       });
 
       if (error) throw error;
 
       setState({
-        subscribed: data.subscribed ?? false,
+        subscribed: data?.subscribed ?? false,
         loading: false,
-        tierName: data.tier_name ? getTierByName(data.tier_name) : null,
-        trialEnd: data.subscription_end ?? null,
-        subscriptionEnd: data.subscription_end ?? null,
-        isTrialing: data.is_trialing ?? false,
+        tierName: data?.tier_name ? getTierByName(data.tier_name) : null,
+        trialEnd: data?.subscription_end ?? null,
+        subscriptionEnd: data?.subscription_end ?? null,
+        isTrialing: data?.is_trialing ?? false,
       });
     } catch (err) {
       console.error('[useSubscription] Error:', err);
       setState(prev => ({ ...prev, loading: false }));
     }
-  }, [session?.access_token]);
+  }, [session, isEmbedded, embeddedInvoke]);
 
   useEffect(() => {
     checkSubscription();
