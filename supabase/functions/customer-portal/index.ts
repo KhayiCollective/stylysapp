@@ -78,9 +78,14 @@ serve(async (req) => {
       throw new Error("Shopify store not connected");
     }
 
-    // Redirect to Shopify admin billing settings page (manage existing charges)
+    // Shopify App Pricing (managed pricing) has no separate "manage subscription"
+    // page — merchants upgrade/downgrade/cancel from the same plan-selection page
+    // they used to subscribe. Shopify only allows one active recurring charge per
+    // app, so picking a new plan there automatically cancels the old one.
+    // (Settings > Billing is the store's org-wide billing/payment history, not
+    // per-app plan management — confirmed it has no upgrade/cancel controls.)
     const storeHandle = brand.shopify_store_domain.replace(/\.myshopify\.com$/, "");
-    const billingUrl = `https://admin.shopify.com/store/${storeHandle}/settings/billing`;
+    const billingUrl = `https://admin.shopify.com/store/${storeHandle}/charges/stylys-app/pricing_plans`;
     logStep("Redirecting to Shopify billing", { url: billingUrl });
 
     return new Response(JSON.stringify({ url: billingUrl }), {
