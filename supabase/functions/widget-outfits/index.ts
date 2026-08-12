@@ -30,6 +30,69 @@ function getSupabaseAdmin() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
 
+// Categories where only one item per outfit makes sense.
+// "uncategorized" and any unlisted value are intentionally excluded —
+// deduplicating unknown categories collapsed real outfits on stores
+// where products haven't been categorized yet.
+const EXCLUSIVE_CATEGORIES = new Set([
+  "tops", "bottoms", "dresses", "outerwear", "shoes", "footwear",
+]);
+
+function applyValidation(
+  rawOutfits: any[],
+  minItems: number,
+  maxItems: number,
+  requiredCats: string[],
+  strict: boolean,
+): any[] {
+  const normalizedRequired = requiredCats.map(c => c.toLowerCase().trim());
+  return rawOutfits
+    .map(outfit => {
+      // Deduplicate exclusive categories only — keep first, drop subsequent.
+      // Non-exclusive categories (accessories, bags, jewelry, uncategorized, etc.)
+      // are never deduplicated.
+      const seen = new Set<string>();
+      const deduped = (outfit.items as any[]).filter(item => {
+        const cat = (item.category || "").toLowerCase().trim();
+        if (!EXCLUSIVE_CATEGORIES.has(cat)) return true;
+        if (seen.has(cat)) return false;
+        seen.add(cat);
+        return true;
+      });
+      // Clamp to maxItems
+      return { ...outfit, items: deduped.slice(0, maxItems) };
+    })
+    .filter(outfit => {
+      if (outfit.items.length === 0) return false;
+      if (!strict) return true;
+      // Discard if too few items after dedup+clamp
+      if (outfit.items.length < minItems) {
+        console.log(`[validate] outfit "${outfit.name}" dropped: ${outfit.items.length} items < minItems ${minItems}`);
+        return false;
+      }
+      // Discard if required categories are missing
+      const presentCats = new Set<string>(
+        outfit.items.map((i: any) => (i.category || "").toLowerCase().trim())
+      );
+      // A dress satisfies both "tops" and "bottoms" when both are required
+      if (
+        presentCats.has("dresses") &&
+        normalizedRequired.includes("tops") &&
+        normalizedRequired.includes("bottoms")
+      ) {
+        presentCats.add("tops");
+        presentCats.add("bottoms");
+      }
+      for (const rc of normalizedRequired) {
+        if (!presentCats.has(rc)) {
+          console.log(`[validate] outfit "${outfit.name}" dropped: missing required category "${rc}"`);
+          return false;
+        }
+      }
+      return true;
+    });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -357,7 +420,19 @@ Variation seed: ${crypto.randomUUID()}`;
         }
       })();
 
-      return json({ outfits });
+      // Validate: targeted dedup of exclusive categories, clamp to maxItems,
+      // discard if <minItems or missing required category.
+      // Progressive fallback guarantees customers always see outfits.
+      let finalOutfits = applyValidation(outfits, minItems, maxItems, requiredCats, true);
+      if (finalOutfits.length === 0 && outfits.length > 0) {
+        console.log("[validate] all outfits failed strict validation — relaxing to dedup+clamp only");
+        finalOutfits = applyValidation(outfits, minItems, maxItems, requiredCats, false);
+      }
+      if (finalOutfits.length === 0) {
+        console.log("[validate] relaxed validation also empty — returning pre-validation outfits");
+        finalOutfits = outfits;
+      }
+      return json({ outfits: finalOutfits });
     }
 
     // --- SAVED (requires customer JWT) ---
