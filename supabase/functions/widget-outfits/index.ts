@@ -156,7 +156,16 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
 // dedup + backfill (e.g. the catalog genuinely doesn't have enough distinct
 // pieces to hit minItems, or a required category has zero matching stock).
 function filterByRequirements(outfits: any[], minItems: number, requiredCats: string[]): any[] {
-  const normalizedRequired = requiredCats.map(c => c.toLowerCase().trim());
+  // Normalize "shoes" -> "footwear" here too — the Rules page stores the
+  // literal checkbox value ("Shoes"), but effectiveCategory() always resolves
+  // items to "footwear". Without this, a merchant who requires "Shoes" would
+  // have every single outfit fail this check (presentCats never contains the
+  // literal string "shoes"), silently forcing every request into the relaxed
+  // fallback path further down.
+  const normalizedRequired = requiredCats.map(c => {
+    const v = c.toLowerCase().trim();
+    return v === "shoes" ? "footwear" : v;
+  });
   return outfits.filter(outfit => {
     if (outfit.items.length < minItems) {
       console.log(`[validate] outfit "${outfit.name}" dropped: ${outfit.items.length} items < minItems ${minItems}`);
@@ -546,11 +555,16 @@ Variation seed: ${crypto.randomUUID()}`;
       const backfilled = deduped.map(o => backfillOutfit(o, minItems, maxItems, products));
       console.log("[validate] per-outfit item counts", {
         minItems,
+        requiredCats,
         outfits: backfilled.map((o: any, idx: number) => ({
           name: o.name,
           ai_picked: deduped[idx]?.items?.length ?? null,
           after_backfill: o.items.length,
-          categories: o.items.map((i: any) => effectiveCategory(i)),
+          // raw = the literal category stored in the DB, effective = what
+          // effectiveCategory() resolved it to. Comparing the two tells us
+          // whether an item's real category field is wrong/unexpected vs. our
+          // resolution logic misclassifying something that's actually fine.
+          items: o.items.map((i: any) => ({ name: i.name, raw_category: i.category, effective: effectiveCategory(i) })),
         })),
       });
       let finalOutfits = filterByRequirements(backfilled, minItems, requiredCats);
