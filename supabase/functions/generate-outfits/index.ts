@@ -102,7 +102,10 @@ function dedupeOutfitItems(rawItems: Product[]): Product[] {
 
 // Step 2: if dedup dropped the outfit below minItems, backfill from the full
 // catalog rather than leaving a too-short outfit or discarding it outright.
-function backfillOutfitItems(items: Product[], minItems: number, maxItems: number, catalog: Product[]): Product[] {
+// `globalUsedIds`, when provided, is shared across every outfit being
+// backfilled in the same response so outfit 2's backfill can't grab the exact
+// item outfit 1's backfill just used (matches widget-outfits).
+function backfillOutfitItems(items: Product[], minItems: number, maxItems: number, catalog: Product[], globalUsedIds?: Set<string>): Product[] {
   if (items.length >= minItems) return items.slice(0, maxItems);
 
   const result = [...items];
@@ -122,11 +125,12 @@ function backfillOutfitItems(items: Product[], minItems: number, maxItems: numbe
     if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
     if (!EXCLUSIVE_CATEGORIES.has(cat) && result.filter(i => effectiveCategory(i) === cat).length >= 2) continue;
 
-    const candidate = catalog.find(p => !usedIds.has(p.id) && effectiveCategory(p) === cat);
+    const candidate = catalog.find(p => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && effectiveCategory(p) === cat);
     if (!candidate) continue;
 
     result.push(candidate);
     usedIds.add(candidate.id);
+    globalUsedIds?.add(candidate.id);
     presentCats.add(cat);
   }
 
@@ -354,19 +358,30 @@ Create 3 distinct outfit combinations that would look great together.`;
       );
     }
 
-    const outfits = parsedContent.outfits.map((outfit: any, index: number) => {
-      const rawProducts: Product[] = outfit.productIds
+    // Dedupe (dress-vs-separates conflicts, repeated ids, duplicate
+    // categories) and force in the anchor for every outfit first, so we know
+    // up front what every outfit already has before any backfill runs.
+    const preBackfill = parsedContent.outfits.map((outfit: any, index: number) => {
+      const rawProducts: Product[] = (outfit.productIds || [])
         .map((id: string) => products.find(p => p.id === id))
         .filter(Boolean);
-
-      // Dedupe (dress-vs-separates conflicts, repeated ids, duplicate
-      // categories), force in the anchor if one was requested, then backfill
-      // from the full catalog if that dropped the outfit below minItems —
-      // mirrors widget-outfits' live validation so this admin preview matches
-      // what customers actually see.
       const deduped = dedupeOutfitItems(rawProducts);
       const withAnchor = anchorProduct ? ensureAnchorItem(deduped, anchorProduct, maxItems) : deduped;
-      const outfitProducts = backfillOutfitItems(withAnchor, minItems, maxItems, products);
+      return { outfit, withAnchor, index };
+    });
+
+    // Shared across all 3 outfits so backfill for outfit 2 can't reach for the
+    // same item backfill just gave outfit 1. `shuffledProducts` (already
+    // randomized above for the AI's view) is reused here too instead of the
+    // raw request-order `products` array, so backfill doesn't always land on
+    // the same first-in-order candidate for a given category.
+    const globalUsedIds = new Set<string>(preBackfill.flatMap(({ withAnchor }) => withAnchor.map(i => i.id)));
+
+    const outfits = preBackfill.map(({ outfit, withAnchor, index }) => {
+      // Backfill from the full catalog if dedup dropped the outfit below
+      // minItems — mirrors widget-outfits' live validation so this admin
+      // preview matches what customers actually see.
+      const outfitProducts = backfillOutfitItems(withAnchor, minItems, maxItems, shuffledProducts, globalUsedIds);
 
       const totalPrice = outfitProducts.reduce((sum: number, p: Product) => sum + Number(p.price), 0);
 

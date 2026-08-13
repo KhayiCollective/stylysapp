@@ -141,7 +141,13 @@ function toOutfitItem(p: any): any {
 // close the gap — completing a missing top/bottom half first, then adding
 // outerwear/footwear/accessories — before ever discarding an outfit for
 // being too short.
-function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog: any[]): any {
+// `globalUsedIds`, when provided, is shared across every outfit being
+// backfilled in the same response — without it, each outfit's `catalog.find()`
+// independently lands on the same first-unused-in-that-outfit candidate for a
+// given category, so outfit 2's backfill could grab the exact item outfit 1's
+// backfill just grabbed. Passing a shared set (updated as each outfit is
+// processed) prevents that convergence.
+function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog: any[], globalUsedIds?: Set<string>): any {
   if (outfit.items.length >= minItems) return outfit;
 
   const items = [...outfit.items];
@@ -161,11 +167,12 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
     if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
     if (!EXCLUSIVE_CATEGORIES.has(cat) && items.filter((i: any) => effectiveCategory(i) === cat).length >= 2) continue;
 
-    const candidate = catalog.find((p: any) => !usedIds.has(p.id) && effectiveCategory(p) === cat);
+    const candidate = catalog.find((p: any) => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && effectiveCategory(p) === cat);
     if (!candidate) continue;
 
     items.push(toOutfitItem(candidate));
     usedIds.add(candidate.id);
+    globalUsedIds?.add(candidate.id);
     presentCats.add(cat);
   }
 
@@ -455,7 +462,7 @@ serve(async (req) => {
       }
       const guaranteed: any[] = [];
       const guaranteedIds = new Set<string>();
-      for (const cat of ["footwear", "accessories", "outerwear"]) {
+      for (const cat of ["footwear", "accessories", "outerwear", "tops", "bottoms", "dresses"]) {
         for (const item of shuffleArray(byCategory.get(cat) || []).slice(0, GUARANTEED_PER_CATEGORY)) {
           if (!guaranteedIds.has(item.id)) {
             guaranteed.push(item);
@@ -637,7 +644,26 @@ Variation seed: ${crypto.randomUUID()}`;
       // Force the anchor product into every outfit server-side — the prompt
       // asks the model to do this but it doesn't reliably comply.
       const withAnchor = anchorProduct ? deduped.map(o => ensureAnchor(o, anchorProduct, maxItems)) : deduped;
-      const backfilled = withAnchor.map(o => backfillOutfit(o, minItems, maxItems, products));
+      // IMPORTANT: backfill pulls from `filtered` (the full in-stock/size/budget
+      // catalog, up to 400 items) — NOT `products` (the ~60-item random sample
+      // the AI actually saw). Backfill exists specifically to top up outfits
+      // the AI under-filled or that dedup shrank below minItems; if it could
+      // only draw from the same 60-item sample the AI already picked from, a
+      // thin category in that particular draw (e.g. few tops/bottoms) left
+      // backfill with nothing left to add, and outfits shipped short — this
+      // was the root cause behind outfits landing at 2 items instead of a full
+      // head-to-toe look. Using the full catalog means backfill can always
+      // find a genuinely unused candidate.
+      // Shuffle first — `filtered` is in raw DB order, and `.find()` inside
+      // backfillOutfit always returns the first match, so an unshuffled
+      // catalog meant backfill kept reaching for the same specific item every
+      // time a category needed filling (part of the "same 2-3 products
+      // repeating" complaint). A shared `globalUsedIds` set (seeded with every
+      // item any outfit in this response already has) also stops outfit 2's
+      // backfill from grabbing the exact item outfit 1's backfill just used.
+      const backfillCatalog = shuffleArray(filtered);
+      const globalUsedIds = new Set<string>(withAnchor.flatMap((o: any) => o.items.map((i: any) => i.id)));
+      const backfilled = withAnchor.map(o => backfillOutfit(o, minItems, maxItems, backfillCatalog, globalUsedIds));
       console.log("[validate] per-outfit item counts", {
         minItems,
         requiredCats,
