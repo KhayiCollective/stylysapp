@@ -452,8 +452,16 @@ serve(async (req) => {
         }
         return copy;
       };
-      const POOL_SIZE = 60;
-      const GUARANTEED_PER_CATEGORY = 6;
+      // The admin Rules-page preview (generate-outfits) sends the AI its
+      // whole catalog (up to 300 products) unfiltered — that's the real
+      // reason the preview looks noticeably better than the live widget:
+      // the model just has far more to choose from. Raised from 60 → 150 to
+      // close most of that gap while still keeping the prompt (and OpenAI
+      // cost/latency) well short of sending the entire catalog on every
+      // customer-facing request, which fires far more often than the admin
+      // preview does.
+      const POOL_SIZE = 150;
+      const GUARANTEED_PER_CATEGORY = 10;
       const byCategory = new Map<string, any[]>();
       for (const p of filtered) {
         const cat = effectiveCategory(p);
