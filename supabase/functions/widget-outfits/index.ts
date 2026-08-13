@@ -31,12 +31,35 @@ function getSupabaseAdmin() {
 }
 
 // Categories where only one item per outfit makes sense.
-// "uncategorized" and any unlisted value are intentionally excluded —
-// deduplicating unknown categories collapsed real outfits on stores
-// where products haven't been categorized yet.
 const EXCLUSIVE_CATEGORIES = new Set([
   "tops", "bottoms", "dresses", "outerwear", "shoes", "footwear",
 ]);
+
+// Many merchant catalogs have products with category = "uncategorized" or
+// blank. Previously those items skipped ALL dedup, so e.g. two dresses both
+// left uncategorized could stack into one outfit undetected — this was the
+// exact bug reported (multiple dresses + a jacket in a single look). Instead
+// of trusting the raw `category` field, fall back to keyword-matching the
+// product_type and name so real garment type is still detected even when the
+// merchant hasn't categorized the product.
+const CATEGORY_KEYWORDS: [string, RegExp][] = [
+  ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b/i],
+  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b/i],
+  ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b|\bsneaker(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b/i],
+  ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b/i],
+  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b/i],
+];
+
+function effectiveCategory(item: { category?: string; product_type?: string; name?: string }): string {
+  const raw = (item.category || "").toLowerCase().trim();
+  if (EXCLUSIVE_CATEGORIES.has(raw)) return raw;
+  if (raw === "shoes") return "footwear";
+  const haystack = `${item.product_type || ""} ${item.name || ""}`.toLowerCase();
+  for (const [cat, re] of CATEGORY_KEYWORDS) {
+    if (re.test(haystack)) return cat;
+  }
+  return raw || "uncategorized";
+}
 
 function applyValidation(
   rawOutfits: any[],
@@ -48,17 +71,39 @@ function applyValidation(
   const normalizedRequired = requiredCats.map(c => c.toLowerCase().trim());
   return rawOutfits
     .map(outfit => {
-      // Deduplicate exclusive categories only — keep first, drop subsequent.
-      // Non-exclusive categories (accessories, bags, jewelry, uncategorized, etc.)
-      // are never deduplicated.
-      const seen = new Set<string>();
-      const deduped = (outfit.items as any[]).filter(item => {
-        const cat = (item.category || "").toLowerCase().trim();
-        if (!EXCLUSIVE_CATEGORIES.has(cat)) return true;
-        if (seen.has(cat)) return false;
-        seen.add(cat);
+      // Dedupe by product id first — the model occasionally repeats the same
+      // item, which isn't a "category" problem at all.
+      const seenIds = new Set<string>();
+      let items = (outfit.items as any[]).filter(item => {
+        if (seenIds.has(item.id)) return false;
+        seenIds.add(item.id);
         return true;
       });
+
+      // A dress is a complete base on its own (top + bottom in one piece).
+      // If the outfit has a dress, drop any separate tops/bottoms rather than
+      // stacking a dress on top of a top or bottom.
+      const hasDress = items.some(i => effectiveCategory(i) === "dresses");
+      if (hasDress) {
+        items = items.filter(i => {
+          const cat = effectiveCategory(i);
+          return cat !== "tops" && cat !== "bottoms";
+        });
+      }
+
+      // Cap every exclusive category (dresses, tops, bottoms, outerwear,
+      // footwear) to one item — keep first, drop subsequent. Non-exclusive
+      // categories (accessories, bags, jewelry, genuinely unclassifiable
+      // items) are left alone.
+      const seenCats = new Set<string>();
+      const deduped = items.filter(item => {
+        const cat = effectiveCategory(item);
+        if (!EXCLUSIVE_CATEGORIES.has(cat)) return true;
+        if (seenCats.has(cat)) return false;
+        seenCats.add(cat);
+        return true;
+      });
+
       // Clamp to maxItems
       return { ...outfit, items: deduped.slice(0, maxItems) };
     })
@@ -72,7 +117,7 @@ function applyValidation(
       }
       // Discard if required categories are missing
       const presentCats = new Set<string>(
-        outfit.items.map((i: any) => (i.category || "").toLowerCase().trim())
+        outfit.items.map((i: any) => effectiveCategory(i))
       );
       // A dress satisfies both "tops" and "bottoms" when both are required
       if (
@@ -319,12 +364,20 @@ serve(async (req) => {
       const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Build cohesive complete outfits ONLY from the provided catalog.
 RULES:
 1. Each outfit has ${minItems}-${maxItems} items that work together aesthetically.
-2. Required categories per outfit: ${requiredCats.join(", ")}. Add optional categories when available: ${optionalCats.join(", ")}.
-3. Use product_type, tags, and collections to classify pieces and match them to the customer's occasion, formality, and color mood.
-4. Respect color harmony (max ~3 dominant colors) and the customer's preferred/avoided colors.
-5. Respect the budget — prefer items that fit within the stated budget.
-6. If an ANCHOR product is provided, include it in every outfit.
-7. Only reference product ids that appear in the PRODUCTS list. Never invent items.
+2. Composition — every outfit needs exactly ONE base: either (a) one item from "dresses", OR (b) one item from "tops" AND one item from "bottoms". A dress already covers top and bottom — never combine a dress with a separate top or bottom, and never use two items from the same category (two dresses, two jackets, two tops, etc). The merchant additionally requires these categories in every outfit: ${requiredCats.join(", ")} (a dress satisfies "tops"/"bottoms" if both are listed). Add optional categories on top of the base when available: ${optionalCats.join(", ")}.
+3. Use product_type, tags, and collections to classify pieces.
+4. OCCASION & FORMALITY — this is the customer's primary signal for which pieces to pick, weight it heavily:
+   - Workout / gym / active → activewear only (leggings, sports bras/tanks, joggers, sneakers). No dresses, blazers, or heels.
+   - Casual / Everyday / relaxed formality → comfortable separates, casual footwear, minimal accessories.
+   - Smart Casual / Brunch / Weekend Out / Weekend Getaway / Travel → elevated basics, versatile layering pieces, comfortable but put-together.
+   - Work Meeting / office → polished, tailored silhouettes, neutral palette, minimal statement accessories.
+   - Date Night / Evening / Dressy formality → refined fabrics, elevated footwear, a stronger color or print statement.
+   - Special Event / Holiday / Formal → the most elevated pieces available in the catalog, festive color/texture where the catalog has it.
+   If occasion and formality seem to conflict, prioritize formality — it's the more direct signal.
+5. Respect color harmony (max ~3 dominant colors) and the customer's preferred/avoided colors and stated color mood.
+6. Respect the budget tier — prefer items that fit within the stated per-item budget; the overall outfit should feel like it matches that price tier, not just squeak under the ceiling.
+7. If an ANCHOR product is provided, include it in every outfit.
+8. Only reference product ids that appear in the PRODUCTS list, and never repeat the same product id twice in one outfit.
 OUTPUT: Return strict JSON: { "outfits": [{ "name": "string", "productIds": ["id1","id2"], "reason": "string", "occasion": "string" }] }
 Return exactly 3 outfits. JSON only, no commentary.`;
 

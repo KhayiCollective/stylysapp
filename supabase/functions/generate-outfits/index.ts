@@ -96,21 +96,27 @@ serve(async (req) => {
     // Build composition rules section for the prompt
     const minItems = rules?.minItems ?? 3;
     const maxItems = rules?.maxItems ?? 5;
-    const required = rules?.requiredCategories ?? ["tops", "bottoms"];
-    const optional = rules?.optionalCategories ?? ["shoes", "bags", "accessories", "hats", "sunglasses", "jewelry"];
 
-    // Check which optional categories actually exist in the catalog
+    // Check which categories actually exist in the catalog
     const catalogCategories = [...new Set(products.map(p => p.category.toLowerCase()))];
-    const availableOptional = optional.filter(cat => 
-      catalogCategories.some(cc => cc.includes(cat) || cat.includes(cc))
-    );
 
+    // Category logic: every outfit has exactly ONE base — either a single dress,
+    // or a single top + single bottom pair. A dress already covers both halves
+    // of the outfit, so it must never be combined with a top, a bottom, or a
+    // second dress. Outerwear/footwear/accessories are optional add-ons on top
+    // of whichever base is used. This is enforced again server-side after
+    // generation (see enforceCompositionRules) since models don't reliably
+    // follow composition instructions on their own.
     const compositionSection = `
 COMPOSITION RULES:
-- Each outfit MUST contain ${minItems}-${maxItems} items
-- REQUIRED categories (always include one from each): ${required.join(", ")}
-- OPTIONAL categories (include when available in catalog): ${availableOptional.length > 0 ? availableOptional.join(", ") : "none available"}
-- Always try to include at least one item from the optional categories if the catalog has them
+- Each outfit MUST contain ${minItems}-${maxItems} items total.
+- Every outfit needs exactly ONE base, chosen as either:
+  (a) ONE item from "dresses", OR
+  (b) ONE item from "tops" AND ONE item from "bottoms".
+  Never mix these two options, and never use more than one item from "dresses" in the same outfit.
+  A dress already covers the top and bottom, so a dress-based outfit must NOT also include a top or a bottom item.
+- Never include two items from the same category (e.g. two jackets, two pairs of shoes, two tops) in one outfit.
+- OPTIONAL add-ons — include when available and it improves the look: one item of outerwear (jacket/cardigan/coat), one item of footwear, and up to two accessories.
 - Available categories in this catalog: ${catalogCategories.join(", ")}`;
 
     const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Your job is to create cohesive, stylish outfit combinations from a product catalog.
