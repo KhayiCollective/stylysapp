@@ -30,9 +30,12 @@ function getSupabaseAdmin() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
 
-// Categories where only one item per outfit makes sense.
+// Categories where only one item per outfit makes sense. "footwear" is the
+// canonical value — "shoes" (used by some merchant catalogs, confirmed via
+// production logs showing category: "shoes" for this brand's footwear) is
+// normalized to it in effectiveCategory() below, not treated as separate.
 const EXCLUSIVE_CATEGORIES = new Set([
-  "tops", "bottoms", "dresses", "outerwear", "shoes", "footwear",
+  "tops", "bottoms", "dresses", "outerwear", "footwear",
 ]);
 
 // Many merchant catalogs have products with category = "uncategorized" or
@@ -52,13 +55,13 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
 
 function effectiveCategory(item: { category?: string; product_type?: string; name?: string }): string {
   const raw = (item.category || "").toLowerCase().trim();
-  if (EXCLUSIVE_CATEGORIES.has(raw)) return raw;
-  if (raw === "shoes") return "footwear";
+  const normalized = raw === "shoes" ? "footwear" : raw;
+  if (EXCLUSIVE_CATEGORIES.has(normalized)) return normalized;
   const haystack = `${item.product_type || ""} ${item.name || ""}`.toLowerCase();
   for (const [cat, re] of CATEGORY_KEYWORDS) {
     if (re.test(haystack)) return cat;
   }
-  return raw || "uncategorized";
+  return normalized || "uncategorized";
 }
 
 // Step 1: dedupe. Removes exact repeated product ids, resolves the

@@ -32,9 +32,11 @@ interface OutfitRequest {
   rules?: CompositionRules;
 }
 
-// Categories where only one item per outfit makes sense.
+// Categories where only one item per outfit makes sense. "footwear" is the
+// canonical value — "shoes" (used by some merchant catalogs) is normalized
+// to it in effectiveCategory() below, not treated as a separate category.
 const EXCLUSIVE_CATEGORIES = new Set([
-  "tops", "bottoms", "dresses", "outerwear", "shoes", "footwear",
+  "tops", "bottoms", "dresses", "outerwear", "footwear",
 ]);
 
 const CATEGORY_KEYWORDS: [string, RegExp][] = [
@@ -50,13 +52,13 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
 // uncategorized catalogs (matches the logic in widget-outfits).
 function effectiveCategory(item: { category?: string; name?: string }): string {
   const raw = (item.category || "").toLowerCase().trim();
-  if (EXCLUSIVE_CATEGORIES.has(raw)) return raw;
-  if (raw === "shoes") return "footwear";
+  const normalized = raw === "shoes" ? "footwear" : raw;
+  if (EXCLUSIVE_CATEGORIES.has(normalized)) return normalized;
   const haystack = `${item.name || ""}`.toLowerCase();
   for (const [cat, re] of CATEGORY_KEYWORDS) {
     if (re.test(haystack)) return cat;
   }
-  return raw || "uncategorized";
+  return normalized || "uncategorized";
 }
 
 // Step 1: dedupe repeated ids + resolve dress-vs-separates conflicts + cap
