@@ -155,6 +155,17 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
 // Step 3: discard outfits that still don't meet the merchant's rules after
 // dedup + backfill (e.g. the catalog genuinely doesn't have enough distinct
 // pieces to hit minItems, or a required category has zero matching stock).
+// "tops", "bottoms", "dresses" are BASE categories — an outfit has exactly
+// one base (a dress, or a top+bottom pair), never both, by design (see
+// dedupeAndClamp). So if a merchant checks any of these as "required" on the
+// Rules page, that should mean "every outfit needs a complete base", not
+// "every outfit needs a top AND a bottom AND a dress simultaneously" — the
+// latter is structurally impossible given the dress-vs-separates rule and
+// would silently fail every outfit. Treat them as satisfied by EITHER a
+// dress OR a top+bottom pair. Every other required category (outerwear,
+// footwear, accessories, etc.) is still a strict requirement.
+const BASE_CATEGORIES = new Set(["tops", "bottoms", "dresses"]);
+
 function filterByRequirements(outfits: any[], minItems: number, requiredCats: string[]): any[] {
   // Normalize "shoes" -> "footwear" here too — the Rules page stores the
   // literal checkbox value ("Shoes"), but effectiveCategory() always resolves
@@ -166,22 +177,26 @@ function filterByRequirements(outfits: any[], minItems: number, requiredCats: st
     const v = c.toLowerCase().trim();
     return v === "shoes" ? "footwear" : v;
   });
+  const requiredBase = normalizedRequired.filter(c => BASE_CATEGORIES.has(c));
+  const requiredOther = normalizedRequired.filter(c => !BASE_CATEGORIES.has(c));
+
   return outfits.filter(outfit => {
     if (outfit.items.length < minItems) {
       console.log(`[validate] outfit "${outfit.name}" dropped: ${outfit.items.length} items < minItems ${minItems}`);
       return false;
     }
     const presentCats = new Set<string>(outfit.items.map((i: any) => effectiveCategory(i)));
-    // A dress satisfies both "tops" and "bottoms" when both are required
-    if (
-      presentCats.has("dresses") &&
-      normalizedRequired.includes("tops") &&
-      normalizedRequired.includes("bottoms")
-    ) {
-      presentCats.add("tops");
-      presentCats.add("bottoms");
+
+    if (requiredBase.length > 0) {
+      const hasDressBase = presentCats.has("dresses");
+      const hasSeparatesBase = presentCats.has("tops") && presentCats.has("bottoms");
+      if (!hasDressBase && !hasSeparatesBase) {
+        console.log(`[validate] outfit "${outfit.name}" dropped: no complete base (needs a dress, or a top+bottom pair)`);
+        return false;
+      }
     }
-    for (const rc of normalizedRequired) {
+
+    for (const rc of requiredOther) {
       if (!presentCats.has(rc)) {
         console.log(`[validate] outfit "${outfit.name}" dropped: missing required category "${rc}"`);
         return false;
@@ -438,7 +453,7 @@ serve(async (req) => {
       const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Build cohesive complete outfits ONLY from the provided catalog.
 RULES:
 1. Each outfit has ${minItems}-${maxItems} items that work together aesthetically.
-2. Composition — every outfit needs exactly ONE base: either (a) one item from "dresses", OR (b) one item from "tops" AND one item from "bottoms". A dress already covers top and bottom — never combine a dress with a separate top or bottom, and never use two items from the same category (two dresses, two jackets, two tops, etc). The merchant additionally requires these categories in every outfit: ${requiredCats.join(", ")} (a dress satisfies "tops"/"bottoms" if both are listed). Add optional categories on top of the base when available: ${optionalCats.join(", ")}.
+2. Composition — every outfit needs exactly ONE base: either (a) one item from "dresses", OR (b) one item from "tops" AND one item from "bottoms". A dress already covers top and bottom — never combine a dress with a separate top or bottom, and never use two items from the same category (two dresses, two jackets, two tops, etc). The merchant also requires these categories whenever relevant: ${requiredCats.join(", ")} — for "tops"/"bottoms"/"dresses" this just means "pick a complete base" (a dress on its own already counts), it does NOT mean include a dress AND a separate top AND a separate bottom together. Add optional categories on top of the base when available: ${optionalCats.join(", ")}.
 3. Use product_type, tags, and collections to classify pieces.
 4. OCCASION & FORMALITY — this is the customer's primary signal for which pieces to pick, weight it heavily:
    - Workout / gym / active → activewear only (leggings, sports bras/tanks, joggers, sneakers). No dresses, blazers, or heels.
