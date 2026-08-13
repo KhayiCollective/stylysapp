@@ -747,13 +747,25 @@ Variation seed: ${crypto.randomUUID()}`;
           items: o.items.map((i: any) => ({ name: i.name, raw_category: i.category, effective: effectiveCategory(i) })),
         })),
       });
+      // IMPORTANT: this used to be all-or-nothing — if 2 of 3 outfits passed
+      // strict validation and 1 didn't, that 1 was just dropped, so customers
+      // silently went from "3 outfits" to "2 outfits" any time a single
+      // outfit missed minItems/a required category even slightly. Now: keep
+      // every strictly-valid outfit first, then top back up to the full
+      // backfilled set with the outfits that failed strict validation (they're
+      // still deduped/anchored/backfilled — just short of the merchant's
+      // exact rules) rather than reducing the count shown to the customer.
       let finalOutfits = filterByRequirements(backfilled, minItems, requiredCats);
-      if (finalOutfits.length === 0 && backfilled.length > 0) {
-        console.log("[validate] all outfits failed strict validation — relaxing to dedup+backfill only");
-        finalOutfits = backfilled;
+      if (finalOutfits.length < backfilled.length) {
+        const usedIds = new Set(finalOutfits.map((o: any) => o.id));
+        const extras = backfilled.filter((o: any) => !usedIds.has(o.id));
+        console.log(`[validate] ${extras.length} outfit(s) failed strict validation — keeping them anyway to preserve outfit count`, {
+          dropped: extras.map((o: any) => ({ name: o.name, items: o.items.length })),
+        });
+        finalOutfits = [...finalOutfits, ...extras];
       }
       if (finalOutfits.length === 0) {
-        console.log("[validate] relaxed validation also empty — returning pre-validation outfits");
+        console.log("[validate] backfilled outfits also empty — returning pre-validation outfits");
         finalOutfits = outfits;
       }
 
