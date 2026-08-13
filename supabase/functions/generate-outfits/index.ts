@@ -32,6 +32,94 @@ interface OutfitRequest {
   rules?: CompositionRules;
 }
 
+// Categories where only one item per outfit makes sense.
+const EXCLUSIVE_CATEGORIES = new Set([
+  "tops", "bottoms", "dresses", "outerwear", "shoes", "footwear",
+]);
+
+const CATEGORY_KEYWORDS: [string, RegExp][] = [
+  ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b/i],
+  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b/i],
+  ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b|\bsneaker(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b/i],
+  ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b/i],
+  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b/i],
+];
+
+// Falls back to keyword-matching the name when the stored category is
+// missing/unrecognized, so real garment type is still detected on
+// uncategorized catalogs (matches the logic in widget-outfits).
+function effectiveCategory(item: { category?: string; name?: string }): string {
+  const raw = (item.category || "").toLowerCase().trim();
+  if (EXCLUSIVE_CATEGORIES.has(raw)) return raw;
+  if (raw === "shoes") return "footwear";
+  const haystack = `${item.name || ""}`.toLowerCase();
+  for (const [cat, re] of CATEGORY_KEYWORDS) {
+    if (re.test(haystack)) return cat;
+  }
+  return raw || "uncategorized";
+}
+
+// Step 1: dedupe repeated ids + resolve dress-vs-separates conflicts + cap
+// exclusive categories to one item each.
+function dedupeOutfitItems(rawItems: Product[]): Product[] {
+  const seenIds = new Set<string>();
+  let items = rawItems.filter(item => {
+    if (seenIds.has(item.id)) return false;
+    seenIds.add(item.id);
+    return true;
+  });
+
+  const hasDress = items.some(i => effectiveCategory(i) === "dresses");
+  if (hasDress) {
+    items = items.filter(i => {
+      const cat = effectiveCategory(i);
+      return cat !== "tops" && cat !== "bottoms";
+    });
+  }
+
+  const seenCats = new Set<string>();
+  return items.filter(item => {
+    const cat = effectiveCategory(item);
+    if (!EXCLUSIVE_CATEGORIES.has(cat)) return true;
+    if (seenCats.has(cat)) return false;
+    seenCats.add(cat);
+    return true;
+  });
+}
+
+// Step 2: if dedup dropped the outfit below minItems, backfill from the full
+// catalog rather than leaving a too-short outfit or discarding it outright.
+function backfillOutfitItems(items: Product[], minItems: number, maxItems: number, catalog: Product[]): Product[] {
+  if (items.length >= minItems) return items.slice(0, maxItems);
+
+  const result = [...items];
+  const usedIds = new Set(result.map(i => i.id));
+  const presentCats = new Set(result.map(i => effectiveCategory(i)));
+  const hasDress = presentCats.has("dresses");
+
+  const fillOrder: string[] = [];
+  if (!hasDress) {
+    if (!presentCats.has("tops")) fillOrder.push("tops");
+    if (!presentCats.has("bottoms")) fillOrder.push("bottoms");
+  }
+  fillOrder.push("outerwear", "footwear", "accessories", "accessories");
+
+  for (const cat of fillOrder) {
+    if (result.length >= minItems) break;
+    if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
+    if (!EXCLUSIVE_CATEGORIES.has(cat) && result.filter(i => effectiveCategory(i) === cat).length >= 2) continue;
+
+    const candidate = catalog.find(p => !usedIds.has(p.id) && effectiveCategory(p) === cat);
+    if (!candidate) continue;
+
+    result.push(candidate);
+    usedIds.add(candidate.id);
+    presentCats.add(cat);
+  }
+
+  return result.slice(0, maxItems);
+}
+
 // Simple in-memory IP rate limiter (per-instance). Protects against credit abuse.
 const rateBuckets = new Map<string, { count: number; reset: number }>();
 function rateLimit(ip: string, limit = 20, windowMs = 60_000): boolean {
@@ -229,10 +317,17 @@ Create 3 distinct outfit combinations that would look great together.`;
     }
 
     const outfits = parsedContent.outfits.map((outfit: any, index: number) => {
-      const outfitProducts = outfit.productIds
+      const rawProducts: Product[] = outfit.productIds
         .map((id: string) => products.find(p => p.id === id))
         .filter(Boolean);
-      
+
+      // Dedupe (dress-vs-separates conflicts, repeated ids, duplicate
+      // categories), then backfill from the full catalog if that dropped the
+      // outfit below minItems — mirrors widget-outfits' live validation so
+      // this admin preview matches what customers actually see.
+      const deduped = dedupeOutfitItems(rawProducts);
+      const outfitProducts = backfillOutfitItems(deduped, minItems, maxItems, products);
+
       const totalPrice = outfitProducts.reduce((sum: number, p: Product) => sum + Number(p.price), 0);
 
       return {

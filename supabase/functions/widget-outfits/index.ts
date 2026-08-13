@@ -61,18 +61,16 @@ function effectiveCategory(item: { category?: string; product_type?: string; nam
   return raw || "uncategorized";
 }
 
-function applyValidation(
-  rawOutfits: any[],
-  minItems: number,
-  maxItems: number,
-  requiredCats: string[],
-  strict: boolean,
-): any[] {
-  const normalizedRequired = requiredCats.map(c => c.toLowerCase().trim());
+// Step 1: dedupe. Removes exact repeated product ids, resolves the
+// dress-vs-separates conflict (a dress replaces top+bottom, so drop any
+// separate top/bottom once a dress is present), and caps every exclusive
+// category to one item. This alone can shrink an outfit well below
+// minItems — e.g. a 4-item AI outfit that had 2 dresses + a jacket + a
+// top collapses to just the 1 dress + 1 jacket once cleaned up. That's
+// handled by backfillOutfit() below, not by discarding the outfit.
+function dedupeAndClamp(rawOutfits: any[], maxItems: number): any[] {
   return rawOutfits
     .map(outfit => {
-      // Dedupe by product id first — the model occasionally repeats the same
-      // item, which isn't a "category" problem at all.
       const seenIds = new Set<string>();
       let items = (outfit.items as any[]).filter(item => {
         if (seenIds.has(item.id)) return false;
@@ -80,9 +78,6 @@ function applyValidation(
         return true;
       });
 
-      // A dress is a complete base on its own (top + bottom in one piece).
-      // If the outfit has a dress, drop any separate tops/bottoms rather than
-      // stacking a dress on top of a top or bottom.
       const hasDress = items.some(i => effectiveCategory(i) === "dresses");
       if (hasDress) {
         items = items.filter(i => {
@@ -91,10 +86,6 @@ function applyValidation(
         });
       }
 
-      // Cap every exclusive category (dresses, tops, bottoms, outerwear,
-      // footwear) to one item — keep first, drop subsequent. Non-exclusive
-      // categories (accessories, bags, jewelry, genuinely unclassifiable
-      // items) are left alone.
       const seenCats = new Set<string>();
       const deduped = items.filter(item => {
         const cat = effectiveCategory(item);
@@ -104,38 +95,88 @@ function applyValidation(
         return true;
       });
 
-      // Clamp to maxItems
       return { ...outfit, items: deduped.slice(0, maxItems) };
     })
-    .filter(outfit => {
-      if (outfit.items.length === 0) return false;
-      if (!strict) return true;
-      // Discard if too few items after dedup+clamp
-      if (outfit.items.length < minItems) {
-        console.log(`[validate] outfit "${outfit.name}" dropped: ${outfit.items.length} items < minItems ${minItems}`);
+    .filter(outfit => outfit.items.length > 0);
+}
+
+// Step 2: backfill. If dedup left an outfit below minItems, pull additional
+// items directly from the full catalog (not just what the AI picked) to
+// close the gap — completing a missing top/bottom half first, then adding
+// outerwear/footwear/accessories — before ever discarding an outfit for
+// being too short.
+function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog: any[]): any {
+  if (outfit.items.length >= minItems) return outfit;
+
+  const items = [...outfit.items];
+  const usedIds = new Set(items.map((i: any) => i.id));
+  const presentCats = new Set(items.map((i: any) => effectiveCategory(i)));
+  const hasDress = presentCats.has("dresses");
+
+  const fillOrder: string[] = [];
+  if (!hasDress) {
+    if (!presentCats.has("tops")) fillOrder.push("tops");
+    if (!presentCats.has("bottoms")) fillOrder.push("bottoms");
+  }
+  fillOrder.push("outerwear", "footwear", "accessories", "accessories");
+
+  for (const cat of fillOrder) {
+    if (items.length >= minItems) break;
+    if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
+    if (!EXCLUSIVE_CATEGORIES.has(cat) && items.filter((i: any) => effectiveCategory(i) === cat).length >= 2) continue;
+
+    const candidate = catalog.find((p: any) => !usedIds.has(p.id) && effectiveCategory(p) === cat);
+    if (!candidate) continue;
+
+    items.push({
+      id: candidate.id,
+      name: candidate.name,
+      price: Number(candidate.price),
+      image_url: candidate.image_url,
+      category: candidate.category,
+      product_type: candidate.product_type,
+      color: candidate.color,
+      fit: candidate.fit,
+      shopify_variant_id: candidate._matchedVariantId || candidate.shopify_variant_id || null,
+      in_stock: candidate._sizeAvailable !== false && candidate.inventory_status === "in_stock",
+      available: candidate._sizeAvailable !== false && candidate.inventory_status === "in_stock",
+    });
+    usedIds.add(candidate.id);
+    presentCats.add(cat);
+  }
+
+  const clamped = items.slice(0, maxItems);
+  return { ...outfit, items: clamped, totalPrice: clamped.reduce((s: number, p: any) => s + Number(p.price), 0) };
+}
+
+// Step 3: discard outfits that still don't meet the merchant's rules after
+// dedup + backfill (e.g. the catalog genuinely doesn't have enough distinct
+// pieces to hit minItems, or a required category has zero matching stock).
+function filterByRequirements(outfits: any[], minItems: number, requiredCats: string[]): any[] {
+  const normalizedRequired = requiredCats.map(c => c.toLowerCase().trim());
+  return outfits.filter(outfit => {
+    if (outfit.items.length < minItems) {
+      console.log(`[validate] outfit "${outfit.name}" dropped: ${outfit.items.length} items < minItems ${minItems}`);
+      return false;
+    }
+    const presentCats = new Set<string>(outfit.items.map((i: any) => effectiveCategory(i)));
+    // A dress satisfies both "tops" and "bottoms" when both are required
+    if (
+      presentCats.has("dresses") &&
+      normalizedRequired.includes("tops") &&
+      normalizedRequired.includes("bottoms")
+    ) {
+      presentCats.add("tops");
+      presentCats.add("bottoms");
+    }
+    for (const rc of normalizedRequired) {
+      if (!presentCats.has(rc)) {
+        console.log(`[validate] outfit "${outfit.name}" dropped: missing required category "${rc}"`);
         return false;
       }
-      // Discard if required categories are missing
-      const presentCats = new Set<string>(
-        outfit.items.map((i: any) => effectiveCategory(i))
-      );
-      // A dress satisfies both "tops" and "bottoms" when both are required
-      if (
-        presentCats.has("dresses") &&
-        normalizedRequired.includes("tops") &&
-        normalizedRequired.includes("bottoms")
-      ) {
-        presentCats.add("tops");
-        presentCats.add("bottoms");
-      }
-      for (const rc of normalizedRequired) {
-        if (!presentCats.has(rc)) {
-          console.log(`[validate] outfit "${outfit.name}" dropped: missing required category "${rc}"`);
-          return false;
-        }
-      }
-      return true;
-    });
+    }
+    return true;
+  });
 }
 
 serve(async (req) => {
@@ -473,13 +514,16 @@ Variation seed: ${crypto.randomUUID()}`;
         }
       })();
 
-      // Validate: targeted dedup of exclusive categories, clamp to maxItems,
-      // discard if <minItems or missing required category.
+      // Validate: dedup exclusive categories/conflicts, backfill from the full
+      // catalog if that dedup dropped an outfit below minItems, then discard
+      // anything that still doesn't meet the merchant's rules.
       // Progressive fallback guarantees customers always see outfits.
-      let finalOutfits = applyValidation(outfits, minItems, maxItems, requiredCats, true);
-      if (finalOutfits.length === 0 && outfits.length > 0) {
-        console.log("[validate] all outfits failed strict validation — relaxing to dedup+clamp only");
-        finalOutfits = applyValidation(outfits, minItems, maxItems, requiredCats, false);
+      const deduped = dedupeAndClamp(outfits, maxItems);
+      const backfilled = deduped.map(o => backfillOutfit(o, minItems, maxItems, products));
+      let finalOutfits = filterByRequirements(backfilled, minItems, requiredCats);
+      if (finalOutfits.length === 0 && backfilled.length > 0) {
+        console.log("[validate] all outfits failed strict validation — relaxing to dedup+backfill only");
+        finalOutfits = backfilled;
       }
       if (finalOutfits.length === 0) {
         console.log("[validate] relaxed validation also empty — returning pre-validation outfits");
