@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
+import { useEmbeddedInvoke } from "@/hooks/useEmbeddedInvoke";
 
 const iconMap: Record<string, React.ElementType> = {
   "Color Harmony": Palette,
@@ -74,6 +75,7 @@ const Rules = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { isEmbedded, embeddedBrandId } = useEmbeddedApp();
+  const embeddedInvoke = useEmbeddedInvoke();
 
   // Widget demo state
   const [demoProducts, setDemoProducts] = useState<WidgetProduct[]>([]);
@@ -203,15 +205,19 @@ const Rules = () => {
     if (!rule) return;
     const newEnabled = !rule.enabled;
     setRules(rules.map(r => r.id === ruleId ? { ...r, enabled: newEnabled } : r));
-    
-    const { error } = await supabase
-      .from("rules")
-      .update({ enabled: newEnabled })
-      .eq("id", ruleId);
 
-    if (error) {
+    // Routed through update-rule (not a direct supabase.from().update()) —
+    // embedded Shopify admin callers have no Supabase auth session, and the
+    // rules table's RLS/grants only permit writes from authenticated users.
+    // A direct client-side update silently fails for embedded merchants.
+    const { data, error } = await embeddedInvoke<{ success?: boolean; error?: string }>(
+      "update-rule",
+      { body: { rule_id: ruleId, enabled: newEnabled } },
+    );
+
+    if (error || !data?.success) {
       setRules(rules.map(r => r.id === ruleId ? { ...r, enabled: !newEnabled } : r));
-      toast({ title: "Failed to update rule", variant: "destructive" });
+      toast({ title: "Failed to update rule", description: data?.error, variant: "destructive" });
     } else {
       toast({
         title: `${rule.name} ${newEnabled ? "enabled" : "disabled"}`,
@@ -221,16 +227,19 @@ const Rules = () => {
   };
 
   const saveCompositionConfig = async (newConfig: CompositionConfig) => {
+    const previousConfig = compositionConfig;
     setCompositionConfig(newConfig);
     if (!compositionRuleId) return;
 
-    const { error } = await supabase
-      .from("rules")
-      .update({ config: newConfig as any })
-      .eq("id", compositionRuleId);
+    const { data, error } = await embeddedInvoke<{ success?: boolean; error?: string }>(
+      "update-rule",
+      { body: { rule_id: compositionRuleId, config: newConfig } },
+    );
 
-    if (error) {
-      console.error("Failed to save composition config:", error);
+    if (error || !data?.success) {
+      console.error("Failed to save composition config:", error ?? data?.error);
+      setCompositionConfig(previousConfig);
+      toast({ title: "Failed to save outfit composition settings", description: data?.error, variant: "destructive" });
     }
   };
 
