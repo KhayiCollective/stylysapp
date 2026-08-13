@@ -103,6 +103,24 @@ function dedupeAndClamp(rawOutfits: any[], maxItems: number): any[] {
     .filter(outfit => outfit.items.length > 0);
 }
 
+// Shared shape for turning a raw catalog product into an outfit line item —
+// used by both backfillOutfit() and ensureAnchor() below.
+function toOutfitItem(p: any): any {
+  return {
+    id: p.id,
+    name: p.name,
+    price: Number(p.price),
+    image_url: p.image_url,
+    category: p.category,
+    product_type: p.product_type,
+    color: p.color,
+    fit: p.fit,
+    shopify_variant_id: p._matchedVariantId || p.shopify_variant_id || null,
+    in_stock: p._sizeAvailable !== false && p.inventory_status === "in_stock",
+    available: p._sizeAvailable !== false && p.inventory_status === "in_stock",
+  };
+}
+
 // Step 2: backfill. If dedup left an outfit below minItems, pull additional
 // items directly from the full catalog (not just what the AI picked) to
 // close the gap — completing a missing top/bottom half first, then adding
@@ -131,25 +149,37 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
     const candidate = catalog.find((p: any) => !usedIds.has(p.id) && effectiveCategory(p) === cat);
     if (!candidate) continue;
 
-    items.push({
-      id: candidate.id,
-      name: candidate.name,
-      price: Number(candidate.price),
-      image_url: candidate.image_url,
-      category: candidate.category,
-      product_type: candidate.product_type,
-      color: candidate.color,
-      fit: candidate.fit,
-      shopify_variant_id: candidate._matchedVariantId || candidate.shopify_variant_id || null,
-      in_stock: candidate._sizeAvailable !== false && candidate.inventory_status === "in_stock",
-      available: candidate._sizeAvailable !== false && candidate.inventory_status === "in_stock",
-    });
+    items.push(toOutfitItem(candidate));
     usedIds.add(candidate.id);
     presentCats.add(cat);
   }
 
   const clamped = items.slice(0, maxItems);
   return { ...outfit, items: clamped, totalPrice: clamped.reduce((s: number, p: any) => s + Number(p.price), 0) };
+}
+
+// Step 1.5 (only runs when an anchor product was requested): the AI is told
+// to include the anchor in every outfit but doesn't reliably comply — the
+// admin Rules-page preview showed 2 of 3 outfits with the anchor and one
+// without it. Force it in server-side: drop whatever would conflict with it
+// (same exclusive category, or the opposite half of the dress-vs-separates
+// base), then insert the anchor.
+function ensureAnchor(outfit: any, anchor: any, maxItems: number): any {
+  if (outfit.items.some((i: any) => i.id === anchor.id)) return outfit;
+
+  const anchorItem = toOutfitItem(anchor);
+  const anchorCat = effectiveCategory(anchorItem);
+
+  const items = outfit.items.filter((i: any) => {
+    const cat = effectiveCategory(i);
+    if (EXCLUSIVE_CATEGORIES.has(anchorCat) && cat === anchorCat) return false;
+    if (anchorCat === "dresses" && (cat === "tops" || cat === "bottoms")) return false;
+    if ((anchorCat === "tops" || anchorCat === "bottoms") && cat === "dresses") return false;
+    return true;
+  });
+
+  const withAnchor = [anchorItem, ...items].slice(0, maxItems);
+  return { ...outfit, items: withAnchor, totalPrice: withAnchor.reduce((s: number, p: any) => s + Number(p.price), 0) };
 }
 
 // Step 3: discard outfits that still don't meet the merchant's rules after
@@ -408,7 +438,16 @@ serve(async (req) => {
       });
 
       // ---- Catalog payload for the AI (with product_type, tags, collections) ----
-      const productCatalog = products.map((p: any) => ({
+      // Shuffled so the model doesn't gravitate toward the same first-listed
+      // items on every request — with a thin catalog (e.g. only 8 outerwear
+      // items) a stable DB order meant near-identical outfits came back across
+      // separate requests, including different occasions.
+      const shuffledProducts = [...products];
+      for (let i = shuffledProducts.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledProducts[i], shuffledProducts[j]] = [shuffledProducts[j], shuffledProducts[i]];
+      }
+      const productCatalog = shuffledProducts.map((p: any) => ({
         id: p.id,
         name: p.name,
         category: p.category,
@@ -455,13 +494,16 @@ RULES:
 1. Each outfit has ${minItems}-${maxItems} items that work together aesthetically.
 2. Composition — every outfit needs exactly ONE base: either (a) one item from "dresses", OR (b) one item from "tops" AND one item from "bottoms". A dress already covers top and bottom — never combine a dress with a separate top or bottom, and never use two items from the same category (two dresses, two jackets, two tops, etc). The merchant also requires these categories whenever relevant: ${requiredCats.join(", ")} — for "tops"/"bottoms"/"dresses" this just means "pick a complete base" (a dress on its own already counts), it does NOT mean include a dress AND a separate top AND a separate bottom together. Add optional categories on top of the base when available: ${optionalCats.join(", ")}.
 3. Use product_type, tags, and collections to classify pieces.
-4. OCCASION & FORMALITY — this is the customer's primary signal for which pieces to pick, weight it heavily:
+4. OCCASION & FORMALITY — this is the customer's primary signal for which pieces to pick, weight it heavily. Treat each occasion as genuinely distinct — do not default to the same "safe" combination for different occasions:
    - Workout / gym / active → activewear only (leggings, sports bras/tanks, joggers, sneakers). No dresses, blazers, or heels.
-   - Casual / Everyday / relaxed formality → comfortable separates, casual footwear, minimal accessories.
-   - Smart Casual / Brunch / Weekend Out / Weekend Getaway / Travel → elevated basics, versatile layering pieces, comfortable but put-together.
-   - Work Meeting / office → polished, tailored silhouettes, neutral palette, minimal statement accessories.
-   - Date Night / Evening / Dressy formality → refined fabrics, elevated footwear, a stronger color or print statement.
-   - Special Event / Holiday / Formal → the most elevated pieces available in the catalog, festive color/texture where the catalog has it.
+   - Everyday / Casual → simple, comfortable separates, casual footwear, minimal accessories.
+   - Brunch → a lighter, feminine daytime look — dresses/skirts/soft separates, sandals or low heels, delicate accessories.
+   - Weekend Out / Weekend Getaway → relaxed but photo-ready — flowy or textured pieces, comfortable low-maintenance footwear.
+   - Travel → practical and layerable — favor separates you can layer/unlayer (jacket + top + bottom), comfortable closed-toe or low-heel footwear, avoid anything hard to move in.
+   - Smart Casual → elevated basics, polished but not fussy.
+   - Work Meeting → polished, tailored silhouettes, neutral palette, minimal statement accessories.
+   - Date Night / Dressy formality → refined fabrics, elevated footwear, a stronger color or print statement.
+   - Evening / Special Event / Holiday / Formal → the most elevated pieces available in the catalog, festive color/texture where the catalog has it.
    If occasion and formality seem to conflict, prioritize formality — it's the more direct signal.
 5. Respect color harmony (max ~3 dominant colors) and the customer's preferred/avoided colors and stated color mood.
 6. Respect the budget tier — prefer items that fit within the stated per-item budget; the overall outfit should feel like it matches that price tier, not just squeak under the ceiling.
@@ -476,6 +518,7 @@ ${JSON.stringify(productCatalog, null, 2)}
 ${anchorProduct ? `\nANCHOR (must include in every outfit): id=${anchorProduct.id} name="${anchorProduct.name}" category=${anchorProduct.category}` : ""}
 ${occasion ? `\nOCCASION OVERRIDE: ${occasion}` : ""}${style ? `\nSTYLE OVERRIDE: ${style}` : ""}${personalization}
 
+Make the 3 outfits meaningfully different from each other — vary the base garment and at least one other piece between them, don't reuse the same top+jacket pairing twice.
 Variation seed: ${crypto.randomUUID()}`;
 
       const aiMessages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
@@ -567,7 +610,10 @@ Variation seed: ${crypto.randomUUID()}`;
       // anything that still doesn't meet the merchant's rules.
       // Progressive fallback guarantees customers always see outfits.
       const deduped = dedupeAndClamp(outfits, maxItems);
-      const backfilled = deduped.map(o => backfillOutfit(o, minItems, maxItems, products));
+      // Force the anchor product into every outfit server-side — the prompt
+      // asks the model to do this but it doesn't reliably comply.
+      const withAnchor = anchorProduct ? deduped.map(o => ensureAnchor(o, anchorProduct, maxItems)) : deduped;
+      const backfilled = withAnchor.map(o => backfillOutfit(o, minItems, maxItems, products));
       console.log("[validate] per-outfit item counts", {
         minItems,
         requiredCats,

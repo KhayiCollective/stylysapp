@@ -122,6 +122,24 @@ function backfillOutfitItems(items: Product[], minItems: number, maxItems: numbe
   return result.slice(0, maxItems);
 }
 
+// The prompt tells the model to include the anchor product in every outfit,
+// but it doesn't reliably comply (confirmed live: 2 of 3 preview outfits had
+// it, one didn't). Force it in server-side — drop whatever would conflict
+// with it (same exclusive category, or the opposite half of the
+// dress-vs-separates base), then insert the anchor.
+function ensureAnchorItem(items: Product[], anchor: Product, maxItems: number): Product[] {
+  if (items.some(i => i.id === anchor.id)) return items;
+  const anchorCat = effectiveCategory(anchor);
+  const filtered = items.filter(i => {
+    const cat = effectiveCategory(i);
+    if (EXCLUSIVE_CATEGORIES.has(anchorCat) && cat === anchorCat) return false;
+    if (anchorCat === "dresses" && (cat === "tops" || cat === "bottoms")) return false;
+    if ((anchorCat === "tops" || anchorCat === "bottoms") && cat === "dresses") return false;
+    return true;
+  });
+  return [anchor, ...filtered].slice(0, maxItems);
+}
+
 // Simple in-memory IP rate limiter (per-instance). Protects against credit abuse.
 const rateBuckets = new Map<string, { count: number; reset: number }>();
 function rateLimit(ip: string, limit = 20, windowMs = 60_000): boolean {
@@ -174,7 +192,14 @@ serve(async (req) => {
       ? products.find(p => p.id === anchorProductId) 
       : null;
 
-    const productCatalog = products.map(p => ({
+    // Shuffled so refreshing the preview doesn't keep surfacing the same
+    // first-listed items every time (matches widget-outfits).
+    const shuffledProducts = [...products];
+    for (let i = shuffledProducts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledProducts[i], shuffledProducts[j]] = [shuffledProducts[j], shuffledProducts[i]];
+    }
+    const productCatalog = shuffledProducts.map(p => ({
       id: p.id,
       name: p.name,
       price: p.price,
@@ -324,11 +349,13 @@ Create 3 distinct outfit combinations that would look great together.`;
         .filter(Boolean);
 
       // Dedupe (dress-vs-separates conflicts, repeated ids, duplicate
-      // categories), then backfill from the full catalog if that dropped the
-      // outfit below minItems — mirrors widget-outfits' live validation so
-      // this admin preview matches what customers actually see.
+      // categories), force in the anchor if one was requested, then backfill
+      // from the full catalog if that dropped the outfit below minItems —
+      // mirrors widget-outfits' live validation so this admin preview matches
+      // what customers actually see.
       const deduped = dedupeOutfitItems(rawProducts);
-      const outfitProducts = backfillOutfitItems(deduped, minItems, maxItems, products);
+      const withAnchor = anchorProduct ? ensureAnchorItem(deduped, anchorProduct, maxItems) : deduped;
+      const outfitProducts = backfillOutfitItems(withAnchor, minItems, maxItems, products);
 
       const totalPrice = outfitProducts.reduce((sum: number, p: Product) => sum + Number(p.price), 0);
 
