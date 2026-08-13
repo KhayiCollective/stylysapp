@@ -147,7 +147,7 @@ function toOutfitItem(p: any): any {
 // given category, so outfit 2's backfill could grab the exact item outfit 1's
 // backfill just grabbed. Passing a shared set (updated as each outfit is
 // processed) prevents that convergence.
-function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog: any[], globalUsedIds?: Set<string>): any {
+function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog: any[], globalUsedIds?: Set<string>, fallbackCatalog?: any[]): any {
   if (outfit.items.length >= minItems) return outfit;
 
   const items = [...outfit.items];
@@ -167,7 +167,13 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
     if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
     if (!EXCLUSIVE_CATEGORIES.has(cat) && items.filter((i: any) => effectiveCategory(i) === cat).length >= 2) continue;
 
-    const candidate = catalog.find((p: any) => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && effectiveCategory(p) === cat);
+    const matches = (p: any) => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && effectiveCategory(p) === cat;
+    // Prefer a candidate the customer can actually buy in their size right
+    // now; if none exists in `catalog` (e.g. their exact size is sold out
+    // across every style in this category), fall back to the full in-stock
+    // catalog so the category still shows up — marked unavailable-in-size by
+    // the caller — rather than vanishing from the outfit entirely.
+    const candidate = catalog.find(matches) ?? fallbackCatalog?.find(matches);
     if (!candidate) continue;
 
     items.push(toOutfitItem(candidate));
@@ -468,10 +474,29 @@ serve(async (req) => {
         if (!byCategory.has(cat)) byCategory.set(cat, []);
         byCategory.get(cat)!.push(p);
       }
+      // Fallback source for categories the size/budget filter wiped out
+      // entirely for THIS customer — e.g. their exact shoe size isn't in
+      // stock in any style, so `filtered` has zero footwear even though the
+      // brand's catalog has plenty. Without this, that category silently
+      // never appears in any outfit for that customer. `enriched` is the
+      // full in-stock catalog before size/budget filtering — items pulled
+      // from here have `_sizeAvailable: false`, so toOutfitItem() correctly
+      // marks them unavailable and the widget already shows a "Notify Me" /
+      // sold-out state for those instead of "Add to Cart" (see
+      // isAvailableWithStock / NotifyMeButton on the frontend) — the
+      // customer still sees a complete head-to-toe look instead of a
+      // category quietly vanishing from every outfit they're shown.
+      const byCategoryAnySize = new Map<string, any[]>();
+      for (const p of enriched) {
+        const cat = effectiveCategory(p);
+        if (!byCategoryAnySize.has(cat)) byCategoryAnySize.set(cat, []);
+        byCategoryAnySize.get(cat)!.push(p);
+      }
       const guaranteed: any[] = [];
       const guaranteedIds = new Set<string>();
       for (const cat of ["footwear", "accessories", "outerwear", "tops", "bottoms", "dresses"]) {
-        for (const item of shuffleArray(byCategory.get(cat) || []).slice(0, GUARANTEED_PER_CATEGORY)) {
+        const pool = (byCategory.get(cat) || []).length > 0 ? byCategory.get(cat)! : (byCategoryAnySize.get(cat) || []);
+        for (const item of shuffleArray(pool).slice(0, GUARANTEED_PER_CATEGORY)) {
           if (!guaranteedIds.has(item.id)) {
             guaranteed.push(item);
             guaranteedIds.add(item.id);
@@ -670,8 +695,13 @@ Variation seed: ${crypto.randomUUID()}`;
       // item any outfit in this response already has) also stops outfit 2's
       // backfill from grabbing the exact item outfit 1's backfill just used.
       const backfillCatalog = shuffleArray(filtered);
+      // Fallback for categories the size/budget filter wiped out entirely for
+      // this customer (see the `enriched`/`byCategoryAnySize` comment above) —
+      // same reasoning applies here so backfill doesn't come up empty for a
+      // category the brand genuinely stocks, just not in this shopper's size.
+      const backfillFallbackCatalog = shuffleArray(enriched);
       const globalUsedIds = new Set<string>(withAnchor.flatMap((o: any) => o.items.map((i: any) => i.id)));
-      const backfilled = withAnchor.map(o => backfillOutfit(o, minItems, maxItems, backfillCatalog, globalUsedIds));
+      const backfilled = withAnchor.map(o => backfillOutfit(o, minItems, maxItems, backfillCatalog, globalUsedIds, backfillFallbackCatalog));
       console.log("[validate] per-outfit item counts", {
         minItems,
         requiredCats,
