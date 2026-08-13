@@ -359,6 +359,27 @@ serve(async (req) => {
         return json({ error: "No products available" }, 404);
       }
 
+      // Diagnostic: how many candidates does the backfill step actually have
+      // per category? If e.g. footwear/accessories come back at 0 here, that's
+      // why outfits can't be topped up to minItems — the catalog pool itself
+      // lacks that category, not a bug in the dedup/backfill logic.
+      const categoryBreakdown = (list: any[]) => {
+        const counts: Record<string, number> = {};
+        for (const p of list) {
+          const c = effectiveCategory(p);
+          counts[c] = (counts[c] || 0) + 1;
+        }
+        return counts;
+      };
+      console.log("[widget-outfits/generate] category pool", {
+        brand_id,
+        in_stock_only: inStockOnly,
+        raw_all_products: allProducts?.length || 0,
+        raw_after_instock_filter: rawProducts.length,
+        final_pool_size: products.length,
+        final_pool_by_category: categoryBreakdown(products),
+      });
+
       // ---- Catalog payload for the AI (with product_type, tags, collections) ----
       const productCatalog = products.map((p: any) => ({
         id: p.id,
@@ -520,6 +541,15 @@ Variation seed: ${crypto.randomUUID()}`;
       // Progressive fallback guarantees customers always see outfits.
       const deduped = dedupeAndClamp(outfits, maxItems);
       const backfilled = deduped.map(o => backfillOutfit(o, minItems, maxItems, products));
+      console.log("[validate] per-outfit item counts", {
+        minItems,
+        outfits: backfilled.map((o: any, idx: number) => ({
+          name: o.name,
+          ai_picked: deduped[idx]?.items?.length ?? null,
+          after_backfill: o.items.length,
+          categories: o.items.map((i: any) => effectiveCategory(i)),
+        })),
+      });
       let finalOutfits = filterByRequirements(backfilled, minItems, requiredCats);
       if (finalOutfits.length === 0 && backfilled.length > 0) {
         console.log("[validate] all outfits failed strict validation — relaxing to dedup+backfill only");
