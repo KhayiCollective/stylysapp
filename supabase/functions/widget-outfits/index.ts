@@ -56,11 +56,26 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
 function effectiveCategory(item: { category?: string; product_type?: string; name?: string }): string {
   const raw = (item.category || "").toLowerCase().trim();
   const normalized = raw === "shoes" ? "footwear" : raw;
-  if (EXCLUSIVE_CATEGORIES.has(normalized)) return normalized;
   const haystack = `${item.product_type || ""} ${item.name || ""}`.toLowerCase();
+  let keywordMatch: string | null = null;
   for (const [cat, re] of CATEGORY_KEYWORDS) {
-    if (re.test(haystack)) return cat;
+    if (re.test(haystack)) { keywordMatch = cat; break; }
   }
+
+  if (EXCLUSIVE_CATEGORIES.has(normalized)) {
+    // Data-quality guard: confirmed live that a product can be stored with
+    // the wrong category (e.g. a "Blouse" saved with category "shoes"),
+    // which otherwise makes it a phantom match for that category forever —
+    // it kept winning the footwear backfill slot instead of an actual shoe.
+    // If the name unambiguously signals a DIFFERENT category than what's
+    // stored, trust the name over the stored value.
+    if (keywordMatch && keywordMatch !== normalized) {
+      console.log(`[effectiveCategory] mismatch: "${item.name}" stored as "${raw}" but name matches "${keywordMatch}" — using name`);
+      return keywordMatch;
+    }
+    return normalized;
+  }
+  if (keywordMatch) return keywordMatch;
   return normalized || "uncategorized";
 }
 
