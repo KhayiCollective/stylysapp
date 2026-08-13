@@ -12,6 +12,29 @@ import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useToast } from "@/hooks/use-toast";
 import { useEmbeddedApp } from "@/components/EmbeddedAppProvider";
+import { useEmbeddedInvoke } from "@/hooks/useEmbeddedInvoke";
+
+interface DashboardStatsResponse {
+  stats: {
+    totalOutfits: number;
+    totalViews: number;
+    totalConversions: number;
+    totalRevenue: number;
+    productsCount: number;
+    customersCount: number;
+  };
+  trends: {
+    totalOutfits: number | null;
+    totalViews: number | null;
+    totalConversions: number | null;
+    totalRevenue: number | null;
+  };
+  topOutfits: { id: string; name: string; views: number; conversions: number }[];
+  categoryBreakdown: { name: string; count: number; value: number }[];
+  weeklyPerformance: { name: string; views: number; conversions: number }[];
+}
+
+const CATEGORY_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 const Dashboard = () => {
   const { showOnboarding, completeOnboarding, refetch, isLoading: onboardingLoading } = useOnboarding();
@@ -31,48 +54,21 @@ const Dashboard = () => {
     }
   }, [searchParams, setSearchParams, toast]);
 
-  // Fetch real data from database
-  const { data: outfitsData } = useQuery({
-    queryKey: ["outfits-stats"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("outfits")
-        .select("views, conversions, total_price, created_at");
-      if (error) throw error;
-      return data;
-    }
-  });
+  const embeddedInvoke = useEmbeddedInvoke();
 
-  const { data: productsCount } = useQuery({
-    queryKey: ["products-count"],
+  // All brand-scoped stats come from one edge function call now (dashboard-stats)
+  // instead of four separate direct table queries. Those queries had no
+  // .eq("brand_id", ...) filter and relied on RLS to scope them — which works
+  // for a logged-in Supabase Auth session, but the embedded Shopify Admin
+  // dashboard never has one (see EmbeddedAppProvider.tsx), so for embedded
+  // merchants those queries either came back empty (outfits/customers, no anon
+  // policy) or, worse, unfiltered across every brand (products, which does have
+  // an open anon SELECT policy for the customer widget's benefit).
+  const { data: dashboardStats } = useQuery({
+    queryKey: ["dashboard-stats", isEmbedded, embeddedBrandId],
+    enabled: !isEmbedded || !!embeddedBrandId,
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from("products")
-        .select("*", { count: "exact", head: true });
-      if (error) throw error;
-      return count || 0;
-    }
-  });
-
-  const { data: customersCount } = useQuery({
-    queryKey: ["customers-count"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("customers")
-        .select("*", { count: "exact", head: true });
-      if (error) throw error;
-      return count || 0;
-    }
-  });
-
-  const { data: topOutfits } = useQuery({
-    queryKey: ["top-outfits"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("outfits")
-        .select("id, name, views, conversions")
-        .order("conversions", { ascending: false })
-        .limit(5);
+      const { data, error } = await embeddedInvoke<DashboardStatsResponse>("dashboard-stats");
       if (error) throw error;
       return data;
     }
@@ -102,69 +98,69 @@ const Dashboard = () => {
     }
   });
 
-  // Calculate stats
-  const totalOutfits = outfitsData?.length || 0;
-  const totalViews = outfitsData?.reduce((sum, o) => sum + (o.views || 0), 0) || 0;
-  const totalConversions = outfitsData?.reduce((sum, o) => sum + (o.conversions || 0), 0) || 0;
-  const totalRevenue = outfitsData?.reduce((sum, o) => sum + (o.conversions || 0) * Number(o.total_price || 0), 0) || 0;
+  // Calculate stats from the real, brand-scoped dashboard-stats response.
+  const s = dashboardStats?.stats;
+  const trends = dashboardStats?.trends;
+  const totalOutfits = s?.totalOutfits || 0;
+  const totalViews = s?.totalViews || 0;
+  const totalConversions = s?.totalConversions || 0;
+  const totalRevenue = s?.totalRevenue || 0;
+  const productsCount = s?.productsCount || 0;
+  const customersCount = s?.customersCount || 0;
   const conversionRate = totalViews > 0 ? ((totalConversions / totalViews) * 100).toFixed(1) : "0";
+  const topOutfits = dashboardStats?.topOutfits || [];
+
+  // Real week-over-week change, computed server-side from widget_events /
+  // outfits.created_at. null means there's no reliable basis for a trend
+  // (e.g. Est. Revenue, or a brand-new store with no prior-week data) — in
+  // that case we simply omit the change badge instead of fabricating one.
+  const formatChange = (pct: number | null | undefined) => {
+    if (pct === null || pct === undefined) return null;
+    return { text: `${pct > 0 ? "+" : ""}${pct}%`, trend: pct >= 0 ? "up" as const : "down" as const };
+  };
 
   const stats = [
     {
       title: "Total Outfits",
       value: totalOutfits.toString(),
       rawValue: totalOutfits,
-      change: "+12%",
-      trend: "up",
+      change: formatChange(trends?.totalOutfits),
       icon: Layers,
-      description: "vs. last month"
+      description: "vs. last week"
     },
     {
       title: "Widget Views",
       value: totalViews.toLocaleString(),
       rawValue: totalViews,
-      change: "+23%",
-      trend: "up",
+      change: formatChange(trends?.totalViews),
       icon: Eye,
-      description: "vs. last month"
+      description: "vs. last week"
     },
     {
       title: "Conversions",
       value: totalConversions.toLocaleString(),
       rawValue: totalConversions,
-      change: "+18%",
-      trend: "up",
+      change: formatChange(trends?.totalConversions),
       icon: ShoppingCart,
-      description: "vs. last month"
+      description: "vs. last week"
     },
     {
       title: "Est. Revenue",
       value: `$${totalRevenue.toLocaleString()}`,
       rawValue: totalRevenue,
-      change: "+8%",
-      trend: "up",
+      change: formatChange(trends?.totalRevenue),
       icon: DollarSign,
       description: "from outfit sales"
     },
   ];
 
-  // Mock chart data - in production this would come from analytics
-  const chartData = [
-    { name: "Mon", views: 120, conversions: 24 },
-    { name: "Tue", views: 180, conversions: 36 },
-    { name: "Wed", views: 150, conversions: 30 },
-    { name: "Thu", views: 220, conversions: 44 },
-    { name: "Fri", views: 280, conversions: 56 },
-    { name: "Sat", views: 340, conversions: 68 },
-    { name: "Sun", views: 290, conversions: 58 },
-  ];
+  const chartData = dashboardStats?.weeklyPerformance || [];
 
-  const categoryData = [
-    { name: "Casual", value: 35, color: "hsl(var(--chart-1))" },
-    { name: "Business", value: 25, color: "hsl(var(--chart-2))" },
-    { name: "Evening", value: 20, color: "hsl(var(--chart-3))" },
-    { name: "Weekend", value: 20, color: "hsl(var(--chart-4))" },
-  ];
+  const categoryData = (dashboardStats?.categoryBreakdown || []).map((cat, index) => ({
+    name: cat.name,
+    value: cat.value,
+    color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+  }));
 
   // Show onboarding wizard for new users
   if (!onboardingLoading && showOnboarding) {
@@ -190,15 +186,20 @@ const Dashboard = () => {
               <div className="text-3xl font-display font-semibold">{stat.value}</div>
               {stat.rawValue > 0 && (
               <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                {stat.trend === "up" ? (
-                  <ArrowUpRight className="w-3 h-3 text-success" />
-                ) : (
-                  <ArrowDownRight className="w-3 h-3 text-destructive" />
+                {stat.change && (
+                  <>
+                    {stat.change.trend === "up" ? (
+                      <ArrowUpRight className="w-3 h-3 text-success" />
+                    ) : (
+                      <ArrowDownRight className="w-3 h-3 text-destructive" />
+                    )}
+                    <span className={stat.change.trend === "up" ? "text-success" : "text-destructive"}>
+                      {stat.change.text}
+                    </span>
+                    {" "}
+                  </>
                 )}
-                <span className={stat.trend === "up" ? "text-success" : "text-destructive"}>
-                  {stat.change}
-                </span>
-                {" "}{stat.description}
+                {stat.description}
               </p>
               )}
             </CardContent>

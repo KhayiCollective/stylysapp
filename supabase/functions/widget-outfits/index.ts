@@ -629,31 +629,6 @@ Variation seed: ${crypto.randomUUID()}`;
         };
       }).filter((o: any) => o.items.length > 0);
 
-      // Persist to DB for analytics — fire-and-forget, never blocks outfit delivery
-      (async () => {
-        try {
-          const { error: outfitErr } = await supabase.from("outfits").insert(
-            outfits.map((o: any) => ({
-              id: o.id,
-              brand_id,
-              name: o.name,
-              anchor_product_id: anchorProduct?.id ?? null,
-              total_price: o.totalPrice,
-            }))
-          );
-          if (outfitErr) { console.error("[widget-outfits/generate] outfit persist:", outfitErr.message); return; }
-          const itemRows = outfits.flatMap((o: any) =>
-            o.items.map((item: any, pos: number) => ({ outfit_id: o.id, product_id: item.id, position: pos }))
-          );
-          if (itemRows.length) {
-            const { error: itemErr } = await supabase.from("outfit_items").insert(itemRows);
-            if (itemErr) console.error("[widget-outfits/generate] outfit_items persist:", itemErr.message);
-          }
-        } catch (e) {
-          console.error("[widget-outfits/generate] persist exception:", e);
-        }
-      })();
-
       // Validate: dedup exclusive categories/conflicts, backfill from the full
       // catalog if that dedup dropped an outfit below minItems, then discard
       // anything that still doesn't meet the merchant's rules.
@@ -686,6 +661,38 @@ Variation seed: ${crypto.randomUUID()}`;
         console.log("[validate] relaxed validation also empty — returning pre-validation outfits");
         finalOutfits = outfits;
       }
+
+      // Persist to DB for analytics — fire-and-forget, never blocks outfit delivery.
+      // Persists finalOutfits (what the customer actually sees after dedup/anchor/
+      // backfill/validation), not the raw AI output — previously this ran on the
+      // raw `outfits` array before validation, so analytics (top outfits, category
+      // breakdown) could reflect outfits that were later cleaned up or discarded
+      // and never actually shown to anyone.
+      (async () => {
+        try {
+          const { error: outfitErr } = await supabase.from("outfits").insert(
+            finalOutfits.map((o: any) => ({
+              id: o.id,
+              brand_id,
+              name: o.name,
+              anchor_product_id: anchorProduct?.id ?? null,
+              total_price: o.totalPrice,
+              occasion: o.occasion || null,
+            }))
+          );
+          if (outfitErr) { console.error("[widget-outfits/generate] outfit persist:", outfitErr.message); return; }
+          const itemRows = finalOutfits.flatMap((o: any) =>
+            o.items.map((item: any, pos: number) => ({ outfit_id: o.id, product_id: item.id, position: pos }))
+          );
+          if (itemRows.length) {
+            const { error: itemErr } = await supabase.from("outfit_items").insert(itemRows);
+            if (itemErr) console.error("[widget-outfits/generate] outfit_items persist:", itemErr.message);
+          }
+        } catch (e) {
+          console.error("[widget-outfits/generate] persist exception:", e);
+        }
+      })();
+
       return json({ outfits: finalOutfits });
     }
 
