@@ -374,6 +374,34 @@ serve(async (req) => {
       const APPAREL_SIZE = /^(xxs|xs|s|m|l|xl|xxl|xxxl|\d{1,3})$/i;
       const isApparelSize = (v: unknown) => typeof v === "string" && APPAREL_SIZE.test(v.trim());
 
+      // Shoe sizing isn't universal — a customer's stored size (e.g. "8", almost
+      // always entered as US) needs to also match catalog variants labeled in EU
+      // sizing (e.g. "39"), which is common for merchants sourcing from European
+      // suppliers (confirmed live: this brand's shoe variants are EU-labeled).
+      // Without this, a numeric size never matches across regions and the whole
+      // footwear category silently drops out for every customer. Standard
+      // women's US<->EU chart; deliberately generous (includes both adjacent EU
+      // half-sizes per US size) since online shoe sizing is approximate anyway.
+      const US_TO_EU_WOMENS_SHOE: Record<string, string[]> = {
+        "4": ["34", "35"], "4.5": ["35"], "5": ["35", "36"], "5.5": ["36"],
+        "6": ["36", "37"], "6.5": ["37"], "7": ["37", "38"], "7.5": ["38"],
+        "8": ["38", "39"], "8.5": ["39"], "9": ["39", "40"], "9.5": ["40"],
+        "10": ["40", "41"], "10.5": ["41"], "11": ["41", "42"], "11.5": ["42"],
+        "12": ["42", "43"],
+      };
+      const EU_TO_US_WOMENS_SHOE: Record<string, string[]> = {};
+      for (const [us, eus] of Object.entries(US_TO_EU_WOMENS_SHOE)) {
+        for (const eu of eus) (EU_TO_US_WOMENS_SHOE[eu] ??= []).push(us);
+      }
+      const shoeSizeEquivalents = (raw: string): string[] => {
+        const v = raw.trim().toLowerCase();
+        const out = new Set([v]);
+        for (const eu of US_TO_EU_WOMENS_SHOE[v] || []) out.add(eu);
+        for (const us of EU_TO_US_WOMENS_SHOE[v] || []) out.add(us);
+        return Array.from(out);
+      };
+      const customerShoeSizes = new Set<string>(Array.from(customerSizes).flatMap(shoeSizeEquivalents));
+
       const productHasAvailableSize = (p: any): { available: boolean; matchedVariantId: string | null } => {
         const variants: any[] = Array.isArray(p.variants_json) ? p.variants_json : [];
         if (!variants.length) return { available: true, matchedVariantId: p.shopify_variant_id || null };
@@ -384,12 +412,15 @@ serve(async (req) => {
         if (!customerSizes.size) {
           return { available: anyAvail, matchedVariantId: fallbackId };
         }
+        // Footwear compares against the region-expanded size set (US+EU); every
+        // other category compares against the customer's sizes as stored.
+        const sizesToMatch = effectiveCategory(p) === "footwear" ? customerShoeSizes : customerSizes;
         // Only enforce size matching when this product's variants actually use apparel sizes.
         const productUsesApparelSizes = variants.some(v => isApparelSize(v?.size));
         if (!productUsesApparelSizes) {
           return { available: anyAvail, matchedVariantId: fallbackId };
         }
-        const match = variants.find(v => v?.available !== false && v?.size && customerSizes.has(String(v.size).toLowerCase()));
+        const match = variants.find(v => v?.available !== false && v?.size && sizesToMatch.has(String(v.size).trim().toLowerCase()));
         if (match) return { available: true, matchedVariantId: match.variant_id || fallbackId };
         return { available: false, matchedVariantId: null };
       };
