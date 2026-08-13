@@ -410,7 +410,46 @@ serve(async (req) => {
         }
       }
 
-      const products = filtered.slice(0, 60);
+      // Build the 60-item pool the AI actually sees. Previously this was
+      // `filtered.slice(0, 60)` — always the same fixed first-60 rows in
+      // whatever order the DB returned them, every single request. With a
+      // ~160-item catalog that meant ~100 products (and potentially entire
+      // thin categories like footwear/accessories) never got a chance to
+      // appear at all, which is why outfits kept repeating and sometimes
+      // came back with no shoes. Now: guarantee a handful of footwear/
+      // accessories/outerwear candidates are always in the pool (a pure
+      // random sample from 160 items could easily miss an 8-item category),
+      // then fill the rest with a random sample of everything else so
+      // different requests genuinely see different products, not just a
+      // different order of the same ones.
+      const shuffleArray = <T,>(arr: T[]): T[] => {
+        const copy = [...arr];
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      };
+      const POOL_SIZE = 60;
+      const GUARANTEED_PER_CATEGORY = 6;
+      const byCategory = new Map<string, any[]>();
+      for (const p of filtered) {
+        const cat = effectiveCategory(p);
+        if (!byCategory.has(cat)) byCategory.set(cat, []);
+        byCategory.get(cat)!.push(p);
+      }
+      const guaranteed: any[] = [];
+      const guaranteedIds = new Set<string>();
+      for (const cat of ["footwear", "accessories", "outerwear"]) {
+        for (const item of shuffleArray(byCategory.get(cat) || []).slice(0, GUARANTEED_PER_CATEGORY)) {
+          if (!guaranteedIds.has(item.id)) {
+            guaranteed.push(item);
+            guaranteedIds.add(item.id);
+          }
+        }
+      }
+      const remainderPool = shuffleArray(filtered.filter((p: any) => !guaranteedIds.has(p.id)));
+      const products = [...guaranteed, ...remainderPool].slice(0, POOL_SIZE);
       if (!products.length) {
         console.log("[widget-outfits/generate] no products available", { brand_id, raw: rawProducts.length });
         return json({ error: "No products available" }, 404);
@@ -438,16 +477,11 @@ serve(async (req) => {
       });
 
       // ---- Catalog payload for the AI (with product_type, tags, collections) ----
-      // Shuffled so the model doesn't gravitate toward the same first-listed
-      // items on every request — with a thin catalog (e.g. only 8 outerwear
-      // items) a stable DB order meant near-identical outfits came back across
-      // separate requests, including different occasions.
-      const shuffledProducts = [...products];
-      for (let i = shuffledProducts.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledProducts[i], shuffledProducts[j]] = [shuffledProducts[j], shuffledProducts[i]];
-      }
-      const productCatalog = shuffledProducts.map((p: any) => ({
+      // `products` is already a randomized sample (see above), but it's built
+      // in category-priority blocks (footwear/accessories/outerwear first) —
+      // reshuffle just the presentation order so the model doesn't always see
+      // those categories listed first.
+      const productCatalog = shuffleArray(products).map((p: any) => ({
         id: p.id,
         name: p.name,
         category: p.category,

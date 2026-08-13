@@ -41,6 +41,8 @@ interface WidgetProduct {
   imageUrl: string;
   price: number;
   category: string;
+  color?: string | null;
+  fit?: string | null;
 }
 
 interface WidgetOutfit {
@@ -139,17 +141,25 @@ const Rules = () => {
     if (!resolvedBrandId) return;
     // shadow with a const so the .eq() call below still compiles cleanly
     const brandId = resolvedBrandId;
+    // Previously capped at 20 — with a catalog of ~100 products that meant the
+    // preview only ever drew from the same fixed first-20 slice (by default DB
+    // order), so it kept surfacing near-identical outfits and thin categories
+    // like footwear/accessories often didn't make the cut at all. Pull the
+    // whole in-stock catalog (well above realistic catalog sizes) so the demo
+    // generator has the same variety the live widget draws from, and fetch
+    // color/fit so they're not hardcoded to null downstream.
     const { data, error } = await supabase
       .from("products")
-      .select("id, name, image_url, price, category")
+      .select("id, name, image_url, price, category, color, fit")
       .eq("brand_id", brandId)
       .eq("inventory_status", "in_stock")
-      .limit(20);
+      .limit(300);
     console.log("[loadDemoProducts] query result — rows:", data?.length ?? 0, "error:", error);
     const mapped = (data || []).map(p => ({
       id: p.id, name: p.name,
       imageUrl: p.image_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=800&fit=crop",
       price: Number(p.price), category: p.category,
+      color: p.color as string | null, fit: p.fit as string | null,
     }));
     setDemoProducts(mapped);
     if (mapped.length > 0) setDemoAnchor(mapped[0]);
@@ -172,7 +182,7 @@ const Rules = () => {
         body: {
           products: demoProducts.map(p => ({
             id: p.id, name: p.name, price: p.price,
-            image_url: p.imageUrl, category: p.category, color: null, fit: null,
+            image_url: p.imageUrl, category: p.category, color: p.color ?? null, fit: p.fit ?? null,
           })),
           anchorProductId: demoAnchor.id,
           rules: compositionRules,
