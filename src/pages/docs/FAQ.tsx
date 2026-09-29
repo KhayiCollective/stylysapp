@@ -7,7 +7,7 @@ export default function FAQ() {
   const generalFaqs = [
     {
       question: "What is STYLYS?",
-      answer: "STYLYS is an AI-powered outfit recommendation platform for e-commerce stores. It analyzes your product catalog and generates personalized outfit suggestions for your customers — including virtual try-on — helping increase average order value and customer engagement. A STYLYS AI styling chatbot is also available on Professional and Enterprise plans."
+      answer: "STYLYS is an AI-powered outfit recommendation platform for e-commerce stores. It analyzes your product catalog and generates personalized outfit suggestions for your customers — including virtual try-on — helping increase average order value and customer engagement. A STYLYS AI styling chatbot is also included on the Pro plan."
     },
     {
       question: "Which platforms does STYLYS support?",
@@ -26,7 +26,7 @@ export default function FAQ() {
   const integrationFaqs = [
     {
       question: "How do I connect my Shopify store?",
-      answer: "From your dashboard, go to Settings → Shopify Connection. Enter your store URL (e.g., mystore.myshopify.com) and authorize STYLYS to access your product catalog. Products will sync automatically."
+      answer: "Install STYLYS from the Shopify App Store (apps.shopify.com/stylys) and approve the permissions when Shopify asks. Your store connects automatically and your products start syncing right away. There's no separate sign-up or store URL to enter."
     },
     {
       question: "What Shopify permissions does STYLYS need?",
@@ -45,7 +45,7 @@ export default function FAQ() {
   const widgetFaqs = [
     {
       question: "Where should I place the widget on my product pages?",
-      answer: "The STYLYS widget appears automatically as a floating button in the bottom-right corner of your storefront — no manual placement needed. When a customer clicks it, a panel slides in from the right showing outfit recommendations. On Professional and Enterprise plans, a second floating button for the AI styling chatbot appears just above it."
+      answer: "The STYLYS widget appears automatically as a floating button in the bottom-right corner of your storefront — no manual placement needed. When a customer clicks it, a panel slides in from the right showing outfit recommendations. On the Pro plan, a second floating button for the AI styling chatbot appears just above it."
     },
     {
       question: "Can I customize the widget appearance?",
@@ -68,11 +68,11 @@ export default function FAQ() {
     },
     {
       question: "What happens when my trial ends?",
-      answer: "After your trial, you'll be prompted to choose a plan. If you don't subscribe, your widget will stop showing on your store, but your data will be preserved for 30 days."
+      answer: "You choose your plan and approve it in Shopify when you install. When the 3-day trial ends, the plan you picked starts automatically and appears on your regular Shopify bill. If you uninstall before the trial ends, you won't be charged."
     },
     {
       question: "Can I cancel my subscription?",
-      answer: "Yes, you can cancel anytime from Settings. Your subscription will remain active until the end of your current billing period."
+      answer: "Yes. To cancel, uninstall STYLYS from your Shopify admin (Settings → Apps). Shopify stops the subscription automatically, and billing is handled through your Shopify account."
     },
     {
       question: "Do you offer refunds?",
