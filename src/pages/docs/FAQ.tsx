@@ -64,7 +64,7 @@ export default function FAQ() {
   const billingFaqs = [
     {
       question: "Is there a free trial?",
-      answer: "Yes! All new accounts start with a 3-day free trial with full access to all features. No credit card required to start."
+      answer: "Yes! Every plan starts with a 3-day free trial with full access to all features. After the trial, charges appear on your regular Shopify bill."
     },
     {
       question: "What happens when my trial ends?",

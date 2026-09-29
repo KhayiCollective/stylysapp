@@ -46,7 +46,7 @@ const Index = () => {
                 Elevate Your Brand with Your Own Personal AI Stylist
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
-                Add intelligent outfit building, virtual try-on, and AI styling to your Shopify or WooCommerce store. Help customers discover complete looks and drive higher-value purchases.
+                Add intelligent outfit building, virtual try-on, and AI styling to your Shopify store. Help customers discover complete looks and drive higher-value purchases.
 
 
 
@@ -71,7 +71,7 @@ const Index = () => {
                 </span>
                 <span className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-500" />
-                  No credit card required
+                  Billed through Shopify
                 </span>
               </div>
             </div>
@@ -142,7 +142,7 @@ const Index = () => {
               "AI outfit recommendations",
               "Virtual try-on",
               "Basic analytics dashboard",
-              "Shopify & WooCommerce integration",
+              "Shopify integration",
               "Email support"]
               }
               buttonText="Start Free Trial" />
@@ -161,7 +161,7 @@ const Index = () => {
               "Full analytics & insights",
               "Customer preference tracking",
               "Priority support with live chat",
-              "Shopify & WooCommerce integration"]
+              "Shopify integration"]
               }
               buttonText="Start Free Trial" />
 
@@ -196,7 +196,7 @@ const Index = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-12 max-w-4xl mx-auto">
-            <StepCard number="01" title="Connect Your Store" description="One-click integration with Shopify or WooCommerce. Sync your entire product catalog automatically." />
+            <StepCard number="01" title="Connect Your Store" description="Install from the Shopify App Store in one click. Your product catalog syncs automatically." />
             <StepCard number="02" title="AI Does the Work" description="Our AI analyzes your products and creates smart outfit combinations based on style, color, and trends." />
             <StepCard number="03" title="Customers Buy More" description="Shoppers discover complete looks and add multiple items to cart. Watch your AOV increase." />
           </div>
@@ -225,7 +225,7 @@ const Index = () => {
             Ready to Boost Your Sales?
           </h2>
           <p className="text-lg text-background/70 mb-10 max-w-2xl mx-auto">
-            Join hundreds of fashion brands using AI to sell more and delight customers
+            Built for fashion brands on Shopify that want to sell the whole look, not just a single piece
           </p>
           <a href="https://apps.shopify.com/stylys" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="rounded-full bg-background text-foreground hover:bg-background/90 px-10 h-14 text-base font-semibold">
@@ -234,7 +234,7 @@ const Index = () => {
             </Button>
           </a>
           <p className="text-sm text-background/50 mt-6">
-            No credit card required • 3-day free trial • Cancel anytime
+            3-day free trial • Billed through Shopify • Cancel anytime
           </p>
         </div>
       </section>
