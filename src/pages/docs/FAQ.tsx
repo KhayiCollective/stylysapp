@@ -99,12 +99,28 @@ export default function FAQ() {
     }
   ];
 
+  // FAQPage structured data: lets Google read every answer (the accordion only
+  // renders answers when opened) and can show them as rich results.
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [...generalFaqs, ...integrationFaqs, ...widgetFaqs, ...billingFaqs, ...troubleshootingFaqs].map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: { "@type": "Answer", text: faq.answer },
+    })),
+  };
+
   return (
     <DocsLayout
       title="Frequently Asked Questions"
       description="Find answers to common questions about STYLYS."
     >
       <section className="space-y-8">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
+        />
         {/* General */}
         <div>
           <h2 className="font-display text-2xl font-medium mb-4">General</h2>
