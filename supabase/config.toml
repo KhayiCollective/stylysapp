@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.shopify-embed-status]
 verify_jwt = false
+
+[functions.ensure-default-rules]
+verify_jwt = false

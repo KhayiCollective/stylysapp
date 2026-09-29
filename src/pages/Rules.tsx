@@ -95,7 +95,7 @@ const Rules = () => {
     }
   }, [user, isEmbedded, embeddedBrandId]);
 
-  const fetchRules = async (overrideBrandId: string | null) => {
+  const fetchRules = async (overrideBrandId: string | null, alreadyTriedSeeding = false) => {
     setLoading(true);
     let query = supabase
       .from("rules")
@@ -107,7 +107,30 @@ const Rules = () => {
     if (error) {
       console.error("Failed to fetch rules:", error);
       toast({ title: "Failed to load rules", variant: "destructive" });
-    } else if (data) {
+      setLoading(false);
+      return;
+    }
+
+    // Brands created through the Shopify embedded install never got a
+    // default rule set seeded (only the standalone signup path did) — so a
+    // brand-new merchant sees every rule section empty and no Outfit
+    // Composition card at all. Rather than requiring a reinstall, self-heal
+    // once: if there are truly zero rules for this brand, ask
+    // ensure-default-rules to backfill the standard set, then refetch.
+    if ((!data || data.length === 0) && !alreadyTriedSeeding) {
+      const { data: seedResult, error: seedError } = await embeddedInvoke<{ success?: boolean; error?: string }>(
+        "ensure-default-rules",
+        { body: {} },
+      );
+      if (!seedError && seedResult?.success) {
+        await fetchRules(overrideBrandId, true);
+        return;
+      }
+      // Seeding failed or wasn't applicable — fall through and show
+      // whatever we actually got (an empty state) rather than looping.
+    }
+
+    if (data) {
       setRules(data);
       const comp = data.find(r => r.category === "composition");
       if (comp) {

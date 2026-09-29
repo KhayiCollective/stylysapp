@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildDefaultRules } from '../_shared/default-rules.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -184,13 +185,12 @@ Deno.serve(async (req) => {
       .limit(1);
 
     if (!existingRules || existingRules.length === 0) {
-      const defaultRules = [
-        { brand_id: newBrand.id, name: 'Category Balance', category: 'styling', description: 'Ensure outfits have complementary categories', enabled: true },
-        { brand_id: newBrand.id, name: 'Color Harmony', category: 'styling', description: 'Limit outfits to max 3 dominant colors', enabled: true },
-        { brand_id: newBrand.id, name: 'In-Stock Only', category: 'inventory', description: 'Only include products that are in stock', enabled: true },
-      ];
-      
-      await serviceClient.from('rules').insert(defaultRules);
+      // Previously only seeded 3 of the 7 rules the Rules page expects — no
+      // pricing-category rule and no composition rule at all, so Pricing
+      // Rules and Outfit Composition were empty even for accounts that did
+      // go through this (standalone signup) bootstrap path. Use the same
+      // full default set as the Shopify embedded-install path.
+      await serviceClient.from('rules').insert(buildDefaultRules(newBrand.id));
     }
 
     console.log('[account-bootstrap] Account bootstrap complete');

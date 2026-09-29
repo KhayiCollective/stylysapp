@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildDefaultRules } from "../_shared/default-rules.ts";
 
 // Version for deployment tracking - update to force redeploy
-const FUNCTION_VERSION = "1.0.3";
+const FUNCTION_VERSION = "1.0.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -145,6 +146,27 @@ Deno.serve(async (req) => {
         }
         brandId = newBrand.id;
         console.log("[SHOPIFY-OAUTH] Created new brand for embedded flow:", brandId);
+
+        // Seed default rules + widget_config immediately so the Rules page
+        // has something to show on first load — previously only the
+        // standalone signup path (account-bootstrap) did this, so every
+        // merchant installing from the App Store landed on a Rules page with
+        // empty Styling/Inventory/Pricing sections and no Outfit Composition
+        // card. (ensure-default-rules self-heals this for brands that were
+        // already created before this fix, but new installs shouldn't need
+        // to hit that fallback at all.)
+        const { error: rulesSeedError } = await supabase
+          .from("rules")
+          .insert(buildDefaultRules(brandId));
+        if (rulesSeedError) {
+          console.error("[SHOPIFY-OAUTH] Failed to seed default rules:", rulesSeedError.message);
+        }
+        const { error: widgetConfigSeedError } = await supabase
+          .from("widget_config")
+          .insert({ brand_id: brandId });
+        if (widgetConfigSeedError) {
+          console.error("[SHOPIFY-OAUTH] Failed to seed widget_config:", widgetConfigSeedError.message);
+        }
       }
 
       const statePayload = btoa(JSON.stringify({ brand_id: brandId, embedded: true, shop }));
@@ -260,6 +282,21 @@ Deno.serve(async (req) => {
           );
         }
         brandId = newBrand.id;
+
+        // Same gap as the embedded-authorize branch above — seed defaults
+        // for brands created via this (token-exchange) path too.
+        const { error: rulesSeedError } = await supabase
+          .from("rules")
+          .insert(buildDefaultRules(brandId));
+        if (rulesSeedError) {
+          console.error("[SHOPIFY-OAUTH] Failed to seed default rules:", rulesSeedError.message);
+        }
+        const { error: widgetConfigSeedError } = await supabase
+          .from("widget_config")
+          .insert({ brand_id: brandId });
+        if (widgetConfigSeedError) {
+          console.error("[SHOPIFY-OAUTH] Failed to seed widget_config:", widgetConfigSeedError.message);
+        }
       }
 
       const { error: updateError } = await supabase
