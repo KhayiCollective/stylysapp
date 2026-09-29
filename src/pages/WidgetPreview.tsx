@@ -9,6 +9,11 @@ const WidgetPreview = () => {
   const [searchParams] = useSearchParams();
   const brandId = searchParams.get("brand_id") || undefined;
   const shop = searchParams.get("shop") || undefined;
+  // Present only when the widget was opened from a product page (see
+  // stylys_widget.liquid → widget-loader) — lets the widget auto-generate an
+  // outfit anchored to the product the customer is currently viewing.
+  const productId = searchParams.get("product_id") || undefined;
+  const productTitle = searchParams.get("product_title") || undefined;
   const [isIframe, setIsIframe] = useState(false);
 
   useEffect(() => {
@@ -23,7 +28,7 @@ const WidgetPreview = () => {
   // brand_id is always injected server-side by widget-loader and verified
   // against the current Supabase project before being placed in the URL.
   if (isIframe) {
-    return <InlineCustomerWidget brandId={brandId} />;
+    return <InlineCustomerWidget brandId={brandId} initialAnchorProductId={productId} initialAnchorProductName={productTitle} />;
   }
 
   // Standalone merchant preview mode

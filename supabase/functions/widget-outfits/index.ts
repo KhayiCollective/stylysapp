@@ -46,12 +46,56 @@ const EXCLUSIVE_CATEGORIES = new Set([
 // product_type and name so real garment type is still detected even when the
 // merchant hasn't categorized the product.
 const CATEGORY_KEYWORDS: [string, RegExp][] = [
-  ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b/i],
-  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b/i],
+  // Swimwear needs its own entries BEFORE the generic dresses/bottoms/tops
+  // patterns below — a one-piece swimsuit is structurally a full base piece
+  // (like a dress: nothing else pairs below the waist with it), while a
+  // bikini/swim bottom or top is a genuine top/bottom. Without these, raw
+  // catalog categories like "Swimwear" fell through to their own untouched
+  // bucket, so a swim bottom was never recognized as the same "bottoms"
+  // slot as pants/jeans — outfits could stack a swim bottom AND pants
+  // together, which is the exact reported bug ("swimwear bottoms with
+  // pants and a shirt").
+  ["dresses", /\bone[- ]?piece\b|\bmonokini\b|\bswimsuit\b/i],
+  ["bottoms", /\bbikini bottom(s)?\b|\bswim(suit)? bottom(s)?\b|\bboard short(s)?\b|\btrunks?\b/i],
+  ["tops", /\bbikini top(s)?\b|\bswim top\b|\btankini\b/i],
+  // A matching co-ord/"set" (e.g. "Lounge Set", "Pant Set", "Co-ord") is a
+  // single SKU that already covers both top and bottom — functionally the
+  // same as a dress: nothing else should pair below (or above) it. Mapped
+  // into "dresses" on purpose to reuse all of the existing dress exclusivity
+  // logic (hasDress check, the 1-per-outfit cap, anchor conflict removal)
+  // rather than duplicating it for a new category. Reported live: "if it's a
+  // set, it shouldn't be paired with a... bottom" — an outfit was shipping
+  // with a pant, a set, a caftan, AND a hoodie all together.
+  ["dresses", /\bco-?ord(s)?\b|\b(lounge|matching|knit|terry|rib|pant|short|skirt|two[- ]?piece|2[- ]?piece|twinning)\s+set\b/i],
+  // "caftan"/"kaftan" added — a full-length, one-piece resort cover-up that
+  // functions exactly like a dress (nothing pairs below the waist with it).
+  // Previously unmatched, it fell into its own untracked category and could
+  // be combined with an actual dress AND a separate bottom in the same
+  // outfit (reported: "a Zoe Maxi dress and an oversized caftan with a
+  // slouchy bottom and a jacket").
+  ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b|\bcaftan\b|\bkaftan\b/i],
+  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b|\bvest\b/i],
   ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b|\bsneaker(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b/i],
-  ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b/i],
-  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b/i],
+  // Broadened to catch more real product-name synonyms (culottes, palazzo,
+  // chinos, joggers, cargos, denim without the word "jean", and now the bare
+  // word "bottom(s)" itself) — a bottom that slipped past every pattern here
+  // used to fall into its own untracked literal category, which is how a
+  // second/third "bottoms" item could sneak into one outfit undetected
+  // (reported: "it's giving me a wide leg pants and a slouchy bottom").
+  ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bdenim\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b|\bculotte(s)?\b|\bpalazzo\b|\bchino(s)?\b|\bcapri(s)?\b|\bjogger(s)?\b|\bcargo(s)?\b|\bbottom(s)?\b/i],
+  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b|\bpolo\b|\bhoodie\b|\bpullover\b|\bbodysuit\b/i],
 ];
+
+// Accessory subtypes where two of the SAME kind in one outfit reads as a
+// styling mistake (two hats, two pairs of sunglasses) — capped to 1 each
+// below, same as the hard exclusive categories. Kept separate from
+// EXCLUSIVE_CATEGORIES so the generic "accessories" catch-all bucket can
+// still hold up to 2 items as long as they're different pieces (see
+// backfillOutfit's fillOrder). Reported bug: "generating outfits with two
+// hats... it's not making any sense."
+const SINGLE_PER_OUTFIT_CATEGORIES = new Set([
+  ...EXCLUSIVE_CATEGORIES, "hats", "sunglasses", "bags", "jewelry", "scarves", "belts",
+]);
 
 function effectiveCategory(item: { category?: string; product_type?: string; name?: string }): string {
   const raw = (item.category || "").toLowerCase().trim();
@@ -107,7 +151,7 @@ function dedupeAndClamp(rawOutfits: any[], maxItems: number): any[] {
       const seenCats = new Set<string>();
       const deduped = items.filter(item => {
         const cat = effectiveCategory(item);
-        if (!EXCLUSIVE_CATEGORIES.has(cat)) return true;
+        if (!SINGLE_PER_OUTFIT_CATEGORIES.has(cat)) return true;
         if (seenCats.has(cat)) return false;
         seenCats.add(cat);
         return true;
@@ -148,25 +192,13 @@ function toOutfitItem(p: any): any {
 // backfill just grabbed. Passing a shared set (updated as each outfit is
 // processed) prevents that convergence.
 function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog: any[], globalUsedIds?: Set<string>, fallbackCatalog?: any[]): any {
-  if (outfit.items.length >= minItems) return outfit;
-
   const items = [...outfit.items];
   const usedIds = new Set(items.map((i: any) => i.id));
   const presentCats = new Set(items.map((i: any) => effectiveCategory(i)));
   const hasDress = presentCats.has("dresses");
 
-  const fillOrder: string[] = [];
-  if (!hasDress) {
-    if (!presentCats.has("tops")) fillOrder.push("tops");
-    if (!presentCats.has("bottoms")) fillOrder.push("bottoms");
-  }
-  fillOrder.push("outerwear", "footwear", "accessories", "accessories");
-
-  for (const cat of fillOrder) {
-    if (items.length >= minItems) break;
-    if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
-    if (!EXCLUSIVE_CATEGORIES.has(cat) && items.filter((i: any) => effectiveCategory(i) === cat).length >= 2) continue;
-
+  const addFromCategory = (cat: string): boolean => {
+    if (items.length >= maxItems) return false;
     const matches = (p: any) => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && effectiveCategory(p) === cat;
     // Prefer a candidate the customer can actually buy in their size right
     // now; if none exists in `catalog` (e.g. their exact size is sold out
@@ -174,12 +206,49 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
     // catalog so the category still shows up — marked unavailable-in-size by
     // the caller — rather than vanishing from the outfit entirely.
     const candidate = catalog.find(matches) ?? fallbackCatalog?.find(matches);
-    if (!candidate) continue;
-
+    if (!candidate) return false;
     items.push(toOutfitItem(candidate));
     usedIds.add(candidate.id);
     globalUsedIds?.add(candidate.id);
     presentCats.add(cat);
+    return true;
+  };
+
+  // Guarantee footwear specifically, independent of minItems/requiredCategories.
+  // Previously this whole function bailed out immediately whenever the outfit
+  // already hit minItems (e.g. top+bottom+jacket = 3 items with minItems=3) —
+  // so an outfit could satisfy the merchant's item-count rule and still ship
+  // with zero shoes, which was the exact reported bug ("outfit generator...
+  // needs to include accessories such as shoes, which it's not giving those
+  // options"). Shoes are treated here as a near-mandatory piece of a complete
+  // look whenever the catalog has one available, not just an optional add-on
+  // gated behind minItems.
+  if (!presentCats.has("footwear")) addFromCategory("footwear");
+
+  // Standard minItems top-up (tops/bottoms first if no dress base, then
+  // outerwear/accessories) still runs if the outfit is short even after the
+  // footwear guarantee above.
+  if (items.length < minItems) {
+    const fillOrder: string[] = [];
+    if (!hasDress) {
+      if (!presentCats.has("tops")) fillOrder.push("tops");
+      if (!presentCats.has("bottoms")) fillOrder.push("bottoms");
+    }
+    fillOrder.push("outerwear", "accessories", "accessories");
+
+    for (const cat of fillOrder) {
+      if (items.length >= minItems) break;
+      if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
+      if (!EXCLUSIVE_CATEGORIES.has(cat) && items.filter((i: any) => effectiveCategory(i) === cat).length >= 2) continue;
+      addFromCategory(cat);
+    }
+  }
+
+  // Same reasoning as footwear above — "accessories" was named explicitly in
+  // the bug report ("needs to include accessories such as shoes"). Add one if
+  // there's still room under maxItems and the outfit doesn't already have any.
+  if (items.length < maxItems && items.filter((i: any) => effectiveCategory(i) === "accessories").length === 0) {
+    addFromCategory("accessories");
   }
 
   const clamped = items.slice(0, maxItems);
@@ -200,7 +269,7 @@ function ensureAnchor(outfit: any, anchor: any, maxItems: number): any {
 
   const items = outfit.items.filter((i: any) => {
     const cat = effectiveCategory(i);
-    if (EXCLUSIVE_CATEGORIES.has(anchorCat) && cat === anchorCat) return false;
+    if (SINGLE_PER_OUTFIT_CATEGORIES.has(anchorCat) && cat === anchorCat) return false;
     if (anchorCat === "dresses" && (cat === "tops" || cat === "bottoms")) return false;
     if ((anchorCat === "tops" || anchorCat === "bottoms") && cat === "dresses") return false;
     return true;
@@ -329,13 +398,28 @@ serve(async (req) => {
       const inStockOnly = inStockRuleResult.data?.enabled !== false; // default ON if rule missing
       const { data: allProducts, error: prodErr } = productsResult;
       // Apply in-stock filter in JS — identical final set to the previous DB-filtered query.
-      const rawProducts = inStockOnly
+      const inStockFiltered = inStockOnly
         ? (allProducts || []).filter((p: any) => p.inventory_status === "in_stock")
         : allProducts;
+
+      // Some merchant catalogs mix non-apparel merchandise (home goods, decor,
+      // candles, etc.) into the same product feed the widget queries. Nothing
+      // upstream filters those out, so they could get swept into the AI's
+      // catalog and land in an outfit as a stray "accessory" — reported live:
+      // "if there's house home goods, like rugs and stuff, should not be
+      // included in these outfit builds." Exclude obvious non-apparel items
+      // by name/category/product_type before anything else sees the catalog.
+      const NON_APPAREL_PATTERN = /\brug(s)?\b|\bcandle(s)?\b|\bpillow(s)?\b|\bthrow blanket(s)?\b|\bblanket(s)?\b|\bhome\s?decor\b|\bhome\s?goods?\b|\bfurniture\b|\bvase(s)?\b|\bmug(s)?\b|\bcoaster(s)?\b|\bwall\s?art\b|\bplanter(s)?\b|\bgift\s?card\b|\bcandle\s?holder(s)?\b|\bcookware\b|\btableware\b|\bkitchenware\b/i;
+      const isApparelProduct = (p: any) => {
+        const haystack = `${p.category || ""} ${p.product_type || ""} ${p.name || ""}`.toLowerCase();
+        return !NON_APPAREL_PATTERN.test(haystack);
+      };
+      const rawProducts = (inStockFiltered || []).filter(isApparelProduct);
 
       console.log("[widget-outfits/generate] request", {
         brand_id, anchor_product_id,
         raw_count: rawProducts?.length || 0,
+        excluded_non_apparel: (inStockFiltered?.length || 0) - rawProducts.length,
         prod_err: prodErr?.message || null,
       });
 
@@ -444,15 +528,18 @@ serve(async (req) => {
         budget: budgetRange,
       });
 
-      // Graceful fallback: never return empty just because filters were too strict.
+      // Graceful fallback: never return empty just because the budget filter
+      // was too strict — but NEVER fall back into items that aren't actually
+      // available in the customer's size. Previously there was a further
+      // fallback here that reintroduced the full in-stock pool (including
+      // items unavailable in the customer's size, marked "Notify Me") when
+      // the size filter wiped out everything. Reported live: this reads as
+      // showing sold-out products, which isn't useful — better to show a
+      // smaller/emptier result than an item the customer can't actually buy.
       let filtered = budgetOk;
       if (!filtered.length && sizeOk.length) {
         console.log("[widget-outfits/generate] budget filter eliminated all products — falling back to size-only pool");
         filtered = sizeOk;
-      }
-      if (!filtered.length && enriched.length) {
-        console.log("[widget-outfits/generate] size filter eliminated all products — falling back to full in-stock pool");
-        filtered = enriched.map((p: any) => ({ ...p, _matchedVariantId: p._matchedVariantId || p.shopify_variant_id || null }));
       }
 
       // Always keep anchor in pool even if filtered out
@@ -461,7 +548,16 @@ serve(async (req) => {
         anchorProduct = rawProducts.find((p: any) => p.id === anchor_product_id);
         if (!anchorProduct && anchor_product_id.includes("gid://")) {
           const numericId = anchor_product_id.split("/").pop();
-          if (numericId) anchorProduct = rawProducts.find((p: any) => p.shopify_product_id === numericId);
+          if (numericId) anchorProduct = rawProducts.find((p: any) => String(p.shopify_product_id) === numericId);
+        }
+        // The theme embed passes the plain Shopify product ID from the
+        // product page (`{{ product.id }}`, a bare integer, not our internal
+        // UUID and not a gid:// string) so the widget can auto-build an
+        // outfit around whatever the customer is currently viewing. Match it
+        // against shopify_product_id, the same field the gid:// path above
+        // resolves against.
+        if (!anchorProduct && /^\d+$/.test(anchor_product_id)) {
+          anchorProduct = rawProducts.find((p: any) => String(p.shopify_product_id) === anchor_product_id);
         }
         if (anchorProduct && !filtered.find((p: any) => p.id === anchorProduct.id)) {
           const sz = productHasAvailableSize(anchorProduct);
@@ -505,28 +601,17 @@ serve(async (req) => {
         if (!byCategory.has(cat)) byCategory.set(cat, []);
         byCategory.get(cat)!.push(p);
       }
-      // Fallback source for categories the size/budget filter wiped out
-      // entirely for THIS customer — e.g. their exact shoe size isn't in
-      // stock in any style, so `filtered` has zero footwear even though the
-      // brand's catalog has plenty. Without this, that category silently
-      // never appears in any outfit for that customer. `enriched` is the
-      // full in-stock catalog before size/budget filtering — items pulled
-      // from here have `_sizeAvailable: false`, so toOutfitItem() correctly
-      // marks them unavailable and the widget already shows a "Notify Me" /
-      // sold-out state for those instead of "Add to Cart" (see
-      // isAvailableWithStock / NotifyMeButton on the frontend) — the
-      // customer still sees a complete head-to-toe look instead of a
-      // category quietly vanishing from every outfit they're shown.
-      const byCategoryAnySize = new Map<string, any[]>();
-      for (const p of enriched) {
-        const cat = effectiveCategory(p);
-        if (!byCategoryAnySize.has(cat)) byCategoryAnySize.set(cat, []);
-        byCategoryAnySize.get(cat)!.push(p);
-      }
+      // Previously this fell back to `enriched` (the full in-stock catalog
+      // before size/budget filtering) for any category the customer's size
+      // wiped out entirely, marking those items unavailable/"Notify Me"
+      // rather than dropping the category. Removed per live feedback — a
+      // product the customer can't actually buy in their size shouldn't be
+      // shown at all, even flagged as unavailable; a smaller outfit (or that
+      // category simply missing) is preferable to including sold-out items.
       const guaranteed: any[] = [];
       const guaranteedIds = new Set<string>();
       for (const cat of ["footwear", "accessories", "outerwear", "tops", "bottoms", "dresses"]) {
-        const pool = (byCategory.get(cat) || []).length > 0 ? byCategory.get(cat)! : (byCategoryAnySize.get(cat) || []);
+        const pool = byCategory.get(cat) || [];
         for (const item of shuffleArray(pool).slice(0, GUARANTEED_PER_CATEGORY)) {
           if (!guaranteedIds.has(item.id)) {
             guaranteed.push(item);
@@ -570,7 +655,16 @@ serve(async (req) => {
       const productCatalog = shuffleArray(products).map((p: any) => ({
         id: p.id,
         name: p.name,
-        category: p.category,
+        // Send the NORMALIZED category (tops/bottoms/dresses/etc.), not the raw
+        // merchant field. Two products with inconsistent raw category values —
+        // e.g. a jogger tagged "Loungewear" and jeans tagged "Denim" — both
+        // resolve to "bottoms" here, so the model's own "never repeat a
+        // category" instruction actually catches them; server-side dedup below
+        // is still a hard backstop regardless. Reported live: outfits were
+        // pairing a jogger with jeans because the model saw them as two
+        // unrelated raw categories.
+        category: effectiveCategory(p),
+        raw_category: p.category || null,
         product_type: p.product_type || null,
         tags: Array.isArray(p.tags) ? p.tags.slice(0, 10) : [],
         collections: Array.isArray(p.collections) ? p.collections.map((c: any) => c?.title).filter(Boolean).slice(0, 5) : [],
@@ -629,6 +723,8 @@ RULES:
 6. Respect the budget tier — prefer items that fit within the stated per-item budget; the overall outfit should feel like it matches that price tier, not just squeak under the ceiling.
 7. If an ANCHOR product is provided, include it in every outfit.
 8. Only reference product ids that appear in the PRODUCTS list, and never repeat the same product id twice in one outfit.
+9. Never include two items of the same accessory subtype in one outfit (e.g. two hats, two pairs of sunglasses, two bags) — vary accessory types instead. A swimsuit bottom/top counts as the base top or bottom, not a separate category, and should never be paired with a second pair of pants/shorts or a second top.
+10. A matching SET or CO-ORD (a single product that is already a complete top+bottom pairing, e.g. "Lounge Set", "Pant Set") counts as the ENTIRE base by itself — treat it exactly like a dress. Never pair a set/co-ord with a separate top, bottom, another dress, a caftan, or another set in the same outfit.
 OUTPUT: Return strict JSON: { "outfits": [{ "name": "string", "productIds": ["id1","id2"], "reason": "string", "occasion": "string" }] }
 Return exactly 3 outfits. JSON only, no commentary.`;
 
@@ -646,7 +742,12 @@ Variation seed: ${crypto.randomUUID()}`;
       const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "gpt-4o-mini", messages: aiMessages, temperature: 1.1 }),
+        // Lowered from 1.1 — that high a temperature is a randomness dial, and
+        // it was producing exactly the reported symptom: wildly inconsistent
+        // quality, swinging between a genuinely good pairing and a sloppy one
+        // on the same prompt. 0.6 favors more conventional, considered
+        // combinations consistently, at some cost to variety between refreshes.
+        body: JSON.stringify({ model: "gpt-4o-mini", messages: aiMessages, temperature: 0.6 }),
       });
 
       if (!aiResp.ok) {
@@ -726,13 +827,14 @@ Variation seed: ${crypto.randomUUID()}`;
       // item any outfit in this response already has) also stops outfit 2's
       // backfill from grabbing the exact item outfit 1's backfill just used.
       const backfillCatalog = shuffleArray(filtered);
-      // Fallback for categories the size/budget filter wiped out entirely for
-      // this customer (see the `enriched`/`byCategoryAnySize` comment above) —
-      // same reasoning applies here so backfill doesn't come up empty for a
-      // category the brand genuinely stocks, just not in this shopper's size.
-      const backfillFallbackCatalog = shuffleArray(enriched);
+      // No fallback catalog passed here anymore — backfill should only ever
+      // pull from `filtered` (available in the customer's size), not the
+      // unavailable-in-size `enriched` pool. If a category is genuinely
+      // unavailable for this shopper, the outfit comes back without it
+      // rather than padding it out with a sold-out item (see the pool-
+      // building comment above for the same change).
       const globalUsedIds = new Set<string>(withAnchor.flatMap((o: any) => o.items.map((i: any) => i.id)));
-      const backfilled = withAnchor.map(o => backfillOutfit(o, minItems, maxItems, backfillCatalog, globalUsedIds, backfillFallbackCatalog));
+      const backfilled = withAnchor.map(o => backfillOutfit(o, minItems, maxItems, backfillCatalog, globalUsedIds));
       console.log("[validate] per-outfit item counts", {
         minItems,
         requiredCats,

@@ -30,6 +30,12 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const shopParam = url.searchParams.get("shop") || "";
+  // Present only on product pages (added by the liquid block via `{% if
+  // template contains 'product' %}`) — lets the widget auto-build an outfit
+  // around the product the customer is currently viewing instead of making
+  // them pick one manually. See stylys_widget.liquid.
+  const productIdParam = url.searchParams.get("product_id") || "";
+  const productTitleParam = url.searchParams.get("product_title") || "";
 
   // Always resolve brand_id from shop domain when shopParam is present — never trust
   // the URL brand_id param, which may be stale from a previous Supabase project.
@@ -53,6 +59,8 @@ Deno.serve(async (req) => {
   // 3. Shopify storefront global (window.Shopify.shop)
   var brandId = ${JSON.stringify(brandId)};
   var shopDomain = ${JSON.stringify(shopParam)};
+  var productId = ${JSON.stringify(productIdParam)};
+  var productTitle = ${JSON.stringify(productTitleParam)};
 
   if (!brandId) {
     var scripts = document.getElementsByTagName('script');
@@ -71,6 +79,33 @@ Deno.serve(async (req) => {
     shopDomain = window.Shopify.shop;
   }
 
+  // Fallback product detection via Shopify's own JS globals — the liquid
+  // block only passes product_id/product_title when its own "template"/
+  // "product" Liquid objects resolve as expected, which varies by theme.
+  // These two JS globals are set by Shopify itself on product pages
+  // independent of app-embed Liquid scoping, so this catches product pages
+  // even when the liquid-side detection above comes back empty (reported
+  // live: opening from a product page landed on the Account tab instead of
+  // an outfit anchored to that product — i.e. productId was empty).
+  if (!productId) {
+    try {
+      if (window.ShopifyAnalytics && window.ShopifyAnalytics.meta &&
+          window.ShopifyAnalytics.meta.page && window.ShopifyAnalytics.meta.page.resourceType === 'product' &&
+          window.ShopifyAnalytics.meta.product && window.ShopifyAnalytics.meta.product.id) {
+        productId = String(window.ShopifyAnalytics.meta.product.id);
+      } else if (window.meta && window.meta.product && window.meta.product.id) {
+        productId = String(window.meta.product.id);
+        if (!productTitle && window.meta.product.title) productTitle = String(window.meta.product.title);
+      }
+    } catch (e) {}
+  }
+  if (!productTitle && productId) {
+    try {
+      var titleEl = document.querySelector('h1');
+      if (titleEl && titleEl.textContent) productTitle = titleEl.textContent.trim().slice(0, 120);
+    } catch (e) {}
+  }
+
   // Create floating button
   var btn = document.createElement('div');
   btn.id = 'stylys-trigger';
@@ -79,6 +114,44 @@ Deno.serve(async (req) => {
   btn.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999999;width:56px;height:56px;border-radius:50%;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.2s;';
   btn.onmouseenter = function() { btn.style.transform = 'scale(1.1)'; };
   btn.onmouseleave = function() { btn.style.transform = 'scale(1)'; };
+
+  // "Try On" pill overlaid directly on the main product photo (Pinterest-
+  // style), instead of a separate floating button elsewhere on the page.
+  // Tries a list of common Shopify theme product-image selectors and attaches
+  // to the first match's container; retries a few times since some themes
+  // render the gallery slightly after this script runs.
+  var PRODUCT_IMAGE_SELECTORS = [
+    '.product__media img', '.product-single__photo img', '.product__photo img',
+    '[data-product-single-media-wrapper] img', '.product-image-main img',
+    '.product__image img', '.product-gallery img', '.product-media img',
+    '.product__media-item img', '[data-media-type="image"] img'
+  ];
+  function findProductImageContainer() {
+    for (var i = 0; i < PRODUCT_IMAGE_SELECTORS.length; i++) {
+      var img = document.querySelector(PRODUCT_IMAGE_SELECTORS[i]);
+      if (img && img.parentElement) return img.parentElement;
+    }
+    return null;
+  }
+  function injectPhotoTryOnButton(attemptsLeft) {
+    if (!productId || document.getElementById('stylys-photo-tryon')) return;
+    var container = findProductImageContainer();
+    if (!container) {
+      if (attemptsLeft > 0) setTimeout(function() { injectPhotoTryOnButton(attemptsLeft - 1); }, 700);
+      return;
+    }
+    var computedPosition = window.getComputedStyle(container).position;
+    if (computedPosition === 'static') container.style.position = 'relative';
+    var photoBtn = document.createElement('div');
+    photoBtn.id = 'stylys-photo-tryon';
+    photoBtn.setAttribute('aria-label', 'Try this product on virtually');
+    photoBtn.textContent = 'Try On';
+    photoBtn.style.cssText = 'position:absolute;top:12px;right:12px;z-index:50;padding:8px 14px;border-radius:20px;background:rgba(0,0,0,0.85);color:#fff;font:600 12px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;letter-spacing:0.02em;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.25);transition:transform 0.15s;white-space:nowrap;';
+    photoBtn.onmouseenter = function() { photoBtn.style.transform = 'scale(1.05)'; };
+    photoBtn.onmouseleave = function() { photoBtn.style.transform = 'scale(1)'; };
+    photoBtn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); toggle(); };
+    container.appendChild(photoBtn);
+  }
 
   var overlay = document.createElement('div');
   overlay.id = 'stylys-overlay';
@@ -92,7 +165,13 @@ Deno.serve(async (req) => {
   var params = [];
   if (brandId) params.push('brand_id=' + encodeURIComponent(brandId));
   if (shopDomain) params.push('shop=' + encodeURIComponent(shopDomain));
+  if (productId) params.push('product_id=' + encodeURIComponent(productId));
+  if (productTitle) params.push('product_title=' + encodeURIComponent(productTitle));
   var qs = params.length ? '?' + params.join('&') : '';
+  // Both the main avatar button and the photo-overlay "Try On" button open
+  // this same iframe — on a product page it's already anchored to the
+  // current product via product_id/product_title, so there's nothing extra
+  // either trigger needs to pass; they just open the same panel.
   iframe.src = '${appUrl}/widget-preview' + qs;
   iframe.style.cssText = 'width:100%;height:100%;border:none;';
   iframe.allow = 'camera';
@@ -224,6 +303,7 @@ Deno.serve(async (req) => {
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
     document.body.appendChild(btn);
+    if (productId) injectPhotoTryOnButton(6);
   }
 
   if (document.body) {

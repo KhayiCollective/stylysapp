@@ -45,15 +45,22 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   const [showingOriginal, setShowingOriginal] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
 
-  // Auto-load: check cache first, then saved photo from account
+  // Auto-load: check cache first, then saved photo from account. When a photo
+  // is already on file, immediately kick off generation too — previously the
+  // customer had to tap "Try On" on an outfit card AND THEN tap "Try It On"
+  // again here, even though nothing was actually missing. That's only a real
+  // two-step flow when there's no photo yet (upload, then generate); with a
+  // saved photo already available it's just a redundant click.
   useEffect(() => {
     if (currentPhoto) return;
     const cached = getCachedPhotoUrl(brandId);
     if (cached) {
       setCurrentPhoto(cached);
+      if (outfitItems?.length) generateTryOn(cached);
     } else if (customerPhotoUrl) {
       setCurrentPhoto(customerPhotoUrl);
       setCachedPhotoUrl(brandId, customerPhotoUrl);
+      if (outfitItems?.length) generateTryOn(customerPhotoUrl);
     }
   }, [customerPhotoUrl, brandId]);
 
@@ -88,18 +95,24 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
     onPhotoSaved?.(url);
   };
 
-  const generateTryOn = async () => {
-    if (!currentPhoto || !outfitItems?.length) return;
+  // Accepts an explicit photo so the auto-load effect above can kick off
+  // generation immediately with the just-resolved cached/saved photo —
+  // calling this with no argument (as the manual button does) would
+  // otherwise read a stale `currentPhoto` still null from the same render
+  // pass, since the setCurrentPhoto() call right before it hasn't committed yet.
+  const generateTryOn = async (photoOverride?: string) => {
+    const photo = photoOverride ?? currentPhoto;
+    if (!photo || !outfitItems?.length) return;
     setIsProcessing(true);
     setError(null);
 
     try {
-      // If currentPhoto is a saved-photo signed URL, fetch and re-encode as
+      // If the photo is a saved-photo signed URL, fetch and re-encode as
       // base64 client-side so the edge function never has to hit Storage directly.
-      let photoPayload = currentPhoto;
-      if (currentPhoto.startsWith("https://")) {
+      let photoPayload = photo;
+      if (photo.startsWith("https://")) {
         try {
-          const imgResp = await fetch(currentPhoto);
+          const imgResp = await fetch(photo);
           if (!imgResp.ok) throw new Error(`status ${imgResp.status}`);
           const blob = await imgResp.blob();
           photoPayload = await new Promise<string>((resolve, reject) => {
@@ -302,7 +315,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
         <Button
           className="flex-1 gap-2"
           size="sm"
-          onClick={generateTryOn}
+          onClick={() => generateTryOn()}
           disabled={!currentPhoto || isProcessing}
         >
           {isProcessing ? (

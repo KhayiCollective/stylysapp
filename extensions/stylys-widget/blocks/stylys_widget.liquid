@@ -5,7 +5,7 @@
 {% endcomment %}
 
 <script
-  src="https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/widget-loader?shop={{ shop.permanent_domain }}"
+  src="https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/widget-loader?shop={{ shop.permanent_domain }}{% if template contains 'product' and product %}&product_id={{ product.id }}&product_title={{ product.title | url_param_escape }}{% endif %}"
   async
   data-stylys-shop="{{ shop.permanent_domain }}"
   {% if customer %}data-stylys-customer-email="{{ customer.email }}"{% endif %}

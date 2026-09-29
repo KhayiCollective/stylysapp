@@ -356,7 +356,16 @@ const Rules = () => {
                       <Label className="text-sm">Min items per outfit: {compositionConfig.minItems}</Label>
                       <Slider
                         value={[compositionConfig.minItems]}
-                        onValueChange={([v]) => saveCompositionConfig({ ...compositionConfig, minItems: v })}
+                        // Radix fires onValueChange continuously on every drag tick (e.g.
+                        // 3, 4, 5 in quick succession while dragging). Previously each tick
+                        // fired its own saveCompositionConfig() call, each capturing its own
+                        // stale `previousConfig` closure — if an earlier in-flight call's
+                        // response landed after a later one, its error/revert handler would
+                        // snap the value back down, which is exactly the "stuck at 3, won't
+                        // move to 4" symptom reported. Update local state on every tick for
+                        // smooth dragging, but only save once the user releases the handle.
+                        onValueChange={([v]) => setCompositionConfig(prev => ({ ...prev, minItems: v }))}
+                        onValueCommit={([v]) => saveCompositionConfig({ ...compositionConfig, minItems: v })}
                         min={2} max={6} step={1}
                       />
                     </div>
@@ -364,7 +373,8 @@ const Rules = () => {
                       <Label className="text-sm">Max items per outfit: {compositionConfig.maxItems}</Label>
                       <Slider
                         value={[compositionConfig.maxItems]}
-                        onValueChange={([v]) => saveCompositionConfig({ ...compositionConfig, maxItems: Math.max(v, compositionConfig.minItems) })}
+                        onValueChange={([v]) => setCompositionConfig(prev => ({ ...prev, maxItems: Math.max(v, prev.minItems) }))}
+                        onValueCommit={([v]) => saveCompositionConfig({ ...compositionConfig, maxItems: Math.max(v, compositionConfig.minItems) })}
                         min={2} max={8} step={1}
                       />
                     </div>

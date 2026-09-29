@@ -19,10 +19,18 @@ interface OutfitItem {
 
 interface InlineCustomerWidgetProps {
   brandId?: string;
+  // Passed through from the product page the widget was opened from (see
+  // WidgetPreview.tsx / widget-loader / stylys_widget.liquid) so the widget
+  // can jump straight to an outfit built around the product the customer is
+  // currently viewing, rather than making them pick one manually.
+  initialAnchorProductId?: string;
+  initialAnchorProductName?: string;
 }
 
-export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
-  const [activeTab, setActiveTab] = useState("account");
+export function InlineCustomerWidget({ brandId, initialAnchorProductId, initialAnchorProductName }: InlineCustomerWidgetProps) {
+  const [activeTab, setActiveTab] = useState(initialAnchorProductId ? "outfits" : "account");
+  const [anchorProductId, setAnchorProductId] = useState(initialAnchorProductId);
+  const [anchorProductName, setAnchorProductName] = useState(initialAnchorProductName);
   const [selectedOutfitItems, setSelectedOutfitItems] = useState<OutfitItem[] | undefined>();
   const [customerPhotoUrl, setCustomerPhotoUrl] = useState<string | null>(null);
   const [customerToken, setCustomerToken] = useState<string | null>(null);
@@ -104,7 +112,14 @@ export function InlineCustomerWidget({ brandId }: InlineCustomerWidgetProps) {
             <StyleQuizTab brandId={brandId} onComplete={handleQuizComplete} />
           </TabsContent>
           <TabsContent value="outfits" className="m-0 h-full">
-            <OutfitsTab brandId={brandId} onSelectOutfitForTryOn={handleSelectOutfitForTryOn} quizAnswers={quizAnswers} />
+            <OutfitsTab
+              brandId={brandId}
+              onSelectOutfitForTryOn={handleSelectOutfitForTryOn}
+              quizAnswers={quizAnswers}
+              anchorProductId={anchorProductId}
+              anchorProductName={anchorProductName}
+              onClearAnchor={() => { setAnchorProductId(undefined); setAnchorProductName(undefined); }}
+            />
           </TabsContent>
           <TabsContent value="wishlist" className="m-0 h-full">
             <WishlistTab brandId={brandId} />

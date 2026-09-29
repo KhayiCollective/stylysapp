@@ -40,12 +40,35 @@ const EXCLUSIVE_CATEGORIES = new Set([
 ]);
 
 const CATEGORY_KEYWORDS: [string, RegExp][] = [
-  ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b/i],
-  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b/i],
+  // Swim-specific entries must come before the generic dresses/bottoms/tops
+  // patterns below (matches widget-outfits.ts — see its comment for why:
+  // untagged swimwear was stacking a swim bottom together with pants/shorts).
+  ["dresses", /\bone[- ]?piece\b|\bmonokini\b|\bswimsuit\b/i],
+  ["bottoms", /\bbikini bottom(s)?\b|\bswim(suit)? bottom(s)?\b|\bboard short(s)?\b|\btrunks?\b/i],
+  ["tops", /\bbikini top(s)?\b|\bswim top\b|\btankini\b/i],
+  // A matching co-ord/"set" is a single SKU covering both top and bottom —
+  // treated as a dress-equivalent base (matches widget-outfits.ts) so it
+  // reuses the existing dress exclusivity logic instead of duplicating it.
+  ["dresses", /\bco-?ord(s)?\b|\b(lounge|matching|knit|terry|rib|pant|short|skirt|two[- ]?piece|2[- ]?piece|twinning)\s+set\b/i],
+  // caftan/kaftan added (matches widget-outfits.ts) — a full-length one-piece
+  // cover-up that functions like a dress, previously fell through to its own
+  // untracked category and could combine with an actual dress + a bottom.
+  ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b|\bcaftan\b|\bkaftan\b/i],
+  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b|\bvest\b/i],
   ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b|\bsneaker(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b/i],
-  ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b/i],
-  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b/i],
+  // Broadened synonyms (matches widget-outfits.ts), now including the bare
+  // word "bottom(s)" itself, so a bottom that slips past every pattern
+  // doesn't fall into its own untracked literal category — that's how a
+  // 2nd/3rd "bottoms" item could sneak into one outfit undetected.
+  ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bdenim\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b|\bculotte(s)?\b|\bpalazzo\b|\bchino(s)?\b|\bcapri(s)?\b|\bjogger(s)?\b|\bcargo(s)?\b|\bbottom(s)?\b/i],
+  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b|\bpolo\b|\bhoodie\b|\bpullover\b|\bbodysuit\b/i],
 ];
+
+// Same treatment as widget-outfits.ts: subtypes capped to 1 per outfit so two
+// of the same accessory (two hats, two pairs of sunglasses) can't slip in.
+const SINGLE_PER_OUTFIT_CATEGORIES = new Set([
+  ...EXCLUSIVE_CATEGORIES, "hats", "sunglasses", "bags", "jewelry", "scarves", "belts",
+]);
 
 // Falls back to keyword-matching the name when the stored category is
 // missing/unrecognized, so real garment type is still detected on
@@ -93,7 +116,7 @@ function dedupeOutfitItems(rawItems: Product[]): Product[] {
   const seenCats = new Set<string>();
   return items.filter(item => {
     const cat = effectiveCategory(item);
-    if (!EXCLUSIVE_CATEGORIES.has(cat)) return true;
+    if (!SINGLE_PER_OUTFIT_CATEGORIES.has(cat)) return true;
     if (seenCats.has(cat)) return false;
     seenCats.add(cat);
     return true;
@@ -106,32 +129,49 @@ function dedupeOutfitItems(rawItems: Product[]): Product[] {
 // backfilled in the same response so outfit 2's backfill can't grab the exact
 // item outfit 1's backfill just used (matches widget-outfits).
 function backfillOutfitItems(items: Product[], minItems: number, maxItems: number, catalog: Product[], globalUsedIds?: Set<string>): Product[] {
-  if (items.length >= minItems) return items.slice(0, maxItems);
-
   const result = [...items];
   const usedIds = new Set(result.map(i => i.id));
   const presentCats = new Set(result.map(i => effectiveCategory(i)));
   const hasDress = presentCats.has("dresses");
 
-  const fillOrder: string[] = [];
-  if (!hasDress) {
-    if (!presentCats.has("tops")) fillOrder.push("tops");
-    if (!presentCats.has("bottoms")) fillOrder.push("bottoms");
-  }
-  fillOrder.push("outerwear", "footwear", "accessories", "accessories");
-
-  for (const cat of fillOrder) {
-    if (result.length >= minItems) break;
-    if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
-    if (!EXCLUSIVE_CATEGORIES.has(cat) && result.filter(i => effectiveCategory(i) === cat).length >= 2) continue;
-
+  const addFromCategory = (cat: string): boolean => {
+    if (result.length >= maxItems) return false;
     const candidate = catalog.find(p => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && effectiveCategory(p) === cat);
-    if (!candidate) continue;
-
+    if (!candidate) return false;
     result.push(candidate);
     usedIds.add(candidate.id);
     globalUsedIds?.add(candidate.id);
     presentCats.add(cat);
+    return true;
+  };
+
+  // Guarantee footwear specifically, independent of minItems. Previously this
+  // function returned immediately once minItems was hit (e.g. top+bottom+
+  // jacket = 3 items with minItems 3), so a preview outfit could satisfy the
+  // item-count rule and still show zero shoes — matches widget-outfits.ts,
+  // which had the identical bug (see comment there for the reported symptom).
+  if (!presentCats.has("footwear")) addFromCategory("footwear");
+
+  if (result.length < minItems) {
+    const fillOrder: string[] = [];
+    if (!hasDress) {
+      if (!presentCats.has("tops")) fillOrder.push("tops");
+      if (!presentCats.has("bottoms")) fillOrder.push("bottoms");
+    }
+    fillOrder.push("outerwear", "accessories", "accessories");
+
+    for (const cat of fillOrder) {
+      if (result.length >= minItems) break;
+      if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
+      if (!EXCLUSIVE_CATEGORIES.has(cat) && result.filter(i => effectiveCategory(i) === cat).length >= 2) continue;
+      addFromCategory(cat);
+    }
+  }
+
+  // "accessories" was named explicitly in the bug report alongside shoes —
+  // add one if there's room and the outfit doesn't already have any.
+  if (result.length < maxItems && result.filter(i => effectiveCategory(i) === "accessories").length === 0) {
+    addFromCategory("accessories");
   }
 
   return result.slice(0, maxItems);
@@ -147,7 +187,7 @@ function ensureAnchorItem(items: Product[], anchor: Product, maxItems: number): 
   const anchorCat = effectiveCategory(anchor);
   const filtered = items.filter(i => {
     const cat = effectiveCategory(i);
-    if (EXCLUSIVE_CATEGORIES.has(anchorCat) && cat === anchorCat) return false;
+    if (SINGLE_PER_OUTFIT_CATEGORIES.has(anchorCat) && cat === anchorCat) return false;
     if (anchorCat === "dresses" && (cat === "tops" || cat === "bottoms")) return false;
     if ((anchorCat === "tops" || anchorCat === "bottoms") && cat === "dresses") return false;
     return true;
@@ -194,9 +234,23 @@ serve(async (req) => {
     }
 
     const body: OutfitRequest = await req.json();
-    const { products, anchorProductId, occasion, style, budget, colorPreferences, rules } = body;
+    const { anchorProductId, occasion, style, budget, colorPreferences, rules } = body;
 
-    if (!products || products.length === 0) {
+    if (!body.products || body.products.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "No products provided" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Exclude obvious non-apparel merchandise (home goods, decor, etc.) before
+    // it ever reaches the AI or the backfill catalog — matches widget-outfits.ts.
+    // Reported live: "if there's house home goods, like rugs and stuff, should
+    // not be included in these outfit builds."
+    const NON_APPAREL_PATTERN = /\brug(s)?\b|\bcandle(s)?\b|\bpillow(s)?\b|\bthrow blanket(s)?\b|\bblanket(s)?\b|\bhome\s?decor\b|\bhome\s?goods?\b|\bfurniture\b|\bvase(s)?\b|\bmug(s)?\b|\bcoaster(s)?\b|\bwall\s?art\b|\bplanter(s)?\b|\bgift\s?card\b|\bcandle\s?holder(s)?\b|\bcookware\b|\btableware\b|\bkitchenware\b/i;
+    const products = body.products.filter(p => !NON_APPAREL_PATTERN.test(`${p.category || ""} ${p.name || ""}`.toLowerCase()));
+
+    if (products.length === 0) {
       return new Response(
         JSON.stringify({ error: "No products provided" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -214,11 +268,16 @@ serve(async (req) => {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffledProducts[i], shuffledProducts[j]] = [shuffledProducts[j], shuffledProducts[i]];
     }
+    // Send the NORMALIZED category, not the raw merchant field — matches
+    // widget-outfits.ts. Two products with inconsistent raw categories (a
+    // jogger tagged "Loungewear", jeans tagged "Denim") both resolve to
+    // "bottoms" here so the model's "never repeat a category" instruction
+    // actually catches them; server-side dedup is still a hard backstop.
     const productCatalog = shuffledProducts.map(p => ({
       id: p.id,
       name: p.name,
       price: p.price,
-      category: p.category,
+      category: effectiveCategory(p),
       color: p.color || "unknown",
       fit: p.fit || "regular"
     }));
@@ -228,7 +287,7 @@ serve(async (req) => {
     const maxItems = rules?.maxItems ?? 5;
 
     // Check which categories actually exist in the catalog
-    const catalogCategories = [...new Set(products.map(p => p.category.toLowerCase()))];
+    const catalogCategories = [...new Set(products.map(p => effectiveCategory(p)))];
 
     // Category logic: every outfit has exactly ONE base — either a single dress,
     // or a single top + single bottom pair. A dress already covers both halves
@@ -245,7 +304,9 @@ COMPOSITION RULES:
   (b) ONE item from "tops" AND ONE item from "bottoms".
   Never mix these two options, and never use more than one item from "dresses" in the same outfit.
   A dress already covers the top and bottom, so a dress-based outfit must NOT also include a top or a bottom item.
-- Never include two items from the same category (e.g. two jackets, two pairs of shoes, two tops) in one outfit.
+- Never include two items from the same category (e.g. two jackets, two pairs of shoes, two tops) in one outfit — this also applies to accessory subtypes (never two hats, two pairs of sunglasses, two bags in the same outfit).
+- A swimsuit bottom/top counts as the outfit's base top or bottom, not a separate category — never pair it with a second pair of pants/shorts or a second top.
+- A matching SET or CO-ORD (a single product already pairing a top+bottom, e.g. "Lounge Set", "Pant Set") counts as the ENTIRE base by itself — treat it exactly like a dress. Never pair it with a separate top, bottom, another dress, a caftan, or another set.
 - OPTIONAL add-ons — include when available and it improves the look: one item of outerwear (jacket/cardigan/coat), one item of footwear, and up to two accessories.
 - Available categories in this catalog: ${catalogCategories.join(", ")}`;
 
@@ -297,6 +358,11 @@ Create 3 distinct outfit combinations that would look great together.`;
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
+        // Explicitly set to match widget-outfits.ts — this was previously
+        // unset (defaulting to 1.0), which is high enough to produce
+        // inconsistent styling quality. 0.6 favors more conventional,
+        // considered combinations.
+        temperature: 0.6,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
