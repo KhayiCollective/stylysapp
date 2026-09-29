@@ -337,11 +337,15 @@ async function callOpenAI(
   if (IMAGE_MODEL === "gpt-image-1") {
     form.append("input_fidelity", "high");
   }
-  // Explicitly request "high" output quality. Leaving this unset defaults to
-  // "auto", which OpenAI can resolve down to a lower quality tier for
-  // cost/latency — a likely contributor to garments rendering blurry,
-  // warped, or otherwise not applied cleanly onto the customer photo.
-  form.append("quality", "high");
+  // "high" fixed the earlier "clothes not rendering properly" complaint but
+  // also meaningfully increased generation time — which turned out to widen
+  // the window during which a customer navigating away mid-generation (e.g.
+  // while scrolling the storefront) loses the in-progress try-on entirely,
+  // since this whole request lives in a single client-held HTTP connection
+  // with nothing saved server-side in between. "medium" is a middle ground:
+  // still better than the "auto" default that caused the original blurriness
+  // complaint, but noticeably faster than "high" to shrink that window back down.
+  form.append("quality", "medium");
   // Only the FIRST image in the array gets the richest fidelity treatment,
   // which is why the user's photo must stay first in the image[] list below
   // — don't reorder these appends.
