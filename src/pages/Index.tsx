@@ -52,15 +52,15 @@ const Index = () => {
 
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/auth">
+                <a href="https://apps.shopify.com/stylys" target="_blank" rel="noopener noreferrer">
                   <Button size="lg" className="rounded-full bg-foreground text-background hover:bg-foreground/90 px-8 h-14 text-base font-semibold">
-                    Start Free Trial
+                    Install on Shopify
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
-                </Link>
-                <a href="#pricing">
+                </a>
+                <a href="https://hausofkhayi.com" target="_blank" rel="noopener noreferrer">
                   <Button size="lg" variant="outline" className="rounded-full px-8 h-14 text-base font-semibold border-foreground/20 hover:bg-foreground/5">
-                    View Pricing
+                    See It Live on Haus of Khayi
                   </Button>
                 </a>
               </div>
@@ -227,12 +227,12 @@ const Index = () => {
           <p className="text-lg text-background/70 mb-10 max-w-2xl mx-auto">
             Join hundreds of fashion brands using AI to sell more and delight customers
           </p>
-          <Link to="/auth">
+          <a href="https://apps.shopify.com/stylys" target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="rounded-full bg-background text-foreground hover:bg-background/90 px-10 h-14 text-base font-semibold">
-              Start Your Free Trial
+              Install on Shopify
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
-          </Link>
+          </a>
           <p className="text-sm text-background/50 mt-6">
             No credit card required • 3-day free trial • Cancel anytime
           </p>
