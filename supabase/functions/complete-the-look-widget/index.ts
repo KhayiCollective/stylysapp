@@ -192,6 +192,30 @@ Deno.serve(async (req) => {
     var total = (outfit.items || []).reduce(function(s, i) { return s + (Number(i.price) || 0); }, 0);
     footer.appendChild(el('span', 'stylys-ctl-price', money(total)));
 
+    var btnGroup = el('div', 'stylys-ctl-btn-group');
+
+    // Hands this outfit off to the floating STYLYS panel's Try-On tab via the
+    // __stylysTryOnOutfit bridge (see widget-loader.js) — that panel lives in
+    // its own iframe so it can't be reached directly from here.
+    if (window.__stylysTryOnOutfit) {
+      var tryOnBtn = el('button', 'stylys-ctl-tryon-btn', 'Try On');
+      tryOnBtn.type = 'button';
+      tryOnBtn.onclick = function() {
+        var items = (outfit.items || []).map(function(i) {
+          return {
+            id: i.id,
+            name: i.name,
+            imageUrl: i.image_url || i.imageUrl || '',
+            category: i.category,
+            shopify_variant_id: i.shopify_variant_id,
+            price: i.price,
+          };
+        });
+        window.__stylysTryOnOutfit(items);
+      };
+      btnGroup.appendChild(tryOnBtn);
+    }
+
     var addBtn = el('button', 'stylys-ctl-add-btn', 'Add All');
     addBtn.type = 'button';
     addBtn.onclick = function() {
@@ -202,7 +226,8 @@ Deno.serve(async (req) => {
       if (!items.length) return;
       addAllToCart(items, addBtn);
     };
-    footer.appendChild(addBtn);
+    btnGroup.appendChild(addBtn);
+    footer.appendChild(btnGroup);
     card.appendChild(footer);
 
     return card;
@@ -231,9 +256,12 @@ Deno.serve(async (req) => {
       '.stylys-ctl-reason{font-size:12px;color:#555;line-height:1.4;margin:0;}' +
       '.stylys-ctl-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;}' +
       '.stylys-ctl-price{font-size:14px;font-weight:600;}' +
+      '.stylys-ctl-btn-group{display:flex;gap:8px;}' +
       '.stylys-ctl-add-btn{background:#000;color:#fff;border:none;border-radius:20px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity 0.15s;}' +
       '.stylys-ctl-add-btn:hover{opacity:0.85;}' +
       '.stylys-ctl-add-btn:disabled{opacity:0.6;cursor:default;}' +
+      '.stylys-ctl-tryon-btn{background:#fff;color:#000;border:1px solid #000;border-radius:20px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity 0.15s;}' +
+      '.stylys-ctl-tryon-btn:hover{opacity:0.7;}' +
       '.stylys-ctl-loading,.stylys-ctl-empty{font-size:13px;color:#777;padding:20px 0;}';
     document.head.appendChild(style);
   }

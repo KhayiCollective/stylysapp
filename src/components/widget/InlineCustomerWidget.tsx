@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Camera, User, ShoppingBag, X, Sparkles } from "lucide-react";
 import stylysIconCream from "@/assets/stylys-icon-cream.png";
@@ -50,6 +50,23 @@ export function InlineCustomerWidget({ brandId, initialAnchorProductId, initialA
     setSelectedOutfitItems(items);
     setActiveTab("tryon");
   };
+
+  // Lets OTHER scripts injected into the storefront page — currently the
+  // inline "Complete the Look" section on product pages (a separate script
+  // from this iframe, running in the parent page) — send an outfit straight
+  // into Try-On via postMessage, through the __stylysTryOnOutfit bridge in
+  // widget-loader.js. That script can't reach into this iframe's React state
+  // directly (different origin), so postMessage is the only channel.
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "stylys-select-outfit-tryon" && Array.isArray(e.data.items)) {
+        setSelectedOutfitItems(e.data.items);
+        setActiveTab("tryon");
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   const handleCustomerLogin = (photoUrl: string | null, token: string, styleProfile?: { body_shape?: string; size_info?: Record<string, string> }) => {
     setCustomerPhotoUrl(photoUrl);

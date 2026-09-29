@@ -196,6 +196,23 @@ Deno.serve(async (req) => {
   btn.onclick = toggle;
   overlay.onclick = toggle;
 
+  // Bridge for OTHER injected scripts on the same page (currently:
+  // complete-the-look-widget.js, the inline "Complete the Look" section) to
+  // open this panel with a specific outfit already loaded into Try-On,
+  // without needing to know anything about how the panel/iframe work
+  // internally. Posts into the iframe a couple of times a beat apart since
+  // the iframe's own message listener may not be mounted yet on a cold open.
+  window.__stylysTryOnOutfit = function(items) {
+    if (!items || !items.length) return;
+    if (!isOpen) toggle();
+    var send = function() {
+      try { iframe.contentWindow.postMessage({ type: 'stylys-select-outfit-tryon', items: items }, '*'); } catch (_) {}
+    };
+    send();
+    setTimeout(send, 300);
+    setTimeout(send, 800);
+  };
+
   window.addEventListener('message', function(e) {
     if (!e.data || !e.data.type) return;
     if (e.data.type === 'stylys-close' && isOpen) toggle();
