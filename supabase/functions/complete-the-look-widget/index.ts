@@ -247,7 +247,7 @@ Deno.serve(async (req) => {
     var style = document.createElement('style');
     style.id = 'stylys-ctl-styles';
     style.textContent =
-      '.stylys-complete-the-look{margin-top:32px;padding-top:24px;border-top:1px solid rgba(0,0,0,0.1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}' +
+      '.stylys-complete-the-look{margin-top:32px;margin-bottom:32px;padding-top:24px;padding-bottom:24px;border-top:1px solid rgba(0,0,0,0.1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}' +
       '.stylys-ctl-heading{display:flex;align-items:center;gap:10px;font-family:"Playfair Display",serif;font-size:24px;font-weight:600;margin-bottom:16px;}' +
       '.stylys-ctl-heading img{width:24px;height:24px;border-radius:50%;object-fit:cover;display:block;}' +
       // Always exactly 3 equal columns in a single row on desktop — cards
