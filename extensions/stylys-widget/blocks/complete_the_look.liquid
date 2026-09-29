@@ -1,0 +1,27 @@
+{% comment %}
+  STYLYS Complete the Look - inline outfit builder for product pages.
+  Unlike the floating STYLYS widget (added via Theme Settings > App embeds),
+  this is an app BLOCK: add it once via the theme editor on your Product
+  template (Add block > Apps > STYLYS Complete the Look) to place it
+  directly in the page layout, e.g. below the product description.
+{% endcomment %}
+
+<div id="stylys-complete-the-look"></div>
+
+<script
+  src="https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/complete-the-look-widget?shop={{ shop.permanent_domain }}&product_id={{ product.id }}&product_title={{ product.title | url_param_escape }}"
+  async
+></script>
+
+{% schema %}
+{
+  "name": "STYLYS Complete the Look",
+  "target": "section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Shows AI-generated outfit recommendations built around this product, right in the page. Add this block to your Product template."
+    }
+  ]
+}
+{% endschema %}
