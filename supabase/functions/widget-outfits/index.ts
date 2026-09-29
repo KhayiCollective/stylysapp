@@ -97,10 +97,21 @@ const SINGLE_PER_OUTFIT_CATEGORIES = new Set([
   ...EXCLUSIVE_CATEGORIES, "hats", "sunglasses", "bags", "jewelry", "scarves", "belts",
 ]);
 
-function effectiveCategory(item: { category?: string; product_type?: string; name?: string }): string {
+function effectiveCategory(item: { category?: string; product_type?: string; name?: string; tags?: any; collections?: any }): string {
   const raw = (item.category || "").toLowerCase().trim();
   const normalized = raw === "shoes" ? "footwear" : raw;
-  const haystack = `${item.product_type || ""} ${item.name || ""}`.toLowerCase();
+  // Include tags/collections in the classification haystack, not just
+  // product_type + name. Products with vague or branded names (e.g. a jean
+  // style named after a wash color, with no reliable "jean/pant/denim" word
+  // in the name and an inconsistent stored category) were evading every
+  // keyword match and landing in an untracked category, letting duplicates
+  // slip past the one-per-outfit cap. tags/collections are already fetched
+  // and sent to the AI elsewhere in the payload, so this is free signal.
+  const tagsText = Array.isArray(item.tags) ? item.tags.join(" ") : (item.tags || "");
+  const collectionsText = Array.isArray(item.collections)
+    ? item.collections.map((c: any) => (typeof c === "string" ? c : c?.title || "")).join(" ")
+    : (item.collections || "");
+  const haystack = `${item.product_type || ""} ${item.name || ""} ${tagsText} ${collectionsText}`.toLowerCase();
   let keywordMatch: string | null = null;
   for (const [cat, re] of CATEGORY_KEYWORDS) {
     if (re.test(haystack)) { keywordMatch = cat; break; }
@@ -725,6 +736,7 @@ RULES:
 8. Only reference product ids that appear in the PRODUCTS list, and never repeat the same product id twice in one outfit.
 9. Never include two items of the same accessory subtype in one outfit (e.g. two hats, two pairs of sunglasses, two bags) — vary accessory types instead. A swimsuit bottom/top counts as the base top or bottom, not a separate category, and should never be paired with a second pair of pants/shorts or a second top.
 10. A matching SET or CO-ORD (a single product that is already a complete top+bottom pairing, e.g. "Lounge Set", "Pant Set") counts as the ENTIRE base by itself — treat it exactly like a dress. Never pair a set/co-ord with a separate top, bottom, another dress, a caftan, or another set in the same outfit.
+11. Respect proportion and silhouette balance. A full-length, maxi, or ankle-length base garment (maxi dress, caftan, long duster, wide-leg pants) needs outerwear/layers that are ALSO long or at least hip-length — never pair it with a cropped jacket, cropped cardigan, or bolero, since a crop layer over a long base breaks the silhouette. Likewise avoid pairing a cropped top with high-waisted bottoms that expose an unintended amount of midriff unless the occasion calls for it. When in doubt, match layer length to base garment length.
 OUTPUT: Return strict JSON: { "outfits": [{ "name": "string", "productIds": ["id1","id2"], "reason": "string", "occasion": "string" }] }
 Return exactly 3 outfits. JSON only, no commentary.`;
 

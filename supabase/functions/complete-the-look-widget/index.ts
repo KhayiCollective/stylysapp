@@ -233,13 +233,23 @@ Deno.serve(async (req) => {
     return card;
   }
 
+  function injectFont() {
+    if (document.getElementById('stylys-ctl-font')) return;
+    var link = document.createElement('link');
+    link.id = 'stylys-ctl-font';
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap';
+    document.head.appendChild(link);
+  }
+
   function injectStyles() {
     if (document.getElementById('stylys-ctl-styles')) return;
     var style = document.createElement('style');
     style.id = 'stylys-ctl-styles';
     style.textContent =
       '.stylys-complete-the-look{margin-top:32px;padding-top:24px;border-top:1px solid rgba(0,0,0,0.1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}' +
-      '.stylys-ctl-heading{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:600;margin-bottom:16px;}' +
+      '.stylys-ctl-heading{display:flex;align-items:center;gap:10px;font-family:"Playfair Display",serif;font-size:24px;font-weight:600;margin-bottom:16px;}' +
+      '.stylys-ctl-heading img{width:24px;height:24px;border-radius:50%;object-fit:cover;display:block;}' +
       // Always exactly 3 equal columns in a single row on desktop — cards
       // shrink to fit rather than wrapping to a second row. Falls back to a
       // single column below 700px so cards don't get squished unreadably
@@ -268,9 +278,11 @@ Deno.serve(async (req) => {
 
   function init(container) {
     if (!productId) return;
+    injectFont();
     injectStyles();
     container.innerHTML = '';
-    var heading = el('div', 'stylys-ctl-heading', '✨ Complete the Look');
+    var heading = el('div', 'stylys-ctl-heading', '');
+    heading.innerHTML = '<img src="https://stylysapp.com/S_no_border.png?v=3" alt="STYLYS" /> Complete the Look with STYLYS';
     container.appendChild(heading);
     var loading = el('div', 'stylys-ctl-loading', 'Curating outfits for you...');
     container.appendChild(loading);

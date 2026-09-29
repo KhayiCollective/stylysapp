@@ -308,6 +308,7 @@ COMPOSITION RULES:
 - A swimsuit bottom/top counts as the outfit's base top or bottom, not a separate category — never pair it with a second pair of pants/shorts or a second top.
 - A matching SET or CO-ORD (a single product already pairing a top+bottom, e.g. "Lounge Set", "Pant Set") counts as the ENTIRE base by itself — treat it exactly like a dress. Never pair it with a separate top, bottom, another dress, a caftan, or another set.
 - OPTIONAL add-ons — include when available and it improves the look: one item of outerwear (jacket/cardigan/coat), one item of footwear, and up to two accessories.
+- Respect proportion and silhouette balance: a full-length/maxi/ankle-length base garment (maxi dress, caftan, long duster, wide-leg pants) needs outerwear that is ALSO long or at least hip-length — never pair it with a cropped jacket, cropped cardigan, or bolero.
 - Available categories in this catalog: ${catalogCategories.join(", ")}`;
 
     const systemPrompt = `You are STYLYS, an expert AI fashion stylist. Your job is to create cohesive, stylish outfit combinations from a product catalog.
