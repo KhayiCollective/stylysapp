@@ -40,9 +40,10 @@ export default async function middleware(
     return undefined;
   }
 
-  // Fetch the static index.html. The .html extension excludes this URL from
+  // Fetch the static SPA shell (dist/app-shell.html, written by scripts/prerender.mjs;
+  // index.html now holds the prerendered homepage). The .html extension excludes this URL from
   // the matcher above, so there is no recursion risk.
-  const indexRes = await fetch(new URL("/index.html", url.origin));
+  const indexRes = await fetch(new URL("/app-shell.html", url.origin));
   if (!indexRes.ok) return undefined;
 
   const html = await indexRes.text();
