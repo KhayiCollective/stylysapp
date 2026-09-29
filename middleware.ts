@@ -13,7 +13,7 @@ export const config = {
   // Only intercept extensionless SPA routes — not static assets (.js, .css,
   // .html, .png …). This prevents the fetch('/index.html') call below from
   // re-entering this middleware.
-  matcher: ["/((?!_vercel|.*\\..*).*)", "/"],
+  matcher: ["/((?!_vercel|app-shell|.*\\..*).*)", "/"],
 };
 
 export default async function middleware(
@@ -43,7 +43,7 @@ export default async function middleware(
   // Fetch the static SPA shell (dist/app-shell.html, written by scripts/prerender.mjs;
   // index.html now holds the prerendered homepage). The .html extension excludes this URL from
   // the matcher above, so there is no recursion risk.
-  const indexRes = await fetch(new URL("/app-shell.html", url.origin));
+  const indexRes = await fetch(new URL("/app-shell", url.origin));
   if (!indexRes.ok) return undefined;
 
   const html = await indexRes.text();
