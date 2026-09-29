@@ -215,7 +215,12 @@ Deno.serve(async (req) => {
     style.textContent =
       '.stylys-complete-the-look{margin-top:32px;padding-top:24px;border-top:1px solid rgba(0,0,0,0.1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}' +
       '.stylys-ctl-heading{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:600;margin-bottom:16px;}' +
-      '.stylys-ctl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}' +
+      // Always exactly 3 equal columns in a single row on desktop — cards
+      // shrink to fit rather than wrapping to a second row. Falls back to a
+      // single column below 700px so cards don't get squished unreadably
+      // narrow on phones.
+      '.stylys-ctl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}' +
+      '@media (max-width:700px){.stylys-ctl-grid{grid-template-columns:1fr;}}' +
       '.stylys-ctl-card{border:1px solid rgba(0,0,0,0.1);border-radius:10px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:10px;}' +
       '.stylys-ctl-card-name{font-size:14px;font-weight:600;margin:0;}' +
       '.stylys-ctl-card-occasion{font-size:12px;color:#666;margin:2px 0 0;}' +
