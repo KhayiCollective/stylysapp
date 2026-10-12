@@ -247,7 +247,7 @@ serve(async (req) => {
     // it ever reaches the AI or the backfill catalog — matches widget-outfits.ts.
     // Reported live: "if there's house home goods, like rugs and stuff, should
     // not be included in these outfit builds."
-    const NON_APPAREL_PATTERN = /\brug(s)?\b|\bcandle(s)?\b|\bpillow(s)?\b|\bthrow blanket(s)?\b|\bblanket(s)?\b|\bhome\s?decor\b|\bhome\s?goods?\b|\bfurniture\b|\bvase(s)?\b|\bmug(s)?\b|\bcoaster(s)?\b|\bwall\s?art\b|\bplanter(s)?\b|\bgift\s?card\b|\bcandle\s?holder(s)?\b|\bcookware\b|\btableware\b|\bkitchenware\b/i;
+    const NON_APPAREL_PATTERN = /\brug(s)?\b|\bcandle(s)?\b|\bpillow(s)?\b|\bthrow blanket(s)?\b|\bblanket(s)?\b|\bhome\s?decor\b|\bhome\s?goods?\b|\bfurniture\b|\bvase(s)?\b|\bmug(s)?\b|\bcoaster(s)?\b|\bwall\s?art\b|\bplanter(s)?\b|\bgift\s?card\b|\bcandle\s?holder(s)?\b|\bcookware\b|\btableware\b|\bkitchenware\b|\bpouf(fe)?s?\b|\bottoman(s)?\b|\bcushion(s)?\b|\btapestr(y|ies)\b|\blamp(s)?\b|\bbedding\b|\bduvet\b|\bcurtain(s)?\b|\bdoormat(s)?\b|\bstool(s)?\b|\bornament(s)?\b|\bdiffuser(s)?\b|\bbeni ourain\b|\bwall hanging(s)?\b/i;
     const products = body.products.filter(p => !NON_APPAREL_PATTERN.test(`${p.category || ""} ${p.name || ""}`.toLowerCase()));
 
     if (products.length === 0) {
