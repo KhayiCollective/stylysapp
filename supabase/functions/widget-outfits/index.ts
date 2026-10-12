@@ -418,6 +418,56 @@ serve(async (req) => {
   try {
     const supabase = getSupabaseAdmin();
 
+    // --- ALTERNATIVES (public): in-stock swap options for one outfit slot ---
+    // Used by the Try-On tab when a customer removes/swaps a piece of a look.
+    // Takes the id of the item being replaced, works out its category, and
+    // returns a few other in-stock items of that same category.
+    if (path === "alternatives" && req.method === "POST") {
+      const body = await req.json();
+      let brand_id: string | undefined = body.brand_id;
+      if (body.shop) {
+        const shopDomain = String(body.shop).includes(".myshopify.com") ? String(body.shop) : `${body.shop}.myshopify.com`;
+        const { data: brandRow } = await supabase.from("brands").select("id").eq("shopify_store_domain", shopDomain).maybeSingle();
+        if (brandRow?.id) brand_id = brandRow.id;
+      }
+      if (!brand_id) return json({ error: "brand_id or shop is required" }, 400);
+
+      const { data: prods, error: pErr } = await supabase
+        .from("products")
+        .select("id, name, price, image_url, category, color, fit, shopify_variant_id, shopify_product_id, product_type, tags, collections, inventory_status")
+        .eq("brand_id", brand_id)
+        .eq("inventory_status", "in_stock")
+        .limit(400);
+      if (pErr) return json({ error: pErr.message }, 500);
+
+      const NON_APPAREL = /\brug(s)?\b|\bcandle(s)?\b|\bpillow(s)?\b|\bblanket(s)?\b|\bhome\s?decor\b|\bhome\s?goods?\b|\bfurniture\b|\bvase(s)?\b|\bmug(s)?\b|\bgift\s?card\b|\bpouf(fe)?s?\b|\bottoman(s)?\b|\bcushion(s)?\b|\blamp(s)?\b|\bbeni ourain\b/i;
+      const apparel = (prods || []).filter((p: any) =>
+        !NON_APPAREL.test(`${p.category || ""} ${p.product_type || ""} ${p.name || ""}`.toLowerCase()));
+
+      // Resolve the slot's category from the item being replaced (by id, using
+      // the full product row so tags/collections help classification).
+      const replaced = body.item_id ? (prods || []).find((p: any) => p.id === body.item_id) : null;
+      let slotCat: string | null = null;
+      if (replaced) slotCat = effectiveCategory(replaced);
+      else if (body.category || body.name) slotCat = effectiveCategory({ category: body.category, name: body.name });
+      if (!slotCat) return json({ alternatives: [] });
+
+      const exclude = new Set<string>(Array.isArray(body.exclude_ids) ? body.exclude_ids : []);
+      const pool = apparel
+        .filter((p: any) => !exclude.has(p.id) && effectiveCategory(p) === slotCat && p.image_url)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 8)
+        .map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          imageUrl: p.image_url,
+          category: p.category,
+          shopify_variant_id: p.shopify_variant_id,
+          price: Number(p.price),
+        }));
+      return json({ alternatives: pool, slot_category: slotCat });
+    }
+
     // --- GENERATE (public, just needs brand_id OR shop) ---
     if (path === "generate" && req.method === "POST") {
       const body = await req.json();

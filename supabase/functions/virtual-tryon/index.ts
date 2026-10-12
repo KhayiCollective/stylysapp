@@ -287,6 +287,20 @@ GARMENT FIDELITY — THIS IS CRITICAL:
 - Use the product name as a silhouette hint and honor it (e.g. "barrel", "wide leg", "cropped", "oversized", "midi").
 - Keep each garment's true proportions and length relative to the body — do not lengthen, shorten, slim or widen it to suit the person's pose.
 
+STYLING DIRECTION — how the garments are WORN (this never changes the garment itself, only how it is styled on the person):
+- Style the outfit the way a polished, effortless European stylist would: intentional, minimal, "undone but put together", never sloppy or costume-like.
+- Jackets, coats and blazers are worn CLOSED — buttoned or zipped (a blazer with its top button fastened; a coat buttoned or belted). Only leave one open if it is clearly an open-front piece such as a cardigan, kimono or duster.
+- Zip-up and half-zip sweaters, hoodies and jackets are zipped up to a natural height near the collarbone/neck. Buttoned shirts are buttoned, with at most the top button open.
+- Tops can be half-tucked or loosely tucked into bottoms when it flatters the proportions; sleeves may be casually pushed or cuffed; jean hems can sit with a clean stack or a neat cuff; collars lie naturally, lightly turned up where it suits the piece.
+- Keep proportions balanced (volume on top paired with a cleaner line below, or the reverse) and layers intentional (collar and hem of an inner layer peeking out under a jacket).
+- LAYERING: when the outfit has more than one top layer (e.g. a hoodie, sweater, or shirt plus a jacket/coat/blazer), wear them truly layered, in the right order, in a cool intentional way — never one pasted over the other or merged into a single garment.
+  • Hoodie under a jacket/coat: the hoodie goes on first; the jacket is worn closed over it with the hood pulled out and resting over the jacket's collar/shoulders (drawstrings visible), and the hoodie hem peeking just below the jacket hem. Give the outer layer enough volume to fit over the hoodie naturally.
+  • Sweater or knit under a jacket/blazer: collar and cuffs of the inner layer show at the neckline and wrists; the hem may peek below the jacket.
+  • Shirt under a sweater or jacket: collar lies neatly over the neckline, cuffs at the wrists.
+  • Both layers must remain clearly recognizable as their own distinct garments, each keeping its exact color, cut and details.
+- Accessories sit naturally: a cap or hat worn straight and low over the brow area, shoes fully visible, no accessories floating or duplicated.
+- Do NOT change the person's pose, face, hair or the background to achieve this styling.
+
 CLOTHING APPLICATION RULES:
 - Strip the person's original clothing entirely before applying new garments.
 - Dress the person from head to toe in the selected outfit only.
@@ -318,7 +332,7 @@ You MUST generate an image. Output the visualization image now.`;
 
 function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   const items = outfitItems.map(i => `"${i.name}" (${i.category})`).join(", ");
-  return `Generate a photorealistic virtual try-on image. Image 1 is the customer's photo — this is the BASE IMAGE. The person must remain EXACTLY the same: preserve their face, skin tone, hair, pose, body shape, and background with ZERO alterations. Your ONLY task is to remove their current clothing and dress them in these items: ${items}. Extract only the specified garment from each product image and reproduce it EXACTLY — same silhouette, cut, leg shape (barrel stays barrel, never straight or wide-leg), length, color, wash and details; do not substitute a generic version. Fit garments realistically to the person's body — correct shoulder alignment, natural draping, proper lengths. Match the lighting and shadows from Image 1. The result must look like a real photograph of this person wearing this outfit. You MUST output an image.`;
+  return `Generate a photorealistic virtual try-on image. Image 1 is the customer's photo — this is the BASE IMAGE. The person must remain EXACTLY the same: preserve their face, skin tone, hair, pose, body shape, and background with ZERO alterations. Your ONLY task is to remove their current clothing and dress them in these items: ${items}. Extract only the specified garment from each product image and reproduce it EXACTLY — same silhouette, cut, leg shape (barrel stays barrel, never straight or wide-leg), length, color, wash and details; do not substitute a generic version. Style it like an effortless European stylist: jackets and coats worn closed (buttoned or zipped), zip-up sweaters zipped up, and layered pieces truly layered (e.g. hoodie under a closed jacket with the hood out over the collar and the hem peeking below), each layer still clearly distinct. Fit garments realistically to the person's body — correct shoulder alignment, natural draping, proper lengths. Match the lighting and shadows from Image 1. The result must look like a real photograph of this person wearing this outfit. You MUST output an image.`;
 }
 
 // gpt-image-1 is deprecated by OpenAI on Oct 23, 2026 — migrating ahead of

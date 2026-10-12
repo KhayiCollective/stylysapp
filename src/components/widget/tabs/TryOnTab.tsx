@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Camera, Loader2, Sparkles, Eye, User, ShoppingBag } from "lucide-react";
+import { Camera, Loader2, Sparkles, Eye, User, ShoppingBag, X, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
 import { toast } from "sonner";
@@ -44,6 +44,65 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   const [error, setError] = useState<string | null>(null);
   const [showingOriginal, setShowingOriginal] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
+
+  // Local, editable copy of the outfit: lets the customer X out a piece they
+  // don't want in the try-on, or swap it for another in-stock option from the
+  // same category. Edits only mark the look as changed — the (paid) image
+  // generation re-runs when they tap the main button, not on every tweak.
+  const [items, setItems] = useState<OutfitItemProp[]>(outfitItems ?? []);
+  const [dirty, setDirty] = useState(false);
+  const [swapIdx, setSwapIdx] = useState<number | null>(null);
+  const [alternatives, setAlternatives] = useState<OutfitItemProp[]>([]);
+  const [loadingAlts, setLoadingAlts] = useState(false);
+
+  useEffect(() => {
+    setItems(outfitItems ?? []);
+    setDirty(false);
+    setSwapIdx(null);
+  }, [outfitItems]);
+
+  const removeItem = (idx: number) => {
+    setItems(prev => prev.filter((_, i) => i !== idx));
+    setDirty(true);
+    setSwapIdx(null);
+  };
+
+  const openSwap = async (idx: number) => {
+    if (swapIdx === idx) { setSwapIdx(null); return; }
+    const item = items[idx];
+    setSwapIdx(idx);
+    setAlternatives([]);
+    setLoadingAlts(true);
+    try {
+      const shop = new URLSearchParams(window.location.search).get("shop")
+        || (window as unknown as { Shopify?: { shop?: string } }).Shopify?.shop;
+      const resp = await fetch("https://agvobtjeizdoppzkvyyu.supabase.co/functions/v1/widget-outfits/alternatives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({
+          brand_id: brandId,
+          shop,
+          item_id: item.id,
+          category: item.category,
+          name: item.name,
+          exclude_ids: items.map(i => i.id).filter(Boolean),
+        }),
+      });
+      const data = await resp.json();
+      setAlternatives(resp.ok ? (data.alternatives || []) : []);
+    } catch {
+      setAlternatives([]);
+    } finally {
+      setLoadingAlts(false);
+    }
+  };
+
+  const swapItem = (alt: OutfitItemProp) => {
+    if (swapIdx === null) return;
+    setItems(prev => prev.map((it, i) => (i === swapIdx ? alt : it)));
+    setDirty(true);
+    setSwapIdx(null);
+  };
 
   // Auto-load: check cache first, then saved photo from account. When a photo
   // is already on file, immediately kick off generation too — previously the
@@ -102,9 +161,10 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   // pass, since the setCurrentPhoto() call right before it hasn't committed yet.
   const generateTryOn = async (photoOverride?: string) => {
     const photo = photoOverride ?? currentPhoto;
-    if (!photo || !outfitItems?.length) return;
+    if (!photo || !items.length) return;
     setIsProcessing(true);
     setError(null);
+    setDirty(false);
 
     try {
       // If the photo is a saved-photo signed URL, fetch and re-encode as
@@ -132,7 +192,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
 
       const requestBody: Record<string, unknown> = {
         userImageBase64: photoPayload,
-        outfitItems: outfitItems.map(i => ({
+        outfitItems: items.map(i => ({
           name: i.name,
           imageUrl: i.imageUrl,
           category: i.category,
@@ -161,9 +221,9 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
   };
 
   const handleAddAllToCart = async () => {
-    if (!outfitItems?.length) return;
+    if (!items.length) return;
 
-    const valid = outfitItems
+    const valid = items
       .map((item) => ({ item, variantId: toNumericVariantId(item.shopify_variant_id) }))
       .filter((x): x is { item: OutfitItemProp; variantId: string } => x.variantId !== null);
 
@@ -183,7 +243,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
 
       const added = result.added || [];
       const failed = result.failed || [];
-      const noIdSkipped = outfitItems.length - valid.length;
+      const noIdSkipped = items.length - valid.length;
 
       if (added.length === 0) {
         toast.error("Couldn't add items to cart", {
@@ -245,13 +305,60 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
 
       {/* Outfit items preview */}
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {outfitItems.map((item, idx) => (
-          <div key={idx} className="flex-shrink-0 w-20">
-            <img src={item.imageUrl} alt={item.name} className="w-20 h-20 rounded-md object-cover border border-border" />
+        {items.map((item, idx) => (
+          <div key={`${item.id ?? item.name}-${idx}`} className="flex-shrink-0 w-20">
+            <div className="relative">
+              <img
+                src={item.imageUrl}
+                alt={item.name}
+                className={`w-20 h-20 rounded-md object-cover border ${swapIdx === idx ? "border-primary" : "border-border"}`}
+              />
+              <button
+                type="button"
+                aria-label={`Remove ${item.name}`}
+                onClick={() => removeItem(idx)}
+                disabled={isProcessing}
+                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border border-border shadow flex items-center justify-center hover:bg-muted disabled:opacity-50"
+              >
+                <X className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Swap ${item.name}`}
+                onClick={() => openSwap(idx)}
+                disabled={isProcessing}
+                className="absolute -bottom-1.5 -right-1.5 h-5 w-5 rounded-full bg-background border border-border shadow flex items-center justify-center hover:bg-muted disabled:opacity-50"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            </div>
             <p className="text-[10px] text-muted-foreground truncate mt-1">{item.name}</p>
           </div>
         ))}
       </div>
+
+      {/* Optional swap suggestions for the selected slot */}
+      {swapIdx !== null && (
+        <div className="rounded-md border border-border p-2 space-y-1.5">
+          <p className="text-[11px] text-muted-foreground">
+            {loadingAlts ? "Finding other options..." : alternatives.length ? "Swap in another option (optional):" : "No other options available for this piece."}
+          </p>
+          {loadingAlts && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          {!loadingAlts && alternatives.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {alternatives.map(alt => (
+                <button key={alt.id} type="button" onClick={() => swapItem(alt)} className="flex-shrink-0 w-16 text-left">
+                  <img src={alt.imageUrl} alt={alt.name} className="w-16 h-16 rounded-md object-cover border border-border hover:border-primary" />
+                  <p className="text-[9px] text-muted-foreground truncate mt-0.5">{alt.name}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {items.length === 0 && (
+        <p className="text-xs text-muted-foreground">You removed every piece — swap or go back to Outfits to pick a look.</p>
+      )}
 
       {/* Photo upload / result area */}
       {!currentPhoto ? (
@@ -316,7 +423,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
           className="flex-1 gap-2"
           size="sm"
           onClick={() => generateTryOn()}
-          disabled={!currentPhoto || isProcessing}
+          disabled={!currentPhoto || isProcessing || items.length === 0}
         >
           {isProcessing ? (
             <>
@@ -326,7 +433,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
           ) : (
             <>
               <Camera className="h-4 w-4" />
-              {hasResult ? "Try Again" : "Try It On"}
+              {dirty && hasResult ? "Update Look" : hasResult ? "Try Again" : "Try It On"}
             </>
           )}
         </Button>
