@@ -280,6 +280,13 @@ YOUR ONLY TASK: Remove the original clothing and replace it with the garments fr
 GARMENT EXTRACTION — each product image shows ONE specific product:
 ${itemInstructions}
 
+GARMENT FIDELITY — THIS IS CRITICAL:
+- Reproduce each garment EXACTLY as it appears in its product image. Do NOT substitute a generic or similar-looking version.
+- Match the exact SILHOUETTE and CUT: leg shape (barrel / horseshoe / wide-leg / straight / flared / tapered / skinny are all different — keep the one shown), rise, hem width and where the hem ends, sleeve shape, collar, lapels, length, and volume. A barrel-leg jean must stay a curved barrel-leg jean; it must NOT become a straight or wide-leg jean.
+- Match exact color, wash, fade, texture, fabric, stitching, pockets, buttons, hardware and any prints or logos.
+- Use the product name as a silhouette hint and honor it (e.g. "barrel", "wide leg", "cropped", "oversized", "midi").
+- Keep each garment's true proportions and length relative to the body — do not lengthen, shorten, slim or widen it to suit the person's pose.
+
 CLOTHING APPLICATION RULES:
 - Strip the person's original clothing entirely before applying new garments.
 - Dress the person from head to toe in the selected outfit only.
@@ -311,7 +318,7 @@ You MUST generate an image. Output the visualization image now.`;
 
 function buildRetryPrompt(outfitItems: OutfitItem[]): string {
   const items = outfitItems.map(i => `"${i.name}" (${i.category})`).join(", ");
-  return `Generate a photorealistic virtual try-on image. Image 1 is the customer's photo — this is the BASE IMAGE. The person must remain EXACTLY the same: preserve their face, skin tone, hair, pose, body shape, and background with ZERO alterations. Your ONLY task is to remove their current clothing and dress them in these items: ${items}. Extract only the specified garment from each product image. Fit garments realistically to the person's body — correct shoulder alignment, natural draping, proper lengths. Match the lighting and shadows from Image 1. The result must look like a real photograph of this person wearing this outfit. You MUST output an image.`;
+  return `Generate a photorealistic virtual try-on image. Image 1 is the customer's photo — this is the BASE IMAGE. The person must remain EXACTLY the same: preserve their face, skin tone, hair, pose, body shape, and background with ZERO alterations. Your ONLY task is to remove their current clothing and dress them in these items: ${items}. Extract only the specified garment from each product image and reproduce it EXACTLY — same silhouette, cut, leg shape (barrel stays barrel, never straight or wide-leg), length, color, wash and details; do not substitute a generic version. Fit garments realistically to the person's body — correct shoulder alignment, natural draping, proper lengths. Match the lighting and shadows from Image 1. The result must look like a real photograph of this person wearing this outfit. You MUST output an image.`;
 }
 
 // gpt-image-1 is deprecated by OpenAI on Oct 23, 2026 — migrating ahead of

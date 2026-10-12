@@ -55,7 +55,7 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
   // untracked category and could combine with an actual dress + a bottom.
   ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b|\bcaftan\b|\bkaftan\b/i],
   ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b|\bvest\b/i],
-  ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b|\bsneaker(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b/i],
+  ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b(?!\s*-?cut)|\bbootie(s)?\b|\bsneaker(s)?\b|\btrainer(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b|\bslide(s)?\b|\bslip[- ]?on(s)?\b|\bmule(s)?\b|\bclog(s)?\b|\bpump(s)?\b|\bstiletto(s)?\b|\bwedge(s)?\b|\bespadrille(s)?\b|\boxford(s)?\b|\bmoccasin(s)?\b|\bslipper(s)?\b|\bflip[- ]?flop(s)?\b|\bfootwear\b/i],
   // Broadened synonyms (matches widget-outfits.ts), now including the bare
   // word "bottom(s)" itself, so a bottom that slips past every pattern
   // doesn't fall into its own untracked literal category — that's how a

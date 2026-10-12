@@ -92,11 +92,32 @@ serve(async (req) => {
     const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
     const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
 
+    // PostgREST silently caps any single select at 1000 rows, which made Total
+    // Outfits (and every sum/trend derived from these rows) freeze at exactly
+    // 1000 once a brand passed that many. Page through with .range() until a
+    // short page comes back so the full set is always counted.
+    const fetchAll = async (build: (from: number, to: number) => any) => {
+      const pageSize = 1000;
+      const rows: any[] = [];
+      for (let from = 0; from < 100000; from += pageSize) {
+        const { data, error } = await build(from, from + pageSize - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+      }
+      return { data: rows, error: null };
+    };
+
     const [outfitsResult, productsResult, customersResult, eventsResult] = await Promise.all([
-      supabase
-        .from("outfits")
-        .select("id, name, views, conversions, total_price, occasion, created_at")
-        .eq("brand_id", brandId),
+      fetchAll((from, to) =>
+        supabase
+          .from("outfits")
+          .select("id, name, views, conversions, total_price, occasion, created_at")
+          .eq("brand_id", brandId)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
       supabase
         .from("products")
         .select("id", { count: "exact", head: true })
@@ -107,11 +128,15 @@ serve(async (req) => {
         .eq("brand_id", brandId),
       // Pull 14 days so we can compute a real week-over-week comparison
       // (this week vs. the 7 days before it), not just a single week total.
-      supabase
-        .from("widget_events")
-        .select("event_type, occurred_at")
-        .eq("brand_id", brandId)
-        .gte("occurred_at", fourteenDaysAgo),
+      fetchAll((from, to) =>
+        supabase
+          .from("widget_events")
+          .select("event_type, occurred_at")
+          .eq("brand_id", brandId)
+          .gte("occurred_at", fourteenDaysAgo)
+          .order("occurred_at", { ascending: true })
+          .range(from, to)
+      ),
     ]);
 
     if (outfitsResult.error) throw outfitsResult.error;

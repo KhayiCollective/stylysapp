@@ -75,7 +75,11 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
   // slouchy bottom and a jacket").
   ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b|\bcaftan\b|\bkaftan\b/i],
   ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b|\bvest\b/i],
-  ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b|\bsneaker(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b/i],
+  // Broadened with slides/slip-ons/mules/clogs/pumps/etc. — a catalog item
+  // like "Fur-Lined Slip-On Platform Slides" matched nothing here, so it was
+  // never recognized as footwear (and got no shoe slot in any outfit). The
+  // (?!\s*cut) guard keeps "boot cut jeans" from being read as boots.
+  ["footwear", /\bshoe(s)?\b|\bsandal(s)?\b|\bboot(s)?\b(?!\s*-?cut)|\bbootie(s)?\b|\bsneaker(s)?\b|\btrainer(s)?\b|\bheel(s)?\b|\bflat(s)?\b|\bloafer(s)?\b|\bslide(s)?\b|\bslip[- ]?on(s)?\b|\bmule(s)?\b|\bclog(s)?\b|\bpump(s)?\b|\bstiletto(s)?\b|\bwedge(s)?\b|\bespadrille(s)?\b|\boxford(s)?\b|\bmoccasin(s)?\b|\bslipper(s)?\b|\bflip[- ]?flop(s)?\b|\bfootwear\b/i],
   // Broadened to catch more real product-name synonyms (culottes, palazzo,
   // chinos, joggers, cargos, denim without the word "jean", and now the bare
   // word "bottom(s)" itself) — a bottom that slipped past every pattern here
@@ -111,10 +115,18 @@ function effectiveCategory(item: { category?: string; product_type?: string; nam
   const collectionsText = Array.isArray(item.collections)
     ? item.collections.map((c: any) => (typeof c === "string" ? c : c?.title || "")).join(" ")
     : (item.collections || "");
-  const haystack = `${item.product_type || ""} ${item.name || ""} ${tagsText} ${collectionsText}`.toLowerCase();
+  // Two passes: the product's own name/type is the strongest signal and is
+  // checked FIRST. tags/collections are only a fallback when the name says
+  // nothing — otherwise a shoe sitting in a "Jackets & Coats" collection
+  // would be misread as outerwear because collection text got equal weight.
+  const primaryHaystack = `${item.product_type || ""} ${item.name || ""}`.toLowerCase();
+  const fallbackHaystack = `${tagsText} ${collectionsText}`.toLowerCase();
   let keywordMatch: string | null = null;
-  for (const [cat, re] of CATEGORY_KEYWORDS) {
-    if (re.test(haystack)) { keywordMatch = cat; break; }
+  for (const hay of [primaryHaystack, fallbackHaystack]) {
+    for (const [cat, re] of CATEGORY_KEYWORDS) {
+      if (re.test(hay)) { keywordMatch = cat; break; }
+    }
+    if (keywordMatch) break;
   }
 
   if (EXCLUSIVE_CATEGORIES.has(normalized)) {
@@ -234,7 +246,17 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
   // options"). Shoes are treated here as a near-mandatory piece of a complete
   // look whenever the catalog has one available, not just an optional add-on
   // gated behind minItems.
+  // Build a COMPLETE look in priority order, independent of minItems:
+  // 1) finish the base (top+bottom) unless a dress/set already covers it,
+  // 2) shoes, 3) a jacket/layer, 4) an accessory (added further below). Order
+  // matters because maxItems can cut things off — the base and shoes must
+  // win a slot before the optional layer does.
+  if (!hasDress) {
+    if (!presentCats.has("tops")) addFromCategory("tops");
+    if (!presentCats.has("bottoms")) addFromCategory("bottoms");
+  }
   if (!presentCats.has("footwear")) addFromCategory("footwear");
+  if (!presentCats.has("outerwear")) addFromCategory("outerwear");
 
   // Standard minItems top-up (tops/bottoms first if no dress base, then
   // outerwear/accessories) still runs if the outfit is short even after the
@@ -710,7 +732,9 @@ serve(async (req) => {
       // Composition rules (required/optional categories, min/max items)
       const composition = rules || {};
       const minItems = composition.minItems ?? 3;
-      const maxItems = composition.maxItems ?? 5;
+      // A complete look is up to 5 pieces (base x2 or a dress/set, jacket,
+      // shoes, accessory), so never let a low merchant maxItems squeeze that out.
+      const maxItems = Math.max(composition.maxItems ?? 5, 5);
       const requiredCats: string[] = composition.requiredCategories ?? ["tops", "bottoms"];
       const optionalCats: string[] = composition.optionalCategories ?? ["shoes", "accessories", "bags", "jewelry", "hats", "sunglasses"];
 
@@ -737,6 +761,7 @@ RULES:
 9. Never include two items of the same accessory subtype in one outfit (e.g. two hats, two pairs of sunglasses, two bags) — vary accessory types instead. A swimsuit bottom/top counts as the base top or bottom, not a separate category, and should never be paired with a second pair of pants/shorts or a second top.
 10. A matching SET or CO-ORD (a single product that is already a complete top+bottom pairing, e.g. "Lounge Set", "Pant Set") counts as the ENTIRE base by itself — treat it exactly like a dress. Never pair a set/co-ord with a separate top, bottom, another dress, a caftan, or another set in the same outfit.
 11. Respect proportion and silhouette balance. A full-length, maxi, or ankle-length base garment (maxi dress, caftan, long duster, wide-leg pants) needs outerwear/layers that are ALSO long or at least hip-length — never pair it with a cropped jacket, cropped cardigan, or bolero, since a crop layer over a long base breaks the silhouette. Likewise avoid pairing a cropped top with high-waisted bottoms that expose an unintended amount of midriff unless the occasion calls for it. When in doubt, match layer length to base garment length.
+12. COMPLETE LOOK — aim for every outfit to include ALL of these whenever the catalog has them: (a) the base (a dress, OR a set/co-ord on its own, OR one top + one bottom), (b) one jacket/coat/blazer/cardigan layer, (c) one pair of shoes, and (d) one accessory (bag, jewelry, hat, sunglasses, scarf, or belt). That is ${maxItems} pieces at most. Only leave a piece out if no suitable item exists. Never use a dress or set together with a separate top or bottom.
 OUTPUT: Return strict JSON: { "outfits": [{ "name": "string", "productIds": ["id1","id2"], "reason": "string", "occasion": "string" }] }
 Return exactly 3 outfits. JSON only, no commentary.`;
 
