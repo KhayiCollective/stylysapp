@@ -46,6 +46,17 @@ const EXCLUSIVE_CATEGORIES = new Set([
 // product_type and name so real garment type is still detected even when the
 // merchant hasn't categorized the product.
 const CATEGORY_KEYWORDS: [string, RegExp][] = [
+  // Accessory subtypes FIRST. Raw catalog categories like "baseball hat" were
+  // not recognized as any tracked category, so two caps could ride in the same
+  // outfit (the one-per-subtype cap only applies to recognized categories).
+  // Order matters: "belt bag" must resolve to bags, not belts.
+  ["bags", /\bbag(s)?\b|\btote(s)?\b|\bpurse(s)?\b|\bclutch(es)?\b|\bbackpack(s)?\b|\bhandbag(s)?\b|\bcrossbody\b|\bsatchel(s)?\b|\bwallet(s)?\b/i],
+  ["hats", /\bhat(s)?\b|\bcap\b(?!\s*-?(sleeve|toe))|\bbeanie(s)?\b|\bberet(s)?\b|\bvisor(s)?\b|\bfedora(s)?\b/i],
+  ["sunglasses", /\bsunglass(es)?\b|\bglasses\b|\bshades\b|\beyewear\b/i],
+  ["jewelry", /\bjewel(le)?ry\b|\bnecklace(s)?\b|\bearring(s)?\b|\bbracelet(s)?\b|\banklet(s)?\b|\bpendant(s)?\b|\bbrooch(es)?\b/i],
+  ["scarves", /\bscarf\b|\bscarves\b/i],
+  // "belt"/gloves/hair accessories are matched LAST (end of this list) since
+  // "belt" often modifies a garment ("Midi Dress with Belt").
   // Swimwear needs its own entries BEFORE the generic dresses/bottoms/tops
   // patterns below — a one-piece swimsuit is structurally a full base piece
   // (like a dress: nothing else pairs below the waist with it), while a
@@ -67,6 +78,10 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
   // set, it shouldn't be paired with a... bottom" — an outfit was shipping
   // with a pant, a set, a caftan, AND a hoodie all together.
   ["dresses", /\bco-?ord(s)?\b|\b(lounge|matching|knit|terry|rib|pant|short|skirt|two[- ]?piece|2[- ]?piece|twinning)\s+set\b/i],
+  // Any product named "... Set" (e.g. "Voyage Set in White Stripes") is a
+  // set. The accessory entries above run first, so "jewelry set"/"bag set"
+  // are not caught here. Reported: a "Voyage Set" shipped together with jeans.
+  ["dresses", /\bset\b/i],
   // "caftan"/"kaftan" added — a full-length, one-piece resort cover-up that
   // functions exactly like a dress (nothing pairs below the waist with it).
   // Previously unmatched, it fell into its own untracked category and could
@@ -74,7 +89,7 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
   // outfit (reported: "a Zoe Maxi dress and an oversized caftan with a
   // slouchy bottom and a jacket").
   ["dresses", /\bdress(es)?\b|\bgown\b|\bjumpsuit\b|\bromper\b|\bcaftan\b|\bkaftan\b/i],
-  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b|\bvest\b/i],
+  ["outerwear", /\bjacket\b|\bcoat\b|\bblazer\b|\bcardigan\b|\bparka\b|\bwindbreaker\b|\bvest\b|\bkimono\b|\bduster\b|\bcape\b|\bponcho\b|\bshacket\b|\bbomber\b|\btrench\b|\bpuffer\b|\bshearling\b|\bgilet\b|\banorak\b/i],
   // Broadened with slides/slip-ons/mules/clogs/pumps/etc. — a catalog item
   // like "Fur-Lined Slip-On Platform Slides" matched nothing here, so it was
   // never recognized as footwear (and got no shoe slot in any outfit). The
@@ -88,6 +103,8 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
   // (reported: "it's giving me a wide leg pants and a slouchy bottom").
   ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bdenim\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b|\bculotte(s)?\b|\bpalazzo\b|\bchino(s)?\b|\bcapri(s)?\b|\bjogger(s)?\b|\bcargo(s)?\b|\bbottom(s)?\b/i],
   ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b|\bpolo\b|\bhoodie\b|\bpullover\b|\bbodysuit\b/i],
+  ["belts", /\bbelt(s)?\b/i],
+  ["accessories", /\bglove(s)?\b|\bscrunchie(s)?\b|\bhair (clip|band|accessor)/i],
 ];
 
 // Accessory subtypes where two of the SAME kind in one outfit reads as a
@@ -99,6 +116,12 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
 // hats... it's not making any sense."
 const SINGLE_PER_OUTFIT_CATEGORIES = new Set([
   ...EXCLUSIVE_CATEGORIES, "hats", "sunglasses", "bags", "jewelry", "scarves", "belts",
+]);
+
+// Every category that counts as "an accessory" for the one-accessory
+// guarantee and the backfill's accessory slot.
+const ACCESSORY_CATS = new Set([
+  "accessories", "hats", "sunglasses", "bags", "jewelry", "scarves", "belts",
 ]);
 
 function effectiveCategory(item: { category?: string; product_type?: string; name?: string; tags?: any; collections?: any }): string {
@@ -136,7 +159,10 @@ function effectiveCategory(item: { category?: string; product_type?: string; nam
     // it kept winning the footwear backfill slot instead of an actual shoe.
     // If the name unambiguously signals a DIFFERENT category than what's
     // stored, trust the name over the stored value.
-    if (keywordMatch && keywordMatch !== normalized) {
+    // Only override when the name points to ANOTHER base garment category —
+    // an accessory-sounding word ("Dress with Belt") must not demote a
+    // correctly stored dress/top/etc.
+    if (keywordMatch && keywordMatch !== normalized && EXCLUSIVE_CATEGORIES.has(keywordMatch)) {
       console.log(`[effectiveCategory] mismatch: "${item.name}" stored as "${raw}" but name matches "${keywordMatch}" — using name`);
       return keywordMatch;
     }
@@ -220,22 +246,31 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
   const presentCats = new Set(items.map((i: any) => effectiveCategory(i)));
   const hasDress = presentCats.has("dresses");
 
+  // "accessories" is a SLOT, not a literal category: it is filled by any
+  // accessory subtype (bag, jewelry, hat, sunglasses, scarf, belt, or generic)
+  // that this outfit doesn't already contain.
   const addFromCategory = (cat: string): boolean => {
     if (items.length >= maxItems) return false;
-    const matches = (p: any) => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && effectiveCategory(p) === cat;
-    // Prefer a candidate the customer can actually buy in their size right
-    // now; if none exists in `catalog` (e.g. their exact size is sold out
-    // across every style in this category), fall back to the full in-stock
-    // catalog so the category still shows up — marked unavailable-in-size by
-    // the caller — rather than vanishing from the outfit entirely.
-    const candidate = catalog.find(matches) ?? fallbackCatalog?.find(matches);
+    const isAccessorySlot = cat === "accessories";
+    const catOk = (p: any) => {
+      const c = effectiveCategory(p);
+      if (isAccessorySlot) return ACCESSORY_CATS.has(c) && (c === "accessories" || !presentCats.has(c));
+      return c === cat;
+    };
+    const strict = (p: any) => !usedIds.has(p.id) && !globalUsedIds?.has(p.id) && catOk(p);
+    // Thin categories (often just 1-3 shoes in a catalog): if every candidate
+    // was already used by another outfit in this response, reuse one rather
+    // than ship the outfit without it — shoes repeated across looks beat no shoes.
+    const loose = (p: any) => !usedIds.has(p.id) && catOk(p);
+    const candidate = catalog.find(strict) ?? fallbackCatalog?.find(strict) ?? catalog.find(loose);
     if (!candidate) return false;
     items.push(toOutfitItem(candidate));
     usedIds.add(candidate.id);
     globalUsedIds?.add(candidate.id);
-    presentCats.add(cat);
+    presentCats.add(effectiveCategory(candidate));
     return true;
   };
+  const accessoryCount = () => items.filter((i: any) => ACCESSORY_CATS.has(effectiveCategory(i))).length;
 
   // Guarantee footwear specifically, independent of minItems/requiredCategories.
   // Previously this whole function bailed out immediately whenever the outfit
@@ -272,7 +307,7 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
     for (const cat of fillOrder) {
       if (items.length >= minItems) break;
       if (EXCLUSIVE_CATEGORIES.has(cat) && presentCats.has(cat)) continue;
-      if (!EXCLUSIVE_CATEGORIES.has(cat) && items.filter((i: any) => effectiveCategory(i) === cat).length >= 2) continue;
+      if (cat === "accessories" && accessoryCount() >= 2) continue;
       addFromCategory(cat);
     }
   }
@@ -280,7 +315,7 @@ function backfillOutfit(outfit: any, minItems: number, maxItems: number, catalog
   // Same reasoning as footwear above — "accessories" was named explicitly in
   // the bug report ("needs to include accessories such as shoes"). Add one if
   // there's still room under maxItems and the outfit doesn't already have any.
-  if (items.length < maxItems && items.filter((i: any) => effectiveCategory(i) === "accessories").length === 0) {
+  if (items.length < maxItems && accessoryCount() === 0) {
     addFromCategory("accessories");
   }
 
@@ -357,7 +392,11 @@ function filterByRequirements(outfits: any[], minItems: number, requiredCats: st
     }
 
     for (const rc of requiredOther) {
-      if (!presentCats.has(rc)) {
+      // "accessories" is satisfied by any accessory subtype (hat, bag, ...).
+      const satisfied = rc === "accessories"
+        ? [...presentCats].some(c => ACCESSORY_CATS.has(c))
+        : presentCats.has(rc);
+      if (!satisfied) {
         console.log(`[validate] outfit "${outfit.name}" dropped: missing required category "${rc}"`);
         return false;
       }
@@ -643,7 +682,7 @@ serve(async (req) => {
       // category simply missing) is preferable to including sold-out items.
       const guaranteed: any[] = [];
       const guaranteedIds = new Set<string>();
-      for (const cat of ["footwear", "accessories", "outerwear", "tops", "bottoms", "dresses"]) {
+      for (const cat of ["footwear", "accessories", "hats", "bags", "jewelry", "sunglasses", "scarves", "belts", "outerwear", "tops", "bottoms", "dresses"]) {
         const pool = byCategory.get(cat) || [];
         for (const item of shuffleArray(pool).slice(0, GUARANTEED_PER_CATEGORY)) {
           if (!guaranteedIds.has(item.id)) {
