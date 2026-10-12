@@ -165,13 +165,13 @@ Deno.serve(async (req) => {
   var params = [];
   if (brandId) params.push('brand_id=' + encodeURIComponent(brandId));
   if (shopDomain) params.push('shop=' + encodeURIComponent(shopDomain));
-  if (productId) params.push('product_id=' + encodeURIComponent(productId));
-  if (productTitle) params.push('product_title=' + encodeURIComponent(productTitle));
+  // Deliberately NOT passing product_id/product_title into the panel. The
+  // floating STYLYS widget builds outfits from the customer's profile and
+  // quiz answers; anchoring an outfit to the current product is the job of
+  // the inline Complete the Look section on product pages only.
   var qs = params.length ? '?' + params.join('&') : '';
   // Both the main avatar button and the photo-overlay "Try On" button open
-  // this same iframe — on a product page it's already anchored to the
-  // current product via product_id/product_title, so there's nothing extra
-  // either trigger needs to pass; they just open the same panel.
+  // this same panel.
   iframe.src = '${appUrl}/widget-preview' + qs;
   iframe.style.cssText = 'width:100%;height:100%;border:none;';
   iframe.allow = 'camera';
