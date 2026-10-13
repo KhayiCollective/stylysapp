@@ -256,6 +256,12 @@ export default function Settings() {
                         AI styling chatbot
                       </li>
                     )}
+                    {hasFeature(tierName, "wishlist_tryon") && (
+                      <li className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        Wishlist & pick-your-own try-on
+                      </li>
+                    )}
                     {hasFeature(tierName, "priority_support") && (
                       <li className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Check className="h-3.5 w-3.5 text-emerald-500" />

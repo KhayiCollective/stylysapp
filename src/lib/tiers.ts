@@ -15,6 +15,7 @@ export const TIERS = {
       "ai_outfits",
       "virtual_tryon",
       "styling_chatbot",
+      "wishlist_tryon",
       "priority_support",
       "full_analytics",
       "customer_tracking",

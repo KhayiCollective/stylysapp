@@ -5,6 +5,8 @@ import { Heart, ShoppingBag, Trash2, Loader2, LogIn } from "lucide-react";
 import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
 import { NotifyMeButton } from "@/components/widget/NotifyMeButton";
 import { toast } from "sonner";
+import { SavedItemsSection } from "@/components/widget/SavedItemsSection";
+import type { WishlistApi, WishlistItem } from "@/hooks/useWishlistItems";
 
 interface SavedOutfit {
   id: string;
@@ -15,6 +17,8 @@ interface SavedOutfit {
 
 interface WishlistTabProps {
   brandId?: string;
+  wishlist?: WishlistApi;
+  onTryOnItems?: (items: WishlistItem[]) => void;
 }
 
 import { getCustomerToken } from "@/lib/widgetAuth";
@@ -25,7 +29,7 @@ function getToken(_brandId?: string) {
   return getCustomerToken();
 }
 
-export function WishlistTab({ brandId }: WishlistTabProps) {
+export function WishlistTab({ brandId, wishlist, onTryOnItems }: WishlistTabProps) {
   const [outfits, setOutfits] = useState<SavedOutfit[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -190,6 +194,12 @@ export function WishlistTab({ brandId }: WishlistTabProps) {
 
   return (
     <div className="p-4 space-y-4">
+      {wishlist?.enabled && onTryOnItems && (
+        <>
+          <SavedItemsSection wishlist={wishlist} onTryOn={onTryOnItems} />
+          <div className="border-t border-border" />
+        </>
+      )}
       <div>
         <h3 className="font-semibold text-base">Saved Outfits</h3>
         <p className="text-xs text-muted-foreground">{outfits.length} saved look{outfits.length !== 1 ? "s" : ""}</p>

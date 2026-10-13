@@ -46,9 +46,12 @@ interface OutfitsTabProps {
   anchorProductName?: string;
   onClearAnchor?: () => void;
   quizAnswers?: QuizAnswers;
+  wishlist?: WishlistApi;
 }
 
 import { getCustomerToken } from "@/lib/widgetAuth";
+import { WishlistHeart } from "@/components/widget/WishlistHeart";
+import type { WishlistApi } from "@/hooks/useWishlistItems";
 
 const SUPABASE_URL = "https://agvobtjeizdoppzkvyyu.supabase.co";
 
@@ -56,7 +59,7 @@ function getToken(_brandId?: string) {
   return getCustomerToken();
 }
 
-export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName, onClearAnchor, quizAnswers }: OutfitsTabProps) {
+export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, anchorProductName, onClearAnchor, quizAnswers, wishlist }: OutfitsTabProps) {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -390,6 +393,7 @@ export function OutfitsTab({ brandId, onSelectOutfitForTryOn, anchorProductId, a
                         Sold Out
                       </span>
                     )}
+                    <WishlistHeart wishlist={wishlist} itemId={item.id} className="absolute bottom-1 right-1" />
                   </div>
                   <div className="p-2">
                     <p className="text-[11px] truncate">{item.name}</p>

@@ -171,6 +171,7 @@ Deno.serve(async (req) => {
     var thumbs = el('div', 'stylys-ctl-thumbs');
     (outfit.items || []).slice(0, 5).forEach(function(item) {
       var thumb = el('div', 'stylys-ctl-thumb');
+      if (item.id) thumb.setAttribute('data-item-id', item.id);
       var img = document.createElement('img');
       img.src = item.image_url || '';
       img.alt = item.name || '';
@@ -233,6 +234,40 @@ Deno.serve(async (req) => {
     return card;
   }
 
+  var HEART_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+
+  // Wishlist hearts on each item (Pro plan only). The bridge lives in
+  // widget-loader.js (window.__stylysWishlist); it may load slightly after
+  // this script, so poll for it for a few seconds before giving up.
+  function addHearts(root, wl) {
+    var thumbs = root.querySelectorAll('.stylys-ctl-thumb[data-item-id]');
+    Array.prototype.forEach.call(thumbs, function(thumb) {
+      var itemId = thumb.getAttribute('data-item-id');
+      if (!itemId || thumb.querySelector('.stylys-ctl-heart')) return;
+      var h = el('button', 'stylys-ctl-heart');
+      h.type = 'button';
+      h.setAttribute('aria-label', 'Save to wishlist');
+      h.innerHTML = HEART_SVG;
+      h.onclick = function(ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        wl.toggle({ item_id: itemId }).then(function(r) {
+          if (r && r.ok) { if (r.saved) h.classList.add('saved'); else h.classList.remove('saved'); }
+        });
+      };
+      thumb.appendChild(h);
+      wl.has({ item_id: itemId }).then(function(r) { if (r && r.saved) h.classList.add('saved'); });
+    });
+  }
+
+  function decorateHearts(root) {
+    var tries = 0;
+    (function wait() {
+      var wl = window.__stylysWishlist;
+      if (wl && wl.ready) { if (wl.enabled) addHearts(root, wl); return; }
+      if (++tries < 25) setTimeout(wait, 400);
+    })();
+  }
+
   function injectFont() {
     if (document.getElementById('stylys-ctl-font')) return;
     var link = document.createElement('link');
@@ -262,6 +297,8 @@ Deno.serve(async (req) => {
       '.stylys-ctl-thumbs{display:flex;gap:6px;}' +
       '.stylys-ctl-thumb{flex:1;aspect-ratio:1/1;border-radius:6px;overflow:hidden;background:#f2f2f2;position:relative;}' +
       '.stylys-ctl-thumb img{width:100%;height:100%;object-fit:cover;display:block;}' +
+      '.stylys-ctl-heart{position:absolute;bottom:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,0.92);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,0.25);}' +
+      '.stylys-ctl-heart.saved svg{fill:#000;}' +
       '.stylys-ctl-soldout{position:absolute;top:4px;left:4px;background:#c0392b;color:#fff;font-size:9px;font-weight:600;padding:2px 5px;border-radius:4px;}' +
       '.stylys-ctl-reason{font-size:12px;color:#555;line-height:1.4;margin:0;}' +
       '.stylys-ctl-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;}' +
@@ -308,6 +345,7 @@ Deno.serve(async (req) => {
         var grid = el('div', 'stylys-ctl-grid');
         outfits.forEach(function(outfit) { grid.appendChild(renderOutfitCard(outfit)); });
         container.appendChild(grid);
+        decorateHearts(container);
       })
       .catch(function() {
         container.innerHTML = '';

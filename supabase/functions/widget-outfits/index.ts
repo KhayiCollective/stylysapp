@@ -30,6 +30,48 @@ function getSupabaseAdmin() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
 
+// ---- Pro-plan gate for the wishlist / pick-your-own Try-On feature ----
+// The merchant's plan lives in their Shopify app subscription (same source as
+// check-subscription-by-shop). Cached per brand for 5 minutes so it doesn't
+// hit Shopify on every heart tap. PRO_OVERRIDE_SHOPS (comma-separated
+// myshopify domains, set via `supabase secrets set`) force-enables the
+// feature for specific stores, e.g. your own store while testing.
+const proCache = new Map<string, { ok: boolean; exp: number }>();
+
+async function brandHasWishlist(supabase: any, brandId: string): Promise<boolean> {
+  const hit = proCache.get(brandId);
+  if (hit && hit.exp > Date.now()) return hit.ok;
+
+  let ok = false;
+  try {
+    const { data: brand } = await supabase
+      .from("brands")
+      .select("shopify_store_domain, shopify_access_token")
+      .eq("id", brandId)
+      .maybeSingle();
+    const domain: string | undefined = brand?.shopify_store_domain;
+    const overrides = (Deno.env.get("PRO_OVERRIDE_SHOPS") || "")
+      .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    if (domain && overrides.includes(domain.toLowerCase())) {
+      ok = true;
+    } else if (domain && brand?.shopify_access_token) {
+      const resp = await fetch(`https://${domain}/admin/api/2025-01/graphql.json`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": brand.shopify_access_token },
+        body: JSON.stringify({ query: "query { currentAppInstallation { activeSubscriptions { name status } } }" }),
+      });
+      const j = await resp.json();
+      const subs = j?.data?.currentAppInstallation?.activeSubscriptions ?? [];
+      const name = String(subs[0]?.name ?? "").toLowerCase();
+      ok = subs.length > 0 && (name.includes("professional") || name.includes("pro"));
+    }
+  } catch (e) {
+    console.error("[brandHasWishlist] failed:", e);
+  }
+  proCache.set(brandId, { ok, exp: Date.now() + 5 * 60 * 1000 });
+  return ok;
+}
+
 // Categories where only one item per outfit makes sense. "footwear" is the
 // canonical value — "shoes" (used by some merchant catalogs, confirmed via
 // production logs showing category: "shoes" for this brand's footwear) is
@@ -1029,6 +1071,86 @@ Variation seed: ${crypto.randomUUID()}`;
       })();
 
       return json({ outfits: finalOutfits });
+    }
+
+    // --- FEATURES (public): which Pro features this store's plan unlocks ---
+    // Body: { brand_id?, shop? }  ->  { wishlist_items: boolean }
+    if (path === "features" && req.method === "POST") {
+      const body = await req.json();
+      let brand_id: string | undefined = body.brand_id;
+      if (body.shop) {
+        const shopDomain = String(body.shop).includes(".myshopify.com") ? String(body.shop) : `${body.shop}.myshopify.com`;
+        const { data: brandRow } = await supabase.from("brands").select("id").eq("shopify_store_domain", shopDomain).maybeSingle();
+        if (brandRow?.id) brand_id = brandRow.id;
+      }
+      if (!brand_id) return json({ wishlist_items: false });
+      return json({ wishlist_items: await brandHasWishlist(supabase, brand_id) });
+    }
+
+    // --- SAVED ITEMS (Pro; requires customer JWT) ---
+    // GET items -> the customer's hearted products (full product snapshot)
+    if (path === "items" && req.method === "GET") {
+      const customer = await verifyCustomerJwt(req);
+      if (!customer) return json({ error: "Unauthorized" }, 401);
+      if (!(await brandHasWishlist(supabase, customer.brand_id))) return json({ error: "feature_unavailable" }, 403);
+
+      const { data: rows, error } = await supabase
+        .from("saved_items")
+        .select("id, product_id, created_at, products(id, name, price, image_url, category, product_type, shopify_variant_id, shopify_product_id, inventory_status)")
+        .eq("customer_account_id", customer.sub)
+        .eq("brand_id", customer.brand_id)
+        .order("created_at", { ascending: false });
+      if (error) { console.error("items list error:", error); return json({ error: "Failed to load items" }, 500); }
+
+      const items = (rows || [])
+        .filter((r: any) => r.products)
+        .map((r: any) => ({
+          saved_id: r.id,
+          id: r.products.id,
+          name: r.products.name,
+          price: Number(r.products.price),
+          imageUrl: r.products.image_url,
+          category: r.products.category,
+          shopify_variant_id: r.products.shopify_variant_id,
+          shopify_product_id: r.products.shopify_product_id,
+          in_stock: r.products.inventory_status === "in_stock",
+        }));
+      return json({ items });
+    }
+
+    // POST toggle-item { item_id? | shopify_product_id? } -> { saved: boolean }
+    if (path === "toggle-item" && req.method === "POST") {
+      const customer = await verifyCustomerJwt(req);
+      if (!customer) return json({ error: "Unauthorized" }, 401);
+      if (!(await brandHasWishlist(supabase, customer.brand_id))) return json({ error: "feature_unavailable" }, 403);
+
+      const body = await req.json();
+      let q = supabase.from("products").select("id").eq("brand_id", customer.brand_id);
+      if (body.item_id) q = q.eq("id", String(body.item_id));
+      else if (body.shopify_product_id) q = q.eq("shopify_product_id", String(body.shopify_product_id));
+      else return json({ error: "item_id or shopify_product_id is required" }, 400);
+      const { data: product } = await q.limit(1).maybeSingle();
+      if (!product) return json({ error: "Product not found" }, 404);
+
+      const { data: existing } = await supabase
+        .from("saved_items")
+        .select("id")
+        .eq("customer_account_id", customer.sub)
+        .eq("product_id", product.id)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase.from("saved_items").delete().eq("id", existing.id);
+        if (error) return json({ error: "Failed to remove item" }, 500);
+        return json({ saved: false, product_id: product.id });
+      }
+      const { error } = await supabase.from("saved_items").insert({
+        customer_account_id: customer.sub,
+        brand_id: customer.brand_id,
+        product_id: product.id,
+      });
+      if (error) { console.error("save item error:", error); return json({ error: "Failed to save item" }, 500); }
+      return json({ saved: true, product_id: product.id });
     }
 
     // --- SAVED (requires customer JWT) ---

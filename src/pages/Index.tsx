@@ -158,6 +158,7 @@ const Index = () => {
               "Advanced AI outfit generation",
               "Virtual try-on",
               "AI styling chatbot",
+              "Wishlist & pick-your-own try-on",
               "Full analytics & insights",
               "Customer preference tracking",
               "Priority support with live chat",

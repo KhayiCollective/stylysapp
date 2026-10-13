@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { addItemsToShopifyCart, openShopifyCart, toNumericVariantId } from "@/lib/widgetCart";
 import { toast } from "sonner";
 import { PhotoUpload, getCachedPhotoUrl, setCachedPhotoUrl, clearCachedPhoto } from "../PhotoUpload";
+import { WishlistHeart } from "../WishlistHeart";
+import type { WishlistApi } from "@/hooks/useWishlistItems";
 
 const PROCESSING_MESSAGES = [
   "Analyzing your photo...",
@@ -34,9 +36,10 @@ interface TryOnTabProps {
   onPhotoSaved?: (url: string) => void;
   bodyShape?: string;
   sizeInfo?: Record<string, string>;
+  wishlist?: WishlistApi;
 }
 
-export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken, onPhotoSaved, bodyShape, sizeInfo }: TryOnTabProps) {
+export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken, onPhotoSaved, bodyShape, sizeInfo, wishlist }: TryOnTabProps) {
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -331,6 +334,7 @@ export function TryOnTab({ outfitItems, customerPhotoUrl, brandId, customerToken
               >
                 <RefreshCw className="h-3 w-3" />
               </button>
+              <WishlistHeart wishlist={wishlist} itemId={item.id} className="absolute -bottom-1.5 -left-1.5" />
             </div>
             <p className="text-[10px] text-muted-foreground truncate mt-1">{item.name}</p>
           </div>

@@ -213,8 +213,89 @@ Deno.serve(async (req) => {
     setTimeout(send, 800);
   };
 
+  // ---- Wishlist bridge (Pro plan only) ----
+  // The customer's login token lives inside the panel iframe's own origin, so
+  // the storefront page can't save anything itself: it sends a request into
+  // the iframe and waits for the reply. window.__stylysWishlist is also used
+  // by the inline Complete the Look section to put hearts on its items.
+  var wlPending = {};
+  var wlSeq = 0;
+  var wl = window.__stylysWishlist = { enabled: false, ready: false };
+  function wlSend(action, ref, retry) {
+    return new Promise(function(resolve) {
+      var id = 'wl' + (++wlSeq);
+      wlPending[id] = resolve;
+      var attempts = 0;
+      var post = function() {
+        try { iframe.contentWindow.postMessage({ type: 'stylys-wishlist', action: action, ref: ref, requestId: id }, '*'); } catch (_) {}
+        attempts++;
+        if (!wlPending[id]) return;
+        if (retry && attempts < 6) setTimeout(post, 800);
+        else setTimeout(function() { if (wlPending[id]) { delete wlPending[id]; resolve({ ok: false, reason: 'error' }); } }, 12000);
+      };
+      post();
+    });
+  }
+  // Toggle is deliberately NOT retried (a retry could save then un-save).
+  wl.toggle = function(ref) {
+    return wlSend('toggle', ref, false).then(function(r) {
+      if (r && r.reason === 'login' && !isOpen) toggle();
+      return r;
+    });
+  };
+  wl.has = function(ref) { return wlSend('has', ref, true); };
+
+  var HEART_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+
+  // Heart on the main product photo (top-left; the Try On pill is top-right).
+  function injectPhotoHeart(attemptsLeft) {
+    if (!productId || document.getElementById('stylys-photo-heart')) return;
+    var container = findProductImageContainer();
+    if (!container) {
+      if (attemptsLeft > 0) setTimeout(function() { injectPhotoHeart(attemptsLeft - 1); }, 700);
+      return;
+    }
+    if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
+    var heart = document.createElement('div');
+    heart.id = 'stylys-photo-heart';
+    heart.setAttribute('aria-label', 'Save to wishlist');
+    heart.innerHTML = HEART_SVG;
+    heart.style.cssText = 'position:absolute;top:12px;left:12px;z-index:50;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.92);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.25);';
+    var setSaved = function(saved) { var p = heart.querySelector('svg'); if (p) p.setAttribute('fill', saved ? '#000' : 'none'); };
+    heart.onclick = function(ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      wl.toggle({ shopify_product_id: productId }).then(function(r) { if (r && r.ok) setSaved(!!r.saved); });
+    };
+    container.appendChild(heart);
+    wl.has({ shopify_product_id: productId }).then(function(r) { if (r && r.saved) setSaved(true); });
+  }
+
+  // Ask the server whether this store's plan includes the wishlist feature.
+  try {
+    fetch('${SUPABASE_URL}/functions/v1/widget-outfits/features', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop: shopDomain, brand_id: brandId })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        wl.enabled = !!(j && j.wishlist_items);
+        wl.ready = true;
+        if (wl.enabled && productId) {
+          if (document.body) injectPhotoHeart(6);
+          else document.addEventListener('DOMContentLoaded', function() { injectPhotoHeart(6); });
+        }
+      })
+      .catch(function() { wl.ready = true; });
+  } catch (_) { wl.ready = true; }
+
   window.addEventListener('message', function(e) {
     if (!e.data || !e.data.type) return;
+    if (e.data.type === 'stylys-wishlist-result') {
+      var cb = wlPending[e.data.requestId];
+      if (cb) { delete wlPending[e.data.requestId]; cb(e.data); }
+      return;
+    }
     if (e.data.type === 'stylys-close' && isOpen) toggle();
     if (e.data.type === 'stylys-open' && !isOpen) toggle();
     if (e.data.type === 'stylys-open-cart') {

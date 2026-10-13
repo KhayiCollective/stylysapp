@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useWishlistItems } from "@/hooks/useWishlistItems";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Camera, User, ShoppingBag, X, Sparkles } from "lucide-react";
 import stylysIconCream from "@/assets/stylys-icon-cream.png";
@@ -37,6 +38,40 @@ export function InlineCustomerWidget({ brandId, initialAnchorProductId, initialA
   const [bodyShape, setBodyShape] = useState<string | undefined>();
   const [sizeInfo, setSizeInfo] = useState<Record<string, string> | undefined>();
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswers | undefined>();
+
+  // Pro-plan wishlist of individual products (hearts + "Saved items").
+  const wishlist = useWishlistItems(brandId, customerToken);
+  const wishlistRef = useRef(wishlist);
+  wishlistRef.current = wishlist;
+
+  // Requests from the storefront page (product-photo heart and the Complete
+  // the Look hearts) arrive here via widget-loader's bridge, because the
+  // customer's login token lives in this iframe's origin, not the page's.
+  useEffect(() => {
+    const handler = async (e: MessageEvent) => {
+      const d = e.data;
+      if (d?.type !== "stylys-wishlist" || !d.requestId) return;
+      const reply = (payload: Record<string, unknown>) => {
+        try { (e.source as Window | null)?.postMessage({ type: "stylys-wishlist-result", requestId: d.requestId, ...payload }, "*"); } catch { /* no parent */ }
+      };
+      const wl = wishlistRef.current;
+      const ref = d.ref || {};
+      if (d.action === "has") {
+        const saved = wl.items.some(i =>
+          ref.shopify_product_id ? String(i.shopify_product_id) === String(ref.shopify_product_id) : i.id === ref.item_id
+        );
+        reply({ ok: true, saved, enabled: wl.enabled });
+        return;
+      }
+      if (d.action === "toggle") {
+        const r = await wl.toggle(ref);
+        if (r.reason === "login") setActiveTab("account");
+        reply({ ...r });
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   const handleClose = () => {
     try {
@@ -136,10 +171,11 @@ export function InlineCustomerWidget({ brandId, initialAnchorProductId, initialA
               anchorProductId={anchorProductId}
               anchorProductName={anchorProductName}
               onClearAnchor={() => { setAnchorProductId(undefined); setAnchorProductName(undefined); }}
+              wishlist={wishlist}
             />
           </TabsContent>
           <TabsContent value="wishlist" className="m-0 h-full">
-            <WishlistTab brandId={brandId} />
+            <WishlistTab brandId={brandId} wishlist={wishlist} onTryOnItems={handleSelectOutfitForTryOn} />
           </TabsContent>
           <TabsContent value="tryon" className="m-0 h-full">
             <TryOnTab
@@ -150,6 +186,7 @@ export function InlineCustomerWidget({ brandId, initialAnchorProductId, initialA
               onPhotoSaved={(url) => setCustomerPhotoUrl(url)}
               bodyShape={bodyShape}
               sizeInfo={sizeInfo}
+              wishlist={wishlist}
             />
           </TabsContent>
         </div>
