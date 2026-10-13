@@ -61,7 +61,7 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
   // doesn't fall into its own untracked literal category — that's how a
   // 2nd/3rd "bottoms" item could sneak into one outfit undetected.
   ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bdenim\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b|\bculotte(s)?\b|\bpalazzo\b|\bchino(s)?\b|\bcapri(s)?\b|\bjogger(s)?\b|\bcargo(s)?\b|\bbottom(s)?\b/i],
-  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b|\bpolo\b|\bhoodie\b|\bpullover\b|\bbodysuit\b/i],
+  ["tops", /\btops?\b|\bshirt(s)?\b|\bsweatshirt(s)?\b|\bsweat\s?shirt(s)?\b|\bcrew\s?neck(s)?\b|\bjumper(s)?\b|\bjersey\b|\btunic(s)?\b|\bhenley\b|\bturtle\s?neck(s)?\b|\bmock\s?neck\b|\bcorset\b|\bbustier\b|\bhalter\b|\bcamisole(s)?\b|\bblouse(s)?\b|\btee(s)?\b|\bt-shirt(s)?\b|\bsweater(s)?\b|\bknit(s)?\b|\btank(s)?\b|\bcami\b|\bpolo(s)?\b|\bhoodie(s)?\b|\bhooded\b|\bpullover(s)?\b|\bbodysuit(s)?\b|\blong sleeve\b|\bshort sleeve\b/i],
 ];
 
 // Same treatment as widget-outfits.ts: subtypes capped to 1 per outfit so two

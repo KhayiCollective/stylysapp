@@ -280,6 +280,11 @@ YOUR ONLY TASK: Remove the original clothing and replace it with the garments fr
 GARMENT EXTRACTION — each product image shows ONE specific product:
 ${itemInstructions}
 
+REQUIRED ITEMS CHECKLIST — the final image MUST show ALL ${outfitItems.length} items below, each clearly visible and recognizable. Omitting any item is a failure:
+${outfitItems.map((i, idx) => `  ${idx + 1}. ${i.name} (${i.category})`).join("\n")}
+- An outerwear piece (jacket, coat, blazer) MUST be visibly worn over the other upper-body layers — never dropped, never hidden, never replaced by another layer. If the outfit has two upper-body pieces plus outerwear, layer them (inner piece, then the outerwear on top) rather than choosing one.
+- Shoes MUST be visible on the feet; hats/accessories MUST be visible.
+
 GARMENT FIDELITY — THIS IS CRITICAL:
 - Reproduce each garment EXACTLY as it appears in its product image. Do NOT substitute a generic or similar-looking version.
 - Match the exact SILHOUETTE and CUT: leg shape (barrel / horseshoe / wide-leg / straight / flared / tapered / skinny are all different — keep the one shown), rise, hem width and where the hem ends, sleeve shape, collar, lapels, length, and volume. A barrel-leg jean must stay a curved barrel-leg jean; it must NOT become a straight or wide-leg jean.

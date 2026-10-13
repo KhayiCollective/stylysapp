@@ -144,7 +144,12 @@ const CATEGORY_KEYWORDS: [string, RegExp][] = [
   // second/third "bottoms" item could sneak into one outfit undetected
   // (reported: "it's giving me a wide leg pants and a slouchy bottom").
   ["bottoms", /\bpant(s)?\b|\btrouser(s)?\b|\bjean(s)?\b|\bdenim\b|\bskirt\b|\bshort(s)?\b|\blegging(s)?\b|\bculotte(s)?\b|\bpalazzo\b|\bchino(s)?\b|\bcapri(s)?\b|\bjogger(s)?\b|\bcargo(s)?\b|\bbottom(s)?\b/i],
-  ["tops", /\btop\b|\bshirt\b|\bblouse\b|\btee\b|\bt-shirt\b|\bsweater\b|\bknit\b|\btank\b|\bcami\b|\bpolo\b|\bhoodie\b|\bpullover\b|\bbodysuit\b/i],
+  // "sweatshirt"/"crewneck" etc. were MISSING here: \bshirt\b does not match
+  // inside the single word "sweatshirt", so a sweatshirt went unclassified and
+  // an outfit could ship with a sweatshirt AND a hoodie (reported live: two
+  // sweatshirt-style tops in one look, and the jacket then got dropped in
+  // Try-On). Plural "tops" added too so tags/categories like "Tops" match.
+  ["tops", /\btops?\b|\bshirt(s)?\b|\bsweatshirt(s)?\b|\bsweat\s?shirt(s)?\b|\bcrew\s?neck(s)?\b|\bjumper(s)?\b|\bjersey\b|\btunic(s)?\b|\bhenley\b|\bturtle\s?neck(s)?\b|\bmock\s?neck\b|\bcorset\b|\bbustier\b|\bhalter\b|\bcamisole(s)?\b|\bblouse(s)?\b|\btee(s)?\b|\bt-shirt(s)?\b|\bsweater(s)?\b|\bknit(s)?\b|\btank(s)?\b|\bcami\b|\bpolo(s)?\b|\bhoodie(s)?\b|\bhooded\b|\bpullover(s)?\b|\bbodysuit(s)?\b|\blong sleeve\b|\bshort sleeve\b/i],
   ["belts", /\bbelt(s)?\b/i],
   ["accessories", /\bglove(s)?\b|\bscrunchie(s)?\b|\bhair (clip|band|accessor)/i],
 ];
@@ -184,10 +189,14 @@ function effectiveCategory(item: { category?: string; product_type?: string; nam
   // checked FIRST. tags/collections are only a fallback when the name says
   // nothing — otherwise a shoe sitting in a "Jackets & Coats" collection
   // would be misread as outerwear because collection text got equal weight.
-  const primaryHaystack = `${item.product_type || ""} ${item.name || ""}`.toLowerCase();
-  const fallbackHaystack = `${tagsText} ${collectionsText}`.toLowerCase();
+  // Priority: (1) the product NAME, (2) product_type, (3) tags + collections +
+  // the raw category text. Merchant category paths are often wrong ("Slides"
+  // filed under "Jackets & Coats"), so the name must win.
+  const nameHaystack = `${item.name || ""}`.toLowerCase();
+  const typeHaystack = `${item.product_type || ""}`.toLowerCase();
+  const fallbackHaystack = `${tagsText} ${collectionsText} ${item.category || ""}`.toLowerCase();
   let keywordMatch: string | null = null;
-  for (const hay of [primaryHaystack, fallbackHaystack]) {
+  for (const hay of [nameHaystack, typeHaystack, fallbackHaystack]) {
     for (const [cat, re] of CATEGORY_KEYWORDS) {
       if (re.test(hay)) { keywordMatch = cat; break; }
     }
