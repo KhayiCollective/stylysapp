@@ -7,7 +7,7 @@ export default function FAQ() {
   const generalFaqs = [
     {
       question: "What is STYLYS?",
-      answer: "STYLYS is an AI-powered outfit recommendation platform for e-commerce stores. It analyzes your product catalog and generates personalized outfit suggestions for your customers — including virtual try-on — helping increase average order value and customer engagement. A STYLYS AI styling chatbot is also included on the Pro plan."
+      answer: "STYLYS is an AI-powered outfit recommendation platform for e-commerce stores. It analyzes your product catalog and generates personalized outfit suggestions for your customers — including virtual try-on — helping increase average order value and customer engagement. A \"Complete the Look\" section for product pages is included on every plan. The Pro plan adds the AI styling chatbot and a wishlist where shoppers save individual pieces and build their own try-on."
     },
     {
       question: "Which platforms does STYLYS support?",
@@ -45,7 +45,19 @@ export default function FAQ() {
   const widgetFaqs = [
     {
       question: "Where should I place the widget on my product pages?",
-      answer: "The STYLYS widget appears automatically as a floating button in the bottom-right corner of your storefront — no manual placement needed. When a customer clicks it, a panel slides in from the right showing outfit recommendations. On the Pro plan, a second floating button for the AI styling chatbot appears just above it."
+      answer: "The STYLYS widget appears automatically as a floating button in the bottom-right corner of your storefront — no manual placement needed. When a customer clicks it, a panel slides in from the right with outfits built from their profile and style quiz, plus Try-On and a wishlist. On product pages a Try On button also appears on the product photo. For outfits built around the specific product being viewed, add the Complete the Look block to your product page (see below). On the Pro plan, a second floating button for the AI styling chatbot appears just above the main button."
+    },
+    {
+      question: "What is the Complete the Look section and how do I add it?",
+      answer: "Complete the Look is an inline section that shows AI-built outfits around the product a shopper is viewing, each with Try On and Add All buttons. To add it, open Online Store → Themes → Customize, go to a product page, click Add block (inside the product information section) → Apps → STYLYS Complete the Look, drag it where you want it, and Save. It's available on every plan."
+    },
+    {
+      question: "Can shoppers remove or swap pieces in the virtual try-on?",
+      answer: "Yes. In the Try-On tab each piece has an X to leave it out and a swap button that suggests other in-stock items from the same category. Shoppers then tap Update Look to regenerate the try-on with their changes."
+    },
+    {
+      question: "What is the wishlist and pick-your-own try-on? (Pro plan)",
+      answer: "On the Pro plan, signed-in shoppers can tap a heart on any piece — in outfits, in the Try-On tab, on the product photo, or in Complete the Look — to save it. In the Wishlist tab they tick the saved pieces they like and tap Try On selected to build and try on their own look. Shoppers must be signed in to their STYLYS account to save items."
     },
     {
       question: "Can I customize the widget appearance?",

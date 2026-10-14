@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Zap, Sparkles, Users, TrendingUp, Check, Camera, MessageCircle, BarChart3 } from "lucide-react";
+import { ArrowRight, Zap, Sparkles, Users, TrendingUp, Check, Camera, MessageCircle, BarChart3, Heart, Layers } from "lucide-react";
 import heroModel from "@/assets/hero-model.jpg";
 
 const Index = () => {
@@ -96,14 +96,26 @@ const Index = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="AI Outfit Builder" description="Our AI creates personalized outfit combinations from your catalog to help boost average order value, with smart recommendations based on style, color harmony, and customer preferences."
+            <FeatureCard icon={<Sparkles className="w-6 h-6" />} title="AI Outfit Builder" description="Our AI builds complete, color-coordinated looks from your catalog — a base, a layer, shoes and an accessory — tailored to each shopper's profile and style quiz, to help boost average order value."
             badge="Core Feature" />
+
+            <FeatureCard
+              icon={<Layers className="w-6 h-6" />}
+              title="Complete the Look"
+              description="A section on every product page that builds outfits around the piece your shopper is viewing, with one-tap Try On and Add All. Place it anywhere on your product template with a single theme block."
+              badge="Core Feature" />
 
             <FeatureCard
               icon={<Camera className="w-6 h-6" />}
               title="Virtual Try-On"
-              description="Customers can see themselves wearing outfits before buying, reducing returns while improving purchase confidence. Upload a photo and visualize complete looks instantly."
+              description="Shoppers see themselves wearing the outfit before buying. Garments keep their true cut and silhouette, layer realistically (a hoodie under a jacket), and are styled the way a stylist would wear them. Shoppers can remove or swap any piece and update the look."
               badge="Core Feature" />
+
+            <FeatureCard
+              icon={<Heart className="w-6 h-6" />}
+              title="Wishlist & Pick-Your-Own Try-On"
+              description="Shoppers heart individual pieces — from outfits, the Try-On tab or the product page — then choose the items they love from their wishlist and try them on together to build their own look."
+              badge="Professional" />
 
             <FeatureCard
               icon={<MessageCircle className="w-6 h-6" />}
@@ -140,6 +152,7 @@ const Index = () => {
               features={[
               "Up to 500 products",
               "AI outfit recommendations",
+              "Complete the Look on product pages",
               "Virtual try-on",
               "Basic analytics dashboard",
               "Shopify integration",
@@ -156,9 +169,10 @@ const Index = () => {
               features={[
               "Up to 1,000 products",
               "Advanced AI outfit generation",
-              "Virtual try-on",
-              "AI styling chatbot",
+              "Complete the Look on product pages",
+              "Virtual try-on with swap & layering",
               "Wishlist & pick-your-own try-on",
+              "AI styling chatbot",
               "Full analytics & insights",
               "Customer preference tracking",
               "Priority support with live chat",
