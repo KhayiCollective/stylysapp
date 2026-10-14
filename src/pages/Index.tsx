@@ -287,7 +287,7 @@ const Index = () => {
             </div>
           </div>
           <div className="border-t border-border pt-8 text-center">
-            <p className="text-sm text-muted-foreground">© 2025 STYLYS. All rights reserved.</p>
+            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} STYLYS. All rights reserved.</p>
           </div>
         </div>
       </footer>

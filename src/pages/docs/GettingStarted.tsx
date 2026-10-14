@@ -151,6 +151,10 @@ export default function GettingStarted() {
               </li>
               <li className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-green-500 mt-0.5" />
+                <span>Open a product page in the theme editor, click Add block → Apps → STYLYS Complete the Look, and place it below the product details</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-4 h-4 text-green-500 mt-0.5" />
                 <span>Preview and publish your changes</span>
               </li>
             </ul>
