@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyShopifySessionToken } from "../_shared/shopify-session-token.ts";
+import { getShopifyAuth } from "../_shared/shopify-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,20 +62,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: brand, error: brandError } = await supabase
-      .from("brands")
-      .select("shopify_store_domain, shopify_access_token")
-      .eq("id", brand_id)
-      .single();
+    const auth = await getShopifyAuth(supabase, brand_id);
 
-    if (brandError || !brand?.shopify_store_domain || !brand?.shopify_access_token) {
+    if (!auth) {
       return new Response(JSON.stringify({ error: "Brand not found or Shopify not connected" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { shopify_store_domain: shop, shopify_access_token: token } = brand;
+    const { domain: shop, token } = auth;
 
     // Fetch active theme + settings_data.json in a single GraphQL query
     const gqlResp = await fetch(

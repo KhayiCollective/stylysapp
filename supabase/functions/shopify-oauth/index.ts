@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildDefaultRules } from "../_shared/default-rules.ts";
+import { tokenFields } from "../_shared/shopify-token.ts";
 
 // Version for deployment tracking - update to force redeploy
-const FUNCTION_VERSION = "1.0.4";
+const FUNCTION_VERSION = "1.1.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -302,7 +303,8 @@ Deno.serve(async (req) => {
       const { error: updateError } = await supabase
         .from("brands")
         .update({
-          shopify_access_token: accessToken,
+          // access token + refresh token + expiry times (expiring offline token)
+          ...tokenFields(tokenData),
           shopify_store_domain: shop,
           shopify_connected_at: new Date().toISOString(),
         })
@@ -391,16 +393,19 @@ Deno.serve(async (req) => {
 
       // Exchange code for access token
       const tokenUrl = `https://${shop}/admin/oauth/access_token`;
-      const tokenBody = {
+      // expiring=1 requests an expiring offline token (1h access + rotating
+      // refresh token), as required for public apps by Jan 1, 2027.
+      const tokenBody = new URLSearchParams({
         client_id: SHOPIFY_CLIENT_ID,
         client_secret: SHOPIFY_CLIENT_SECRET,
         code,
-      };
+        expiring: "1",
+      });
 
       const tokenResponse = await fetch(tokenUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(tokenBody),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: tokenBody.toString(),
       });
 
       if (!tokenResponse.ok) {
@@ -499,7 +504,7 @@ Deno.serve(async (req) => {
 
       const updateData = {
         shopify_store_domain: shop,
-        shopify_access_token: accessToken,
+        ...tokenFields(tokenData),
         shopify_storefront_token: storefrontToken,
         shopify_connected_at: new Date().toISOString(),
       };

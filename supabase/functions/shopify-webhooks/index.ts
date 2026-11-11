@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { getShopifyAuth, CLEARED_TOKEN_FIELDS } from "../_shared/shopify-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -69,6 +70,15 @@ async function getBrandByShop(supabase: any, shopDomain: string) {
   if (error) {
     console.error("Error fetching brand:", error);
     return null;
+  }
+  // Swap in a valid (auto-refreshed) expiring offline token
+  if (data?.id) {
+    try {
+      const auth = await getShopifyAuth(supabase, data.id);
+      data = { ...data, shopify_access_token: auth?.token ?? null };
+    } catch (e) {
+      console.error("Token refresh failed:", e instanceof Error ? e.message : "unknown");
+    }
   }
   return data;
 }
@@ -556,7 +566,7 @@ async function handleShopRedact(
   await supabase
     .from("brands")
     .update({
-      shopify_access_token: null,
+      ...CLEARED_TOKEN_FIELDS,
       shopify_storefront_token: null,
       shopify_connected_at: null,
       widget_script_tag_id: null,
@@ -690,7 +700,7 @@ serve(async (req) => {
         await supabase
           .from("brands")
           .update({
-            shopify_access_token: null,
+            ...CLEARED_TOKEN_FIELDS,
             shopify_storefront_token: null,
             shopify_connected_at: null,
           })

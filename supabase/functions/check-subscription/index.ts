@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { verifyShopifySessionToken } from "../_shared/shopify-session-token.ts";
+import { getShopifyAuth } from "../_shared/shopify-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,11 +75,10 @@ serve(async (req) => {
       brandId = profile.brand_id;
     }
 
-    const { data: brand } = await supabaseClient
-      .from("brands")
-      .select("shopify_store_domain, shopify_access_token")
-      .eq("id", brandId)
-      .single();
+    const shopifyAuth = await getShopifyAuth(supabaseClient, brandId);
+    const brand = shopifyAuth
+      ? { shopify_store_domain: shopifyAuth.domain, shopify_access_token: shopifyAuth.token }
+      : null;
 
     if (!brand?.shopify_store_domain || !brand?.shopify_access_token) {
       logStep("Shopify not connected");

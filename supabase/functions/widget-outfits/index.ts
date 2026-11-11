@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verify } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
+import { getShopifyAuth } from "../_shared/shopify-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,7 +47,7 @@ async function brandHasWishlist(supabase: any, brandId: string): Promise<boolean
   try {
     const { data: brand } = await supabase
       .from("brands")
-      .select("shopify_store_domain, shopify_access_token")
+      .select("shopify_store_domain")
       .eq("id", brandId)
       .maybeSingle();
     const domain: string | undefined = brand?.shopify_store_domain;
@@ -54,10 +55,13 @@ async function brandHasWishlist(supabase: any, brandId: string): Promise<boolean
       .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
     if (domain && overrides.includes(domain.toLowerCase())) {
       ok = true;
-    } else if (domain && brand?.shopify_access_token) {
+    } else if (domain) {
+      // Valid (auto-refreshed) expiring offline token for this store.
+      const auth = await getShopifyAuth(supabase, brandId);
+      if (!auth) throw new Error("no valid Shopify token");
       const resp = await fetch(`https://${domain}/admin/api/2025-01/graphql.json`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": brand.shopify_access_token },
+        headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": auth.token },
         body: JSON.stringify({ query: "query { currentAppInstallation { activeSubscriptions { name status } } }" }),
       });
       const j = await resp.json();

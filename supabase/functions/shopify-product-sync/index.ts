@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyShopifySessionToken } from "../_shared/shopify-session-token.ts";
+import { getShopifyAuth } from "../_shared/shopify-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -587,16 +588,15 @@ Deno.serve(async (req) => {
 
     console.log(`[PRODUCT-SYNC] Starting sync for brand: ${brand_id}, action: ${action}`);
 
-    const { data: brand, error: brandError } = await supabase
-      .from("brands")
-      .select("shopify_store_domain, shopify_access_token")
-      .eq("id", brand_id)
-      .single();
+    const shopifyAuth = await getShopifyAuth(supabase, brand_id);
+    const brand = shopifyAuth
+      ? { shopify_store_domain: shopifyAuth.domain, shopify_access_token: shopifyAuth.token }
+      : null;
 
-    if (brandError || !brand) {
+    if (!brand) {
       return new Response(
-        JSON.stringify({ error: "Brand not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Shopify not connected for this brand" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
